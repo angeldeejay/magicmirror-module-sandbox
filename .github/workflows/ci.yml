@@ -1,0 +1,61 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches:
+            - main
+            - master
+    workflow_dispatch:
+
+permissions:
+    contents: write
+
+jobs:
+    validate:
+        runs-on: ubuntu-latest
+        env:
+            FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Install Playwright Chromium
+              run: npx playwright install --with-deps chromium
+
+            - name: Validate sandbox
+              run: |
+                  npm run lint
+                  npm run build
+                  npm test
+
+            - name: Generate unit coverage badges
+              if: ${{ always() && hashFiles('coverage/coverage-summary.json') != '' }}
+              run: npm run coverage:badges
+
+            - name: Generate journey coverage badges
+              if: ${{ always() && hashFiles('.runtime-cache/journey-coverage/summary.integration.json') != '' && hashFiles('.runtime-cache/journey-coverage/summary.ui.json') != '' }}
+              run: npm run coverage:journey-badges
+
+            - name: Write unified coverage summary
+              if: always()
+              run: npm run coverage:job-summary
+
+            - name: Publish coverage artifacts branch
+              if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && hashFiles('coverage/coverage-summary.json') != '' }}
+              uses: peaceiris/actions-gh-pages@v4
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  publish_dir: ./coverage
+                  publish_branch: coverage
+                  allow_empty_commit: true

@@ -1,0 +1,13 @@
+<header class="harness-topbar">
+  <div class="harness-product">
+    <h1 class="harness-product-name">MagicMirror Module Sandbox</h1>
+  </div>
+  <nav class="harness-menu" aria-label="Sandbox tools">
+    <a id="menu-runtime" class="harness-menu-link" href="#runtime" data-domain="runtime" data-active="false">Runtime</a>
+    <a id="menu-config" class="harness-menu-link" href="#config" data-domain="config" data-active="false">Config</a>
+    <a id="menu-notifications" class="harness-menu-link" href="#notifications" data-domain="notifications" data-active="false">Notifications</a>
+    <a id="menu-debug" class="harness-menu-link" href="#debug" data-domain="debug" data-active="false">Debug</a>
+    <a id="menu-about" class="harness-menu-link" href="#about" data-domain="about" data-active="false">About</a>
+  </nav>
+  <div class="harness-mounted-module"><span class="harness-mounted-module-label">Mounted module</span><code><%= it.runtimeState.moduleName %></code></div>
+</header>

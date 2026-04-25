@@ -1,0 +1,4 @@
+{
+	"HEADER_TITLE": "Test module fixture",
+	"GREETING": "Hello {operator} from the test module fixture."
+}

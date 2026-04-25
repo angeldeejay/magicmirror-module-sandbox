@@ -1,0 +1,21 @@
+<%
+  const shellClasses = ["module-shell", "module", it.runtimeState.moduleName];
+  if (it.runtimeState.moduleConfig.classes) {
+    shellClasses.push(...it.runtimeState.moduleConfig.classes.split(/\s+/).filter(Boolean));
+  }
+%>
+<div class="module-stage module-stage--viewport" data-position="<%= it.runtimeState.moduleConfig.position %>">
+  <div class="module-region">
+    <% if (it.runtimeState.moduleConfig.disabled) { %>
+      <section class="module-disabled-state" data-module-disabled="true">
+        <h1 class="module-disabled-title">Module disabled</h1>
+        <p class="module-disabled-copy">The mounted module is disabled in the saved config. Re-enable it from Config to boot the viewport again.</p>
+      </section>
+    <% } else { %>
+      <div id="<%= it.runtimeState.moduleIdentifier %>" class="<%= shellClasses.join(" ") %>" data-module-shell="true" data-position="<%= it.runtimeState.moduleConfig.position %>">
+        <header id="module-header" class="module-header"></header>
+        <div id="module-content" class="module-content"></div>
+      </div>
+    <% } %>
+  </div>
+</div>

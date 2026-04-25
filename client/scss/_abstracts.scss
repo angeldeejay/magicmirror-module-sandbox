@@ -1,0 +1,97 @@
+@import url("/__harness/styles/magicmirror-fonts.css");
+
+:root {
+	color-scheme: dark;
+	--sandbox-control-height: 34px;
+	--sandbox-control-radius: 6px;
+	--sandbox-control-border: #343434;
+	--sandbox-control-border-hover: #4a4a4a;
+	--sandbox-control-border-focus: #5ba9d6;
+	--sandbox-control-bg: #101010;
+	--sandbox-control-bg-elevated: #202020;
+	--sandbox-control-bg-hover: #2a2a2a;
+	--sandbox-control-bg-disabled: #181818;
+	--sandbox-control-text: #f3f3f3;
+	--sandbox-control-text-muted: #bcbcbc;
+	--sandbox-focus-ring: rgba(91, 169, 214, 0.28);
+	--sandbox-scrollbar-size: 10px;
+	--sandbox-scrollbar-track: #101010;
+	--sandbox-scrollbar-thumb: #3f3f3f;
+	--sandbox-scrollbar-thumb-hover: #595959;
+}
+
+@mixin control-field($padding: 8px 10px) {
+	appearance: none;
+	box-sizing: border-box;
+	min-height: var(--sandbox-control-height);
+	border: 1px solid var(--sandbox-control-border);
+	background: var(--sandbox-control-bg);
+	color: var(--sandbox-control-text);
+	border-radius: var(--sandbox-control-radius);
+	padding: $padding;
+	box-shadow: none;
+	transition:
+		border-color 120ms ease,
+		background-color 120ms ease,
+		box-shadow 120ms ease;
+
+	&:hover {
+		border-color: var(--sandbox-control-border-hover);
+	}
+
+	&:focus {
+		outline: 0;
+	}
+
+	&:focus-visible {
+		border-color: var(--sandbox-control-border-focus);
+		box-shadow:
+			0 0 0 1px var(--sandbox-control-border-focus),
+			0 0 0 3px var(--sandbox-focus-ring);
+	}
+
+	&:disabled {
+		background: var(--sandbox-control-bg-disabled);
+		color: var(--sandbox-control-text-muted);
+		cursor: not-allowed;
+	}
+}
+
+@mixin control-button($padding: 7px 10px) {
+	@include control-field($padding);
+	background: var(--sandbox-control-bg-elevated);
+	cursor: pointer;
+
+	&:hover:not(:disabled) {
+		background: var(--sandbox-control-bg-hover);
+	}
+}
+
+@mixin scrollbar($size: var(--sandbox-scrollbar-size)) {
+	scrollbar-width: thin;
+	scrollbar-color: var(--sandbox-scrollbar-thumb)
+		var(--sandbox-scrollbar-track);
+
+	&::-webkit-scrollbar {
+		width: $size;
+		height: $size;
+	}
+
+	&::-webkit-scrollbar-track {
+		background: var(--sandbox-scrollbar-track);
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background: var(--sandbox-scrollbar-thumb);
+		border: 2px solid var(--sandbox-scrollbar-track);
+		border-radius: 999px;
+	}
+
+	&::-webkit-scrollbar-thumb:hover {
+		background: var(--sandbox-scrollbar-thumb-hover);
+	}
+
+	&::-webkit-scrollbar-corner {
+		background: var(--sandbox-scrollbar-track);
+	}
+}

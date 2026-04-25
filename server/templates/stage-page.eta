@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>magicmirror-module-sandbox stage</title>
+  <link rel="stylesheet" href="<%= it.animationStylesheetUrl %>">
+  <link rel="stylesheet" href="<%= it.magicMirrorStageStylesheetUrl %>">
+  <link rel="stylesheet" href="<%= it.runtimeStylesheetUrl %>">
+  <script>
+    window.__HARNESS__ = <%~ it.runtimeStateJson %>;
+  </script>
+  <script src="<%= it.socketScriptUrl %>"></script>
+<% it.runtimeScripts.forEach(function (src) { %>
+  <script src="<%= src %>" defer></script>
+<% }) %>
+</head>
+<body class="harness-stage-page">
+  <%~ include("./partials/stage-viewport") %>
+</body>
+</html>

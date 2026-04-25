@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>magicmirror-module-sandbox</title>
+  <link rel="stylesheet" href="<%= it.runtimeStylesheetUrl %>">
+  <script>
+    window.__HARNESS__ = <%~ it.runtimeStateJson %>;
+  </script>
+<% if (it.shellAppScriptUrl) { %>
+  <script type="module" src="<%= it.shellAppScriptUrl %>"></script>
+<% } %>
+  <script src="<%= it.socketScriptUrl %>"></script>
+<% it.runtimeScripts.forEach(function (src) { %>
+  <script src="<%= src %>" defer></script>
+<% }) %>
+</head>
+<body>
+  <div class="harness-shell">
+    <div id="harness-topbar-root">
+      <%~ include("./partials/topbar") %>
+    </div>
+    <div id="harness-body" class="harness-body" data-sidebar-open="false">
+      <div id="harness-sidebar-root">
+        <%~ include("./partials/sidebar") %>
+      </div>
+      <%~ include("./partials/stage") %>
+    </div>
+    <div id="harness-footer-root">
+      <%~ include("./partials/footer") %>
+    </div>
+  </div>
+</body>
+</html>

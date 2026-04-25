@@ -1,0 +1,52 @@
+.sandbox-control-grid {
+	display: grid;
+	gap: 10px;
+	margin-top: 12px;
+}
+
+.sandbox-control-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 12px;
+	border: 1px solid #2d2d2d;
+	border-radius: 8px;
+	background: #101010;
+}
+
+.sandbox-control-copy {
+	min-width: 0;
+}
+
+.sandbox-control-label {
+	font-size: 13px;
+	font-weight: 700;
+	color: #f3f3f3;
+}
+
+.sandbox-control-value {
+	margin-top: 3px;
+	font-size: 12px;
+	color: #bcbcbc;
+}
+
+.sandbox-inline-state {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 76px;
+	box-sizing: border-box;
+	border: 1px solid #343434;
+	border-radius: 999px;
+	background: #181818;
+	color: #cfcfcf;
+	padding: 6px 10px;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.sandbox-inline-state[data-state="on"] {
+	color: #8bd0ff;
+	border-color: #3b3b3b;
+}

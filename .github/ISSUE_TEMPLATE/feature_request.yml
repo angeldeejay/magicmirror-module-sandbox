@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a sandbox improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for suggesting an improvement.
+
+              Please keep requests aligned with the sandbox product scope: single-module, MagicMirror-focused, and intentionally narrow.
+    - type: textarea
+      id: problem
+      attributes:
+          label: Problem or need
+          description: What pain point are you trying to solve?
+          placeholder: Describe the problem, friction, or missing capability.
+      validations:
+          required: true
+    - type: textarea
+      id: proposal
+      attributes:
+          label: Proposed change
+          description: What should the sandbox do?
+          placeholder: Describe the desired behavior or improvement.
+      validations:
+          required: true
+    - type: textarea
+      id: scope
+      attributes:
+          label: Scope notes
+          description: Explain how this fits the sandbox without turning it into a full MagicMirror replacement.
+          placeholder: Explain why this still belongs in the sandbox product.
+    - type: textarea
+      id: alternatives
+      attributes:
+          label: Alternatives considered
+          description: Mention workarounds or other options you considered.

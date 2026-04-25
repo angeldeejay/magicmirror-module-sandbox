@@ -1,0 +1,271 @@
+@use "abstracts";
+
+.status-pill {
+	display: block;
+	margin-top: 8px;
+	padding: 0;
+	border-radius: 0;
+	background: transparent;
+	color: #8bd0ff;
+	font-size: 12px;
+}
+
+.sandbox-section-title {
+	margin: 18px 0 8px;
+	font-size: 12px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #8bd0ff;
+}
+
+.sandbox-domain {
+	display: none;
+	min-height: 0;
+}
+
+.sandbox-domain[data-active="true"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.sandbox-tabbar {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
+	gap: 2px;
+	margin: 16px 0 14px;
+	padding: 0;
+	overflow: hidden;
+}
+
+.sandbox-tab {
+	appearance: none;
+	border: 1px solid #343434;
+	background: #141414;
+	color: #cfcfcf;
+	border-radius: 2px;
+	padding: 6px 12px;
+	font-size: 12px;
+	cursor: pointer;
+	white-space: nowrap;
+	width: 100%;
+	text-align: center;
+	box-sizing: border-box;
+}
+
+.sandbox-tab:hover {
+	background: #202020;
+	color: #f3f3f3;
+}
+
+.sandbox-tab[data-active="true"] {
+	background: #222;
+	color: #8bd0ff;
+	border-color: #3b3b3b;
+}
+
+.sandbox-tabpanel {
+	display: none;
+}
+
+.sandbox-tabpanel[data-active="true"] {
+	display: block;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	@include abstracts.scrollbar;
+}
+
+.sandbox-tabpanel--stack[data-active="true"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.sandbox-tabpanel > .sandbox-section-title:first-child {
+	margin-top: 0;
+}
+
+.sandbox-tabpanel--stack > .sandbox-section-title:first-child {
+	margin-top: -14px;
+}
+
+.sandbox-field-label {
+	display: block;
+	margin: 10px 0 4px;
+	font-size: 12px;
+	color: #cfcfcf;
+}
+
+.sandbox-input,
+.sandbox-textarea {
+	@include abstracts.control-field;
+	@include abstracts.scrollbar;
+	width: 100%;
+	font-size: 12px;
+	font-family: Consolas, monospace;
+	line-height: 1.5;
+	caret-color: var(--sandbox-control-text);
+}
+
+.sandbox-input::placeholder,
+.sandbox-textarea::placeholder {
+	color: var(--sandbox-control-text-muted);
+}
+
+select.sandbox-input {
+	cursor: pointer;
+	padding-right: 32px;
+	background-image:
+		linear-gradient(
+			45deg,
+			transparent 50%,
+			var(--sandbox-control-text-muted) 50%
+		),
+		linear-gradient(
+			135deg,
+			var(--sandbox-control-text-muted) 50%,
+			transparent 50%
+		);
+	background-position:
+		calc(100% - 16px) calc(50% - 2px),
+		calc(100% - 11px) calc(50% - 2px);
+	background-size: 5px 5px;
+	background-repeat: no-repeat;
+}
+
+.sandbox-textarea {
+	min-height: 96px;
+	resize: vertical;
+}
+
+.sandbox-editor-toolbar {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 12px;
+	align-items: center;
+	margin: 10px 0 8px;
+}
+
+.sandbox-editor-copy {
+	min-width: 0;
+}
+
+.sandbox-editor-copy strong {
+	display: block;
+	font-size: 12px;
+	font-weight: 700;
+	color: #f3f3f3;
+}
+
+.sandbox-editor-copy span {
+	display: block;
+	margin-top: 3px;
+	font-size: 11px;
+	color: #bcbcbc;
+}
+
+.sandbox-editor-state-group {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.sandbox-json-editor {
+	width: 100%;
+	min-height: 168px;
+}
+
+.sandbox-json-editor--fill {
+	flex: 1;
+	min-height: 260px;
+}
+
+.sandbox-json-editor--embedded {
+	display: block;
+	flex: 1;
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+}
+
+.sandbox-json-editor::part(string) {
+	color: #8bd0ff;
+}
+
+.sandbox-json-editor::part(key) {
+	color: #ff9cc2;
+}
+
+.sandbox-json-editor::part(number) {
+	color: #b7e48b;
+}
+
+.sandbox-json-editor::part(braces),
+.sandbox-json-editor::part(brackets) {
+	color: #9aa8ff;
+}
+
+.sandbox-button-row {
+	display: flex;
+	gap: 8px;
+	margin-top: 10px;
+}
+
+.sandbox-button-row--full {
+	display: block;
+	margin-top: 12px;
+}
+
+.sandbox-button {
+	@include abstracts.control-button;
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.sandbox-control-row .sandbox-button,
+.sandbox-control-row .sandbox-inline-state {
+	justify-self: end;
+}
+
+.sandbox-control-row .sandbox-button {
+	width: 76px;
+	box-sizing: border-box;
+	text-align: center;
+}
+
+.sandbox-button--full {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	text-align: center;
+	border-radius: 6px;
+}
+
+.sandbox-button:hover {
+	background: var(--sandbox-control-bg-hover);
+}
+
+.sandbox-button[disabled] {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.sandbox-status {
+	margin-top: 8px;
+	font-size: 12px;
+	color: #9ed39e;
+}
+
+.sandbox-status[data-state="error"] {
+	color: #ff9e9e;
+}

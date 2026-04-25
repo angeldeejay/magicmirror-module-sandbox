@@ -1,0 +1,107 @@
+{
+	"name": "@angeldeejay/magicmirror-module-sandbox",
+	"version": "1.0.0",
+	"description": "Single-module MagicMirror dev sandbox with a Fastify host, Preact shell, real node_helper wiring, and browser-based debugging",
+	"author": {
+		"name": "Andrés Vanegas Jiménez",
+		"url": "https://github.com/angeldeejay"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/angeldeejay/magicmirror-module-sandbox.git"
+	},
+	"homepage": "https://github.com/angeldeejay/magicmirror-module-sandbox#readme",
+	"bugs": {
+		"url": "https://github.com/angeldeejay/magicmirror-module-sandbox/issues"
+	},
+	"license": "MIT",
+	"bin": {
+		"magicmirror-module-sandbox": "./dist/bin/magicmirror-module-sandbox.js"
+	},
+	"files": [
+		".github/CONTRIBUTING.md",
+		".github/screenshot.png",
+		"AGENTS.md",
+		"CHANGELOG.md",
+		"bin",
+		"docs",
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "npm run sync:mm-assets && npm run build:client-assets && node --experimental-strip-types scripts/build-dist.ts",
+		"build:client-assets": "node --experimental-strip-types scripts/build-client-assets.ts",
+		"build:client-shell": "node --experimental-strip-types scripts/build-client-assets.ts --scope shell",
+		"build:client-runtime": "node --experimental-strip-types scripts/build-client-assets.ts --scope runtime",
+		"build:node-compat": "node --experimental-strip-types scripts/build-node-compat.ts",
+		"prepare": "npm run build",
+		"prepack": "npm run build",
+		"postinstall": "node bin/install-guard.js",
+		"sync:mm-assets": "node --experimental-strip-types bin/sync-magicmirror-assets.ts",
+		"start": "npm run build:client-assets && node --experimental-strip-types bin/magicmirror-module-sandbox.ts",
+		"start:preview": "npm run build:client-assets && node --experimental-strip-types bin/magicmirror-module-sandbox.ts --preview",
+		"watch": "npm run build:client-assets && node --experimental-strip-types bin/magicmirror-module-sandbox.ts --watch",
+		"watch:preview": "npm run build:client-assets && node --experimental-strip-types bin/magicmirror-module-sandbox.ts --watch --preview",
+		"styles": "node --experimental-strip-types scripts/build-client-assets.ts --scope styles",
+		"styles:watch": "sass --watch --style=compressed --no-source-map client/scss/entrypoint.scss:client/styles/harness.css",
+		"coverage:badges": "generate-coverage-report -p ./coverage/badges",
+		"coverage:journey-badges": "node --experimental-strip-types scripts/generate-journey-badges.ts",
+		"coverage:job-summary": "node --experimental-strip-types scripts/write-coverage-job-summary.ts",
+		"typecheck": "tsc --noEmit && tsc -p tsconfig.client-runtime.json --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p tests/tsconfig.json --noEmit",
+		"test": "npm run test:unit:coverage && npm run test:integration && npm run test:ui && npm run test:e2e",
+		"test:unit": "vitest run --config vitest.config.ts --project unit",
+		"test:unit:coverage": "vitest run --config vitest.config.ts --project unit --coverage",
+		"test:ui": "vitest run --config vitest.config.ts --project ui",
+		"test:ui:headed": "node --env-file=.env.vitest-browser-headed ./node_modules/vitest/vitest.mjs run --config vitest.config.ts --project ui",
+		"test:npx-smoke": "vitest run --config vitest.config.ts --project e2e tests/e2e/npx-smoke.e2e.test.ts",
+		"test:e2e": "vitest run --config vitest.config.ts --project e2e",
+		"test:devdep-smoke": "vitest run --config vitest.config.ts --project e2e tests/e2e/devdep-smoke.e2e.test.ts",
+		"test:integration": "vitest run --config vitest.config.ts --project integration",
+		"test:integration:headed": "node --env-file=.env.vitest-browser-headed ./node_modules/vitest/vitest.mjs run --config vitest.config.ts --project integration",
+		"test:browser:headed": "npm run test:integration:headed && npm run test:ui:headed",
+		"lint": "eslint --no-error-on-unmatched-pattern bin/*.js client/*.js client/runtime/*.js client/vendor/*.js config/*.js scripts/*.js server/*.js shims/*.js tests/**/*.{js,mjs}",
+		"format": "prettier --write .github/CONTRIBUTING.md .github/pull_request_template.md .github/ISSUE_TEMPLATE/*.yml .github/workflows/*.yml AGENTS.md CHANGELOG.md README.md docs/*.md package.json tsconfig.json tsconfig.client-runtime.json tsconfig.node.json vite.config.mjs .editorconfig .gitattributes .gitignore .prettierrc eslint.config.mjs bin/*.{js,ts} bin/helpers/*.{js,ts} client/*.{js,ts} client/runtime/*.{js,ts} client/vendor/*.{js,ts} client/scss/*.scss client/app/**/*.{ts,tsx} client/types/**/*.d.ts config/*.js scripts/*.{js,ts} server/*.js shims/*.js tests/**/*.{js,ts} client/styles/*.css"
+	},
+	"engines": {
+		"node": ">=22.21.1 <23 || >=24"
+	},
+	"publishConfig": {
+		"registry": "https://registry.npmjs.org",
+		"access": "public"
+	},
+	"dependencies": {
+		"@fastify/middie": "^9.3.2",
+		"@fastify/static": "^9.1.3",
+		"@fortawesome/fontawesome-free": "^7.2.0",
+		"animate.css": "^4.1.1",
+		"chokidar": "^5.0.0",
+		"eta": "^4.6.0",
+		"fastify": "^5.8.5",
+		"moment": "^2.30.1",
+		"moment-timezone": "^0.6.1",
+		"preact": "^10.29.1",
+		"serve-static": "^2.2.1",
+		"socket.io": "^4.8.3",
+		"undici": "^7.24.6",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"@hyperse/vitest-coverage-reporter": "^1.0.16",
+		"@preact/preset-vite": "^2.10.5",
+		"@vitest/browser-playwright": "^4.1.2",
+		"@vitest/coverage-v8": "^4.1.2",
+		"css-tree": "^3.2.1",
+		"esbuild": "^0.28.0",
+		"eslint": "^10.1.0",
+		"globals": "^17.4.0",
+		"magicmirror": "^2.35.0",
+		"node-fetch": "^3.3.2",
+		"playwright": "^1.58.2",
+		"prettier": "^3.8.1",
+		"sass": "^1.99.0",
+		"typescript": "^6.0.3",
+		"vite": "^8.0.10",
+		"vitest": "^4.1.2"
+	}
+}

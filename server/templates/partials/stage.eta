@@ -1,0 +1,11 @@
+<main class="harness-main">
+  <div class="module-stage-frame-shell">
+    <iframe
+      id="module-stage-frame"
+      name="module-stage-frame"
+      class="module-stage-frame"
+      title="Mounted module viewport"
+      scrolling="no"
+      src="<%= it.stageUrl %>"></iframe>
+  </div>
+</main>

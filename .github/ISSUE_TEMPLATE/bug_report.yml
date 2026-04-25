@@ -1,0 +1,60 @@
+name: Bug report
+description: Report a reproducible sandbox bug
+title: "[Bug]: "
+labels: ["bug"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for reporting a sandbox bug.
+
+              Please keep the report focused on `magicmirror-module-sandbox` itself, not on unrelated MagicMirror modules or external services unless the sandbox is mishandling them.
+    - type: textarea
+      id: summary
+      attributes:
+          label: Summary
+          description: What is wrong?
+          placeholder: Briefly describe the problem.
+      validations:
+          required: true
+    - type: textarea
+      id: steps
+      attributes:
+          label: Steps to reproduce
+          description: Give a clear sequence that reproduces the issue.
+          placeholder: |
+              1. Run ...
+              2. Open ...
+              3. Click ...
+              4. Observe ...
+      validations:
+          required: true
+    - type: textarea
+      id: expected
+      attributes:
+          label: Expected behavior
+          placeholder: What should have happened?
+      validations:
+          required: true
+    - type: textarea
+      id: actual
+      attributes:
+          label: Actual behavior
+          placeholder: What happened instead?
+      validations:
+          required: true
+    - type: textarea
+      id: environment
+      attributes:
+          label: Environment
+          description: Add versions or platform details that matter.
+          placeholder: |
+              - OS:
+              - Node version:
+              - Sandbox version:
+              - Browser:
+    - type: textarea
+      id: notes
+      attributes:
+          label: Extra notes
+          description: Logs, screenshots, or context that helps narrow the issue.

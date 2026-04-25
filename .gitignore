@@ -1,0 +1,29 @@
+# Package manager directories
+node_modules/
+
+# Build and coverage output
+dist/
+client/generated/
+shims/generated/
+coverage/
+.runtime-cache/
+
+# Test artifacts and reports
+test-results/
+playwright-report/
+.vitest-attachments/
+tests/**/__screenshots__/
+
+# Local archives
+*.zip
+*.tgz
+
+# Debug and error logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS-specific files
+.DS_Store
+.secrets

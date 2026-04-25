@@ -1,0 +1,17 @@
+<aside id="harness-sidebar" class="harness-sidebar" aria-hidden="true">
+  <div class="harness-sidebar-scroll">
+    <div class="harness-sidebar-header">
+      <div>
+        <h2 id="sidebar-title" class="harness-sidebar-title">Tools</h2>
+        <p id="sidebar-copy" class="harness-sidebar-copy">Open a domain from the topbar to inspect or control the sandbox.</p>
+      </div>
+      <button id="sidebar-close" class="harness-sidebar-close" type="button">Close</button>
+    </div>
+
+    <%~ include("./sidebar-runtime") %>
+    <%~ include("./sidebar-config") %>
+    <%~ include("./sidebar-notifications") %>
+    <%~ include("./sidebar-debug") %>
+    <%~ include("./sidebar-about") %>
+  </div>
+</aside>

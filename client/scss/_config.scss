@@ -1,0 +1,11 @@
+.sandbox-config-domain[data-active="true"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.sandbox-config-domain .sandbox-json-editor--fill {
+	min-height: 216px;
+}

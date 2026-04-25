@@ -1,0 +1,33 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"moduleDetection": "force",
+		"allowImportingTsExtensions": true,
+		"strict": true,
+		"noImplicitAny": false,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"lib": [
+			"ES2022",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [
+			"node",
+			"vite/client",
+			"vitest/globals",
+			"vitest/browser"
+		]
+	},
+	"include": [
+		"**/*.ts"
+	],
+	"exclude": [
+		"_fixtures/**/*",
+		"_helpers/sandbox-ui.ts",
+		"tests-runner.ts",
+		"**/*.test.ts"
+	]
+}

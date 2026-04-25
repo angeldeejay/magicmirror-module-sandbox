@@ -1,0 +1,58 @@
+@use "abstracts";
+
+.sandbox-emit-panel[data-active="true"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.sandbox-emit-panel .sandbox-status {
+	margin-top: 10px;
+}
+
+.notification-log {
+	margin-top: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: flex-start;
+	flex: 1;
+	gap: 8px;
+	min-height: 0;
+	overflow: auto;
+	@include abstracts.scrollbar;
+}
+
+.notification-log-item {
+	border: 1px solid #2d2d2d;
+	border-radius: 6px;
+	background: #101010;
+	padding: 8px;
+}
+
+.notification-log-title {
+	font-size: 12px;
+	font-weight: bold;
+	color: #f3f3f3;
+}
+
+.notification-log-meta,
+.notification-log-empty {
+	margin-top: 4px;
+	font-size: 11px;
+	color: #bcbcbc;
+}
+
+.notification-log-payload {
+	margin: 6px 0 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-size: 11px;
+	color: #8bd0ff;
+	font-family: Consolas, monospace;
+	max-height: 160px;
+	overflow: auto;
+	@include abstracts.scrollbar;
+}

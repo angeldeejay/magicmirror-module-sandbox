@@ -1,0 +1,7 @@
+[
+	{
+		"searchValue": "timeStamp: console.timeStamp.bind(console)",
+		"replaceValue": "timeStamp: typeof console.timeStamp === \"function\" ? console.timeStamp.bind(console) : function () {}",
+		"label": "logger.js timeStamp binding"
+	}
+]
