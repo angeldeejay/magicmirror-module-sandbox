@@ -4,6 +4,7 @@
 (function initModuleSandboxRuntime(globalScope) {
 	const core = globalScope.__MICROCORE__ as SandboxCore;
 	const harness = core.harness as Record<string, any>;
+	core.templateSourceCache = core.templateSourceCache || new Map();
 
 	/**
 	 * Compare two semver-like version strings.
@@ -50,6 +51,355 @@
 	 */
 	core.configDeepMerge = function configDeepMerge(target, ...sources) {
 		return core.deepMerge(target, ...sources);
+	};
+
+	/**
+	 * Clone MagicMirror-like module definitions so nested defaults/state do not
+	 * get shared across instances while leaving functions callable.
+	 *
+	 * @param {*} value
+	 * @returns {*}
+	 */
+	core.cloneModuleValue = function cloneModuleValue(value) {
+		if (value === null || typeof value !== "object") {
+			return value;
+		}
+
+		if (Array.isArray(value)) {
+			return value.map((entry) => core.cloneModuleValue(entry));
+		}
+
+		if (value.constructor && value.constructor.name === "RegExp") {
+			return new RegExp(value);
+		}
+
+		const cloned =
+			value.constructor && typeof value.constructor === "function"
+				? value.constructor()
+				: {};
+		for (const key in value) {
+			cloned[key] = core.cloneModuleValue(value[key]);
+		}
+
+		return cloned;
+	};
+
+	/**
+	 * Wrap overriding methods so `this._super()` behaves like MagicMirror's
+	 * `Class.extend` for the single Module base layer.
+	 *
+	 * @param {object} instance
+	 * @param {object} baseInstance
+	 * @returns {void}
+	 */
+	core.installSuperWrappers = function installSuperWrappers(
+		instance,
+		baseInstance
+	) {
+		const fnTest = /\b_super\b/;
+		for (const name of Object.keys(instance)) {
+			const fn = instance[name];
+			const superFn = baseInstance[name];
+			if (
+				typeof fn !== "function" ||
+				typeof superFn !== "function" ||
+				!fnTest.test(fn.toString())
+			) {
+				continue;
+			}
+			if (name === "getDom") {
+				instance.__sandboxUsesGetDomSuper = true;
+			}
+
+			instance[name] = function wrappedSuperMethod(...args) {
+				const previousSuper = this._super;
+				this._super = (...superArgs) => {
+					const previousSuperMethodName =
+						this.__sandboxActiveSuperMethodName;
+					this.__sandboxActiveSuperMethodName = name;
+					try {
+						return superFn.apply(this, superArgs);
+					} finally {
+						this.__sandboxActiveSuperMethodName =
+							previousSuperMethodName;
+					}
+				};
+				try {
+					return fn.apply(this, args);
+				} finally {
+					this._super = previousSuper;
+				}
+			};
+		}
+	};
+
+	/**
+	 * Detect whether the active `_super()` invocation came from `getDom()`.
+	 *
+	 * @param {object} instance
+	 * @returns {boolean}
+	 */
+	core.isGetDomSuperCall = function isGetDomSuperCall(instance) {
+		return (
+			Boolean(instance) &&
+			instance.__sandboxActiveSuperMethodName === "getDom"
+		);
+	};
+
+	/**
+	 * Resolve one template path relative to its parent template.
+	 *
+	 * @param {string} parentTemplate
+	 * @param {string} dependency
+	 * @returns {string}
+	 */
+	core.resolveTemplateDependencyPath = function resolveTemplateDependencyPath(
+		parentTemplate,
+		dependency
+	) {
+		if (
+			typeof dependency !== "string" ||
+			dependency === "" ||
+			(!dependency.startsWith("./") && !dependency.startsWith("../"))
+		) {
+			return dependency;
+		}
+
+		const segments = parentTemplate.split("/");
+		segments.pop();
+		for (const dependencySegment of dependency.split("/")) {
+			if (!dependencySegment || dependencySegment === ".") {
+				continue;
+			}
+			if (dependencySegment === "..") {
+				segments.pop();
+				continue;
+			}
+			segments.push(dependencySegment);
+		}
+		return segments.join("/");
+	};
+
+	/**
+	 * Extract static Nunjucks dependencies from one template source string.
+	 *
+	 * @param {string} source
+	 * @returns {string[]}
+	 */
+	core.extractTemplateDependencies = function extractTemplateDependencies(
+		source
+	) {
+		const dependencies = new Set();
+		for (const pattern of [
+			/{%\s*(?:extends|include|import)\s+["']([^"']+)["']/g,
+			/{%\s*from\s+["']([^"']+)["']\s+import/g
+		]) {
+			for (const match of String(source || "").matchAll(pattern)) {
+				if (match[1]) {
+					dependencies.add(match[1]);
+				}
+			}
+		}
+		return Array.from(dependencies);
+	};
+
+	/**
+	 * Read and cache one template source string for a mounted module.
+	 *
+	 * @param {object} instance
+	 * @param {string} template
+	 * @returns {Promise<string>}
+	 */
+	core.readTemplateSource = function readTemplateSource(instance, template) {
+		const cacheKey = `${instance.path}::${template}`;
+		const cachedSource = core.templateSourceCache.get(cacheKey);
+		if (cachedSource) {
+			return cachedSource;
+		}
+
+		const sourcePromise = fetch(instance.file(template)).then((response) => {
+			if (!response.ok) {
+				throw new Error(
+					`Failed to preload template "${template}" for ${instance.name}: ${response.status} ${response.statusText}`
+				);
+			}
+			return response.text();
+		});
+		core.templateSourceCache.set(cacheKey, sourcePromise);
+		return sourcePromise;
+	};
+
+	/**
+	 * Seed one preloaded template into the live Nunjucks loader cache.
+	 *
+	 * @param {object} instance
+	 * @param {string} template
+	 * @param {string} source
+	 * @returns {void}
+	 */
+	core.seedTemplateLoaderCache = function seedTemplateLoaderCache(
+		instance,
+		template,
+		source
+	) {
+		const environment = instance.nunjucksEnvironment();
+		const loader = Array.isArray(environment.loaders)
+			? environment.loaders[0]
+			: null;
+		if (!loader) {
+			return;
+		}
+		loader.cache = loader.cache || {};
+		loader.cache[template] = new globalScope.nunjucks.Template(
+			source,
+			environment,
+			template,
+			true
+		);
+	};
+
+	/**
+	 * Preload one template and its static dependency tree into the loader cache.
+	 *
+	 * @param {object} instance
+	 * @param {string} template
+	 * @param {Set<string>} [seen]
+	 * @returns {Promise<void>}
+	 */
+	core.preloadTemplateDependencyTree = async function preloadTemplateDependencyTree(
+		instance,
+		template,
+		seen = new Set()
+	) {
+		const normalizedTemplate = String(template || "");
+		if (normalizedTemplate === "" || seen.has(normalizedTemplate)) {
+			return;
+		}
+		seen.add(normalizedTemplate);
+
+		const source = await core.readTemplateSource(instance, normalizedTemplate);
+		core.seedTemplateLoaderCache(instance, normalizedTemplate, source);
+		const dependencies = core
+			.extractTemplateDependencies(source)
+			.map((dependency) =>
+				core.resolveTemplateDependencyPath(normalizedTemplate, dependency)
+			);
+		await Promise.all(
+			dependencies.map((dependency) =>
+				core.preloadTemplateDependencyTree(instance, dependency, seen)
+			)
+		);
+	};
+
+	/**
+	 * Check whether one template has already been compiled into the loader cache.
+	 *
+	 * @param {object} instance
+	 * @param {string} template
+	 * @returns {boolean}
+	 */
+	core.hasPreloadedTemplate = function hasPreloadedTemplate(instance, template) {
+		const environment = instance.nunjucksEnvironment();
+		const loader = Array.isArray(environment.loaders)
+			? environment.loaders[0]
+			: null;
+		return Boolean(loader && loader.cache && loader.cache[template]);
+	};
+
+	/**
+	 * Render one preloaded template synchronously into a wrapper element.
+	 *
+	 * @param {object} instance
+	 * @param {string} template
+	 * @param {object} templateData
+	 * @param {HTMLDivElement} wrapper
+	 * @returns {HTMLDivElement}
+	 */
+	core.renderPreloadedTemplate = function renderPreloadedTemplate(
+		instance,
+		template,
+		templateData,
+		wrapper
+	) {
+		wrapper.innerHTML = instance
+			.nunjucksEnvironment()
+			.render(template, templateData);
+		return wrapper;
+	};
+
+	/**
+	 * Attach one deferred DOM-ready promise to a wrapper returned synchronously.
+	 *
+	 * @param {HTMLElement} wrapper
+	 * @param {Promise<HTMLElement>} domReadyPromise
+	 * @returns {HTMLElement}
+	 */
+	core.attachDeferredDomReady = function attachDeferredDomReady(
+		wrapper,
+		domReadyPromise
+	) {
+		Object.defineProperty(wrapper, "__sandboxDomReady", {
+			configurable: true,
+			value: domReadyPromise
+		});
+		return wrapper;
+	};
+
+	/**
+	 * Resolve one template asynchronously into a wrapper that can still be
+	 * returned synchronously to `getDom()` overrides using `this._super()`.
+	 *
+	 * The adapter preserves wrapper-level mutations done by the overriding
+	 * module before the async template finishes, while letting the runtime await
+	 * the final DOM before render comparison/commit.
+	 *
+	 * @param {object} instance
+	 * @param {string} template
+	 * @param {object} templateData
+	 * @param {HTMLDivElement} wrapper
+	 * @returns {HTMLDivElement}
+	 */
+	core.createDeferredGetDomWrapper = function createDeferredGetDomWrapper(
+		instance,
+		template,
+		templateData,
+		wrapper
+	) {
+		const placeholder = document.createComment("sandbox-super-template");
+		wrapper.appendChild(placeholder);
+		const domReadyPromise = new Promise<HTMLElement>((resolve) => {
+			instance.nunjucksEnvironment().render(
+				template,
+				templateData,
+				(err, asyncRendered) => {
+					if (err) {
+						globalScope.Log.error(err);
+					}
+
+					const fragmentHost = document.createElement("div");
+					fragmentHost.innerHTML = asyncRendered || "";
+					const resolvedNodes = Array.from(fragmentHost.childNodes);
+					if (placeholder.parentNode === wrapper) {
+						placeholder.replaceWith(...resolvedNodes);
+					} else if (!wrapper.childNodes.length) {
+						wrapper.append(...resolvedNodes);
+					}
+					resolve(wrapper);
+				}
+			);
+		});
+
+		return core.attachDeferredDomReady(wrapper, domReadyPromise);
+	};
+
+	/**
+	 * Determine whether a template reference points to a template file.
+	 *
+	 * @param {string} template
+	 * @returns {boolean}
+	 */
+	core.isTemplateFile = function isTemplateFile(template) {
+		return typeof template === "string" && (/^.*((\.html)|(\.njk))$/).test(template);
 	};
 
 	/**
@@ -142,6 +492,10 @@
 	core.extendModuleInstance = function extendModuleInstance(instance) {
 		instance.defaults = instance.defaults || {};
 		instance.requiresVersion = instance.requiresVersion || "2.0.0";
+		instance._nunjucksEnvironment =
+			instance._nunjucksEnvironment === undefined
+				? null
+				: instance._nunjucksEnvironment;
 		instance.getHeader =
 			typeof instance.getHeader === "function"
 				? instance.getHeader
@@ -345,6 +699,119 @@
 			return core.loadTranslations(this);
 		};
 
+		instance.loadTemplates = function loadTemplates() {
+			if (this.__sandboxUsesGetDomSuper !== true) {
+				return Promise.resolve();
+			}
+
+			const template = this.getTemplate();
+			if (!core.isTemplateFile(template)) {
+				return Promise.resolve();
+			}
+
+			return core.preloadTemplateDependencyTree(this, template);
+		};
+
+		instance.getTemplate =
+			typeof instance.getTemplate === "function"
+				? instance.getTemplate
+				: function getTemplate() {
+						return `<div class="normal">${this.name}</div><div class="small dimmed">${this.identifier}</div>`;
+					};
+
+		instance.getTemplateData =
+			typeof instance.getTemplateData === "function"
+				? instance.getTemplateData
+				: function getTemplateData() {
+						return {};
+					};
+
+		instance.nunjucksEnvironment =
+			typeof instance.nunjucksEnvironment === "function"
+				? instance.nunjucksEnvironment
+				: function nunjucksEnvironment() {
+						if (this._nunjucksEnvironment !== null) {
+							return this._nunjucksEnvironment;
+						}
+
+						if (!globalScope.nunjucks) {
+							throw new Error(
+								"Nunjucks browser runtime is unavailable in the sandbox stage."
+							);
+						}
+
+						this._nunjucksEnvironment =
+							new globalScope.nunjucks.Environment(
+								new globalScope.nunjucks.WebLoader(this.file(""), {
+									async: true
+								}),
+								{
+									trimBlocks: true,
+									lstripBlocks: true
+								}
+							);
+						this._nunjucksEnvironment.addFilter(
+							"translate",
+							(str, variables) => {
+								return globalScope.nunjucks.runtime.markSafe(
+									this.translate(str, variables)
+								);
+							}
+						);
+
+						return this._nunjucksEnvironment;
+					};
+
+		instance.getDom =
+			typeof instance.getDom === "function"
+				? instance.getDom
+				: function getDom() {
+						const div = document.createElement("div");
+						const template = this.getTemplate();
+						const templateData = this.getTemplateData();
+
+						if (core.isTemplateFile(template)) {
+							if (core.isGetDomSuperCall(this)) {
+								if (core.hasPreloadedTemplate(this, template)) {
+									return core.renderPreloadedTemplate(
+										this,
+										template,
+										templateData,
+										div
+									);
+								}
+
+								return core.createDeferredGetDomWrapper(
+									this,
+									template,
+									templateData,
+									div
+								);
+							}
+
+							return new Promise((resolve) => {
+								this.nunjucksEnvironment().render(
+									template,
+									templateData,
+									(err, asyncRendered) => {
+										if (err) {
+											globalScope.Log.error(err);
+										}
+
+										div.innerHTML = asyncRendered || "";
+										resolve(div);
+									}
+								);
+							});
+						}
+
+						div.innerHTML = this.nunjucksEnvironment().renderString(
+							template,
+							templateData
+						);
+						return div;
+					};
+
 		return instance;
 	};
 
@@ -356,8 +823,11 @@
 	 * @returns {object}
 	 */
 	core.buildModuleInstance = function buildModuleInstance(name, definition) {
-		const instance = Object.assign({}, definition || {});
+		const baseInstance = {};
+		core.extendModuleInstance(baseInstance);
+		const instance = core.cloneModuleValue(definition || {});
 		core.extendModuleInstance(instance);
+		core.installSuperWrappers(instance, baseInstance);
 		instance.setData(core.buildModuleData(name));
 		return instance;
 	};
@@ -407,6 +877,13 @@
 			typeof instance.getDom === "function"
 				? await Promise.resolve(instance.getDom())
 				: document.createElement("div");
+		const domReadyPromise =
+			content && typeof content === "object"
+				? Reflect.get(content, "__sandboxDomReady")
+				: null;
+		if (domReadyPromise && typeof domReadyPromise.then === "function") {
+			content = await domReadyPromise;
+		}
 
 		if (!(content instanceof HTMLElement)) {
 			const wrapper = document.createElement("div");
@@ -644,6 +1121,7 @@
 
 		await Promise.all([
 			instance.loadTranslations(),
+			instance.loadTemplates(),
 			instance.loadScripts(),
 			instance.loadStyles()
 		]);

@@ -251,6 +251,11 @@ select.sandbox-input {
 	border-radius: 6px;
 }
 
+.sandbox-button--grow {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
 .sandbox-button:hover {
 	background: var(--sandbox-control-bg-hover);
 }

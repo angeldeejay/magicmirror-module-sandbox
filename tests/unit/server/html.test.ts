@@ -83,6 +83,18 @@ test("createHtmlPage renders the host shell, topbar domains, and runtime bootstr
 	assert.match(html, /id="config-header-enabled"/);
 	assert.match(html, /id="config-hidden-on-startup"/);
 	assert.match(html, /id="config-disabled"/);
+	assert.match(
+		html,
+		/<button id="module-config-format" class="sandbox-button sandbox-button--full" type="button">Format config<\/button>/
+	);
+	assert.match(
+		html,
+		/<div class="sandbox-button-row" style="width: 100%;">\s*<button id="module-config-reset" class="sandbox-button sandbox-button--grow" type="button" disabled style="flex: 1;">Revert draft<\/button>\s*<button id="module-config-refresh-styles" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Refresh styles<\/button>\s*<\/div>/
+	);
+	assert.match(
+		html,
+		/<div class="sandbox-button-row" style="width: 100%;">\s*<button id="module-config-save" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Save and reload<\/button>\s*<\/div>/
+	);
 	assert.match(html, />Spanish \(es\)</);
 	assert.match(html, /watch mode/i);
 });
@@ -187,7 +199,7 @@ test("createStagePage renders the iframe runtime viewport and module bootstrap",
 	assert.match(html, /data-position="middle_center"/);
 	assert.match(html, /id="module-content"/);
 	assert.match(html, /generated\/runtime\/stage-bridge\.js/);
-	assert.match(
+	assert.doesNotMatch(
 		html,
 		/<script src="\/modules\/MMM-TestModule\/MMM-TestModule\.js\?v=/
 	);

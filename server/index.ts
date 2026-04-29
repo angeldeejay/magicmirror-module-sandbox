@@ -11,6 +11,7 @@ import Fastify from "fastify";
 import { Server } from "socket.io";
 import {
 	resolveAnimateCss,
+	resolveCronerPath,
 	resolveFontAwesomeCss,
 	resolveMomentPath,
 	resolveMomentTimezonePath,
@@ -269,6 +270,7 @@ async function startServer(): Promise<void> {
 		getHelperLogEntries,
 		resolveWebfontsRoot,
 		resolveAnimateCss,
+		resolveCronerPath,
 		resolveMomentPath,
 		resolveMomentTimezonePath,
 		resolveFontAwesomeCss,

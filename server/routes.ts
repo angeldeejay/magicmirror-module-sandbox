@@ -32,6 +32,7 @@ type RegisterRoutesOptions = {
 	getHelperLogEntries: () => Array<Record<string, unknown>>;
 	resolveWebfontsRoot: () => string;
 	resolveAnimateCss: () => string;
+	resolveCronerPath: () => string;
 	resolveMomentPath: () => string;
 	resolveMomentTimezonePath: () => string;
 	resolveFontAwesomeCss: () => string;
@@ -59,6 +60,7 @@ async function registerRoutes({
 	getHelperLogEntries,
 	resolveWebfontsRoot,
 	resolveAnimateCss,
+	resolveCronerPath,
 	resolveMomentPath,
 	resolveMomentTimezonePath,
 	resolveFontAwesomeCss,
@@ -115,6 +117,11 @@ async function registerRoutes({
 	app.get("/animate.css", async (_request, reply) => {
 		reply.type("text/css; charset=utf-8");
 		return reply.send(fs.createReadStream(resolveAnimateCss()));
+	});
+
+	app.get("/croner.js", async (_request, reply) => {
+		reply.type("application/javascript; charset=utf-8");
+		return reply.send(fs.createReadStream(resolveCronerPath()));
 	});
 
 	app.get("/moment-timezone.js", async (_request, reply) => {

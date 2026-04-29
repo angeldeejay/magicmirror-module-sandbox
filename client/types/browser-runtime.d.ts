@@ -33,6 +33,7 @@ declare global {
 			basePath?: string;
 		};
 		io?: (...args: unknown[]) => any;
+		nunjucks?: any;
 	}
 
 	interface GlobalThis {
@@ -42,11 +43,13 @@ declare global {
 		Log?: any;
 		Translator?: any;
 		translations?: Record<string, any>;
+		nunjucks?: any;
 	}
 
 	const io: (...args: unknown[]) => any;
 	const Module: any;
 	const Log: any;
+	const nunjucks: any;
 }
 
 export {};

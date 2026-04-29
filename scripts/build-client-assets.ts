@@ -8,6 +8,7 @@
  * - runtime: transpiled browser runtime/vendor scripts only
  */
 import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSync } from "esbuild";
@@ -20,6 +21,7 @@ const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
 const clientRoot = path.join(root, "client");
 const generatedRoot = path.join(clientRoot, "generated");
+const nodeRequire = createRequire(import.meta.url);
 const stylesInputPath = path.join(clientRoot, "scss", "entrypoint.scss");
 const stylesOutputPath = path.join(clientRoot, "styles", "harness.css");
 const runtimeEntryPoints = [
@@ -27,6 +29,12 @@ const runtimeEntryPoints = [
 	...collectTypeScriptEntries(path.join(clientRoot, "runtime")),
 	...collectTypeScriptEntries(path.join(clientRoot, "vendor"))
 ];
+const coreBrowserVendorAssets = [
+	"croner.js",
+	"moment.js",
+	"moment-timezone.js",
+	"nunjucks.js"
+] as const;
 
 /**
  * Collects type script entries.
@@ -76,6 +84,74 @@ function clearRuntimeOutputs(): void {
 }
 
 /**
+ * Resolves magic mirror root.
+ */
+function resolveMagicMirrorRoot(): string {
+	const magicMirrorEntryPath = nodeRequire.resolve("magicmirror", {
+		paths: [root]
+	});
+	return path.resolve(path.dirname(magicMirrorEntryPath), "..");
+}
+
+/**
+ * Copies browser vendor assets from the local MagicMirror dependency using the
+ * core vendor map so the sandbox stays aligned with upstream browser runtime
+ * choices.
+ */
+function resolveCoreVendorAssetPath(
+	magicMirrorRoot: string,
+	sourceRelativePath: string
+): string {
+	const candidatePaths = [
+		path.join(magicMirrorRoot, sourceRelativePath),
+		path.join(root, sourceRelativePath)
+	];
+	const resolvedPath = candidatePaths.find((candidatePath) =>
+		fs.existsSync(candidatePath)
+	);
+	if (!resolvedPath) {
+		throw new Error(
+			`MagicMirror vendor asset could not be resolved: ${sourceRelativePath}.`
+		);
+	}
+
+	return resolvedPath;
+}
+
+/**
+ * Copies browser vendor assets from the local MagicMirror dependency using the
+ * core vendor map so the sandbox stays aligned with upstream browser runtime
+ * choices.
+ */
+function syncCoreBrowserVendorAssets(): void {
+	const magicMirrorRoot = resolveMagicMirrorRoot();
+	const magicMirrorVendorMapPath = path.join(
+		magicMirrorRoot,
+		"js",
+		"vendor.js"
+	);
+	const magicMirrorVendorMap = nodeRequire(magicMirrorVendorMapPath) as Record<
+		string,
+		string
+	>;
+	for (const assetName of coreBrowserVendorAssets) {
+		const sourceRelativePath = magicMirrorVendorMap[assetName];
+		if (typeof sourceRelativePath !== "string" || !sourceRelativePath) {
+			throw new Error(
+				`MagicMirror vendor map does not define a source for ${assetName}.`
+			);
+		}
+		const sourcePath = resolveCoreVendorAssetPath(
+			magicMirrorRoot,
+			sourceRelativePath
+		);
+		const destinationPath = path.join(generatedRoot, "vendor", assetName);
+		ensureDirectory(path.dirname(destinationPath));
+		fs.copyFileSync(sourcePath, destinationPath);
+	}
+}
+
+/**
  * Builds styles.
  */
 function buildStyles(): void {
@@ -113,6 +189,7 @@ function buildRuntime(): void {
 		logLevel: "silent",
 		target: "es2021"
 	});
+	syncCoreBrowserVendorAssets();
 }
 
 /**

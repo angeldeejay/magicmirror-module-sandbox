@@ -39,7 +39,8 @@ and how to use it, while this file explains how it is put together.
 - `client/runtime/debug-panel.ts` wires the sidebar notification + lifecycle
   console
 - `client/runtime/module.ts` installs the narrow MagicMirror-like globals and
-  boots the module
+  boots the module, including the current browser-side template compatibility
+  layer for `getDom()` + `_super()` overrides
 - `client/runtime.ts` is just the final bootstrap glue
 - `client/scss/` holds the sandbox stylesheet sources and compiles to
   `client/styles/harness.css`

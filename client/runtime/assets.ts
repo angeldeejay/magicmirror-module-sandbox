@@ -53,6 +53,10 @@
 			return "/moment-timezone.js";
 		}
 
+		if (file === "croner.js") {
+			return "/croner.js";
+		}
+
 		const normalizedFile = file.replace(/^\/+/, "");
 		const normalizedModulePath = String(harness.modulePath || "").replace(
 			/^\/+/,

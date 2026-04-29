@@ -96,14 +96,16 @@
       </div>
     </div>
     <module-config-editor id="module-config-editor" class="sandbox-json-editor sandbox-json-editor--fill sandbox-json-editor--embedded" indent="2" module-name="<%= it.runtimeState.moduleName %>" language="<%= it.runtimeState.language %>" locale="<%= it.runtimeState.locale %>"></module-config-editor>
+    <div class="sandbox-button-row sandbox-button-row--full">
+      <button id="module-config-format" class="sandbox-button sandbox-button--full" type="button">Format config</button>
+    </div>
   </section>
   <div id="module-config-status" class="sandbox-status" data-state="ok"></div>
-  <div class="sandbox-button-row">
-    <button id="module-config-reset" class="sandbox-button" type="button" disabled>Revert draft</button>
-    <button id="module-config-format" class="sandbox-button" type="button">Format config</button>
-    <button id="module-config-refresh-styles" class="sandbox-button" type="button">Refresh styles</button>
+  <div class="sandbox-button-row" style="width: 100%;">
+    <button id="module-config-reset" class="sandbox-button sandbox-button--grow" type="button" disabled style="flex: 1;">Revert draft</button>
+    <button id="module-config-refresh-styles" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Refresh styles</button>
   </div>
-  <div class="sandbox-button-row sandbox-button-row--full">
-    <button id="module-config-save" class="sandbox-button sandbox-button--full" type="button">Save and reload</button>
+  <div class="sandbox-button-row" style="width: 100%;">
+    <button id="module-config-save" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Save and reload</button>
   </div>
 </section>

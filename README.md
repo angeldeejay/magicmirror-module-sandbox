@@ -40,6 +40,9 @@ MagicMirror replacement.
   `global.root_path` so core-style path-based requires can reach
   `js/class.js`, `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
   `js/server_functions.js`
+- **Template/runtime compatibility guards** for browser-side Nunjucks plus
+  `getDom()` overrides that call `this._super()` and expect a wrapper
+  immediately
 - **Operator docs** under `docs/` that mirror the current sidebar domains
 
 ## 🚀 Choose the install style that fits your workflow

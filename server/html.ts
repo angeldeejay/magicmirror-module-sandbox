@@ -203,18 +203,11 @@ function createStagePage({
 		"/__harness/generated/runtime/lifecycle.js",
 		"/__harness/generated/runtime/assets.js",
 		"/__harness/generated/runtime/translations.js",
+		"/__harness/generated/vendor/nunjucks.js",
 		"/__harness/generated/runtime/module.js",
 		"/__harness/generated/runtime/stage-bridge.js",
 		"/__harness/generated/runtime.js"
 	].map((src) => appendAssetVersion(src, assetVersion));
-	if (!runtimeState.moduleConfig.disabled) {
-		runtimeScripts.push(
-			appendAssetVersion(
-				`/modules/${runtimeState.moduleName}/${runtimeState.moduleEntry}`,
-				assetVersion
-			)
-		);
-	}
 
 	return templateEngine.render("stage-page.eta", {
 		animationStylesheetUrl: appendAssetVersion(

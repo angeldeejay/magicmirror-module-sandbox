@@ -8,6 +8,8 @@ import {
 	openSidebarTab,
 	pageEvaluate,
 	readModuleConfigEditorText,
+	stageAttribute,
+	stageClick,
 	stageEvaluate,
 	stageText,
 	stageVisible
@@ -69,6 +71,10 @@ journeyTest(
 				mmVersion: globalThis.mmVersion,
 				wrapperId: wrapper ? wrapper.id : null,
 				wrapperClassName: wrapper ? wrapper.className : "",
+				superWrapperClassName:
+					globalThis.document.querySelector("#test-module-root")
+						?.parentElement?.className ?? "",
+				superAdapterSnapshot: instance.superAdapterSnapshot,
 				wrapperPosition: wrapper ? wrapper.dataset.position : null,
 				language: globalThis.config.language,
 				locale: globalThis.config.locale,
@@ -108,8 +114,17 @@ journeyTest(
 			.toBe("MMM-TestModule");
 		await expect.poll(() => stageVisible("#test-module-root")).toBe(true);
 		await expect
+			.poll(() => stageVisible("#test-module-super-adapter"))
+			.toBe(true);
+		await expect
 			.poll(() => stageText("#test-module-translation"))
 			.toBe("Hola Sandbox Developer desde el modulo de prueba.");
+		await expect
+			.poll(() => stageText("#test-module-super-adapter"))
+			.toBe("Super adapter active");
+		await expect
+			.poll(() => stageText("#test-module-dynamic-slot"))
+			.toBe("Injected from getDom");
 		await expect
 			.poll(() => stageText("#test-module-script-status"))
 			.toBe("Script: test-script-ready");
@@ -125,6 +140,13 @@ journeyTest(
 		await expect
 			.poll(() => readStageProbeColor())
 			.toBe("rgb(48, 170, 122)");
+		await expect
+			.poll(() => stageAttribute("#test-module-helper-ping", "data-bound-in-get-dom"))
+			.toBe("true");
+		await stageClick("#test-module-helper-ping");
+		await expect
+			.poll(() => stageText("#test-module-helper-reply"))
+			.toBe("Helper: fixture ping");
 
 		expect(moduleRuntimeDetails.mmVersion).toBe("2.35.0");
 		expect(moduleRuntimeDetails.language).toBe("es");
@@ -134,6 +156,25 @@ journeyTest(
 		expect(moduleRuntimeDetails.wrapperClassName).toContain(
 			"MMM-TestModule"
 		);
+		expect(moduleRuntimeDetails.superWrapperClassName).toContain(
+			"test-module-super-wrapper"
+		);
+		expect(
+			moduleRuntimeDetails.superAdapterSnapshot.immediateChildElementCount
+		).toBeGreaterThan(0);
+		expect(
+			moduleRuntimeDetails.superAdapterSnapshot.immediateTextContent
+		).toContain("Hola Sandbox Developer desde el modulo de prueba.");
+		expect(moduleRuntimeDetails.superAdapterSnapshot.isThenable).toBe(false);
+		expect(moduleRuntimeDetails.superAdapterSnapshot.hasImmediateRoot).toBe(
+			true
+		);
+		expect(
+			moduleRuntimeDetails.superAdapterSnapshot.hasImmediateDynamicSlot
+		).toBe(true);
+		expect(
+			moduleRuntimeDetails.superAdapterSnapshot.hasImmediateHelperButton
+		).toBe(true);
 		expect(moduleRuntimeDetails.wrapperPosition).toBe(
 			defaultModuleOptions.position
 		);

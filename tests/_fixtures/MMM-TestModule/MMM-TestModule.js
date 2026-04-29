@@ -52,6 +52,74 @@ Module.register("MMM-TestModule", {
 		};
 	},
 
+	getTemplate() {
+		return "MMM-TestModule.njk";
+	},
+
+	getTemplateData() {
+		return {
+			operatorName: this.config.operatorName,
+			scriptStatus: this.scriptStatus,
+			badgeLabel: this.config.badgeLabel,
+			noticeMessage: this.noticeMessage,
+			helperReply: this.helperReply,
+			suspendCount: this.suspendCount,
+			resumeCount: this.resumeCount,
+			nestedConfigJson: JSON.stringify(this.config.nested)
+		};
+	},
+
+	getDom() {
+		const wrapper = this._super();
+		const root = wrapper.querySelector("#test-module-root");
+		const dynamicSlot = wrapper.querySelector("#test-module-dynamic-slot");
+		const helperButton = wrapper.querySelector("#test-module-helper-ping");
+		this.superAdapterSnapshot = {
+			immediateChildElementCount: wrapper.children.length,
+			immediateTextContent: wrapper.textContent,
+			isThenable: typeof wrapper.then === "function",
+			hasImmediateRoot: Boolean(root),
+			hasImmediateDynamicSlot: Boolean(dynamicSlot),
+			hasImmediateHelperButton: Boolean(helperButton)
+		};
+		wrapper.classList.add("test-module-super-wrapper");
+		if (dynamicSlot) {
+			dynamicSlot.textContent = "Injected from getDom";
+		}
+		if (root) {
+			const adapterMarker = globalThis.document.createElement("div");
+			adapterMarker.id = "test-module-super-adapter";
+			adapterMarker.textContent = "Super adapter active";
+			root.appendChild(adapterMarker);
+		}
+		if (helperButton && helperButton.__sandboxPingBound !== true) {
+			helperButton.__sandboxPingBound = true;
+			helperButton.dataset.boundInGetDom = "true";
+			helperButton.addEventListener("click", () => {
+				this.sendSocketNotification("TEST_MODULE_PING", {
+					message: this.config.pingMessage
+				});
+			});
+		}
+		return wrapper;
+	},
+
+	attachPingHandler() {
+		const button = globalThis.document.getElementById(
+			"test-module-helper-ping"
+		);
+		if (!button || button.__sandboxPingBound === true) {
+			return;
+		}
+
+		button.__sandboxPingBound = true;
+		button.addEventListener("click", () => {
+			this.sendSocketNotification("TEST_MODULE_PING", {
+				message: this.config.pingMessage
+			});
+		});
+	},
+
 	notificationReceived(notification, payload) {
 		if (notification === "ALL_MODULES_STARTED") {
 			this.coreNotificationCounts.allModulesStarted += 1;
@@ -60,6 +128,7 @@ Module.register("MMM-TestModule", {
 
 		if (notification === "MODULE_DOM_CREATED") {
 			this.coreNotificationCounts.moduleDomCreated += 1;
+			this.attachPingHandler();
 			return;
 		}
 
@@ -70,6 +139,7 @@ Module.register("MMM-TestModule", {
 
 		if (notification === "MODULE_DOM_UPDATED") {
 			this.coreNotificationCounts.moduleDomUpdated += 1;
+			this.attachPingHandler();
 			return;
 		}
 
@@ -105,63 +175,5 @@ Module.register("MMM-TestModule", {
 	resume() {
 		this.resumeCount += 1;
 		this.updateDom();
-	},
-
-	getDom() {
-		const wrapper = globalThis.document.createElement("div");
-		wrapper.id = "test-module-root";
-		wrapper.className = "test-module-root";
-
-		const greeting = globalThis.document.createElement("div");
-		greeting.id = "test-module-translation";
-		greeting.textContent = this.translate("GREETING", {
-			operator: this.config.operatorName
-		});
-
-		const scriptStatus = globalThis.document.createElement("div");
-		scriptStatus.id = "test-module-script-status";
-		scriptStatus.textContent = `Script: ${this.scriptStatus}`;
-
-		const styleProbe = globalThis.document.createElement("div");
-		styleProbe.id = "test-module-style-probe";
-		styleProbe.textContent = this.config.badgeLabel;
-
-		const notice = globalThis.document.createElement("div");
-		notice.id = "test-module-notice";
-		notice.textContent = `Notice: ${this.noticeMessage}`;
-
-		const helperReply = globalThis.document.createElement("div");
-		helperReply.id = "test-module-helper-reply";
-		helperReply.textContent = `Helper: ${this.helperReply}`;
-
-		const lifecycle = globalThis.document.createElement("div");
-		lifecycle.id = "test-module-lifecycle";
-		lifecycle.textContent = `Suspend: ${this.suspendCount} / Resume: ${this.resumeCount}`;
-
-		const configMerge = globalThis.document.createElement("div");
-		configMerge.id = "test-module-config-merge";
-		configMerge.textContent = `Nested: ${JSON.stringify(this.config.nested)}`;
-
-		const pingButton = globalThis.document.createElement("button");
-		pingButton.id = "test-module-helper-ping";
-		pingButton.type = "button";
-		pingButton.textContent = "Ping helper";
-		pingButton.addEventListener("click", () => {
-			this.sendSocketNotification("TEST_MODULE_PING", {
-				message: this.config.pingMessage
-			});
-		});
-
-		wrapper.append(
-			greeting,
-			scriptStatus,
-			styleProbe,
-			notice,
-			helperReply,
-			lifecycle,
-			configMerge,
-			pingButton
-		);
-		return wrapper;
 	}
 });

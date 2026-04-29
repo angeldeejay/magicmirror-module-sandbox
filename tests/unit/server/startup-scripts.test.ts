@@ -59,9 +59,16 @@ test("runStartupScript executes an npm script in the consumer repo", () => {
 	});
 
 	assert.equal(calls.length, 1);
-	assert.deepEqual(calls[0].args, ["run", "cache:clean"]);
+	if (process.platform === "win32") {
+		assert.equal(calls[0].command, 'npm run "cache:clean"');
+		assert.deepEqual(calls[0].args, []);
+	} else {
+		assert.equal(calls[0].command, "npm");
+		assert.deepEqual(calls[0].args, ["run", "cache:clean"]);
+	}
 	assert.equal(calls[0].options.cwd, tempRoot);
 	assert.equal(calls[0].options.stdio, "inherit");
+	assert.equal(calls[0].options.shell, process.platform === "win32");
 });
 
 test("runStartupScript rejects missing npm scripts", () => {
@@ -165,10 +172,62 @@ test("runStartupScripts runs all declared startup scripts in order", () => {
 		"[module-sandbox] running startup script: first",
 		"[module-sandbox] running startup script: second"
 	]);
-	assert.deepEqual(
-		calls.map((call) => call.args.join(" ")),
-		["run first", "run second"]
+	if (process.platform === "win32") {
+		assert.deepEqual(
+			calls.map((call) => call.command),
+			['npm run "first"', 'npm run "second"']
+		);
+	} else {
+		assert.deepEqual(
+			calls.map((call) => call.args.join(" ")),
+			["run first", "run second"]
+		);
+	}
+});
+
+test("runStartupScripts logs synchronous spawn errors without crashing", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-startup-")
 	);
+	const logs = [];
+
+	writeConsumerPackage(tempRoot, {
+		name: "MMM-Startup",
+		scripts: {
+			first: "node fail-before-child.js",
+			second: "node ok.js"
+		}
+	});
+
+	assert.doesNotThrow(() => {
+		runStartupScripts({
+			repoRoot: tempRoot,
+			startupScripts: ["first", "second"],
+			/**
+			 * Internal helper for log.
+			 */
+			log(message) {
+				logs.push(message);
+			},
+			/**
+			 * Internal helper for spawn.
+			 */
+			spawn(command, args) {
+				const scriptName =
+					process.platform === "win32" ? command : args[1];
+				if (scriptName.includes("first")) {
+					throw new Error("spawn EINVAL");
+				}
+				return new EventEmitter();
+			}
+		});
+	});
+
+	assert.deepEqual(logs, [
+		"[module-sandbox] running startup script: first",
+		"[module-sandbox] startup script error (first): spawn EINVAL",
+		"[module-sandbox] running startup script: second"
+	]);
 });
 
 test("runStartupScripts exposes a stopAll controller for spawned processes", async () => {

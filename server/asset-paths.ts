@@ -4,6 +4,7 @@
 
 import * as path from "node:path";
 import { createRequire } from "node:module";
+import { harnessRoot } from "./paths.ts";
 
 const nodeRequire = createRequire(
 	typeof __filename === "string" ? __filename : import.meta.url
@@ -37,17 +38,40 @@ export function resolveWebfontsRoot(): string {
 }
 
 /**
+ * Resolves croner path.
+ */
+export function resolveCronerPath(): string {
+	return path.join(
+		harnessRoot,
+		"client",
+		"generated",
+		"vendor",
+		"croner.js"
+	);
+}
+
+/**
  * Resolves moment path.
  */
 export function resolveMomentPath(): string {
-	return nodeRequire.resolve("moment/min/moment.min.js");
+	return path.join(
+		harnessRoot,
+		"client",
+		"generated",
+		"vendor",
+		"moment.js"
+	);
 }
 
 /**
  * Resolves moment timezone path.
  */
 export function resolveMomentTimezonePath(): string {
-	return nodeRequire.resolve(
-		"moment-timezone/builds/moment-timezone-with-data.min.js"
+	return path.join(
+		harnessRoot,
+		"client",
+		"generated",
+		"vendor",
+		"moment-timezone.js"
 	);
 }

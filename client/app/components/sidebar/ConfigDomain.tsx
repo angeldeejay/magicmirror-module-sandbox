@@ -270,41 +270,46 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 					</div>
 				</div>
 				{moduleConfigEditor}
+				<div class="sandbox-button-row sandbox-button-row--full">
+					<button
+						id="module-config-format"
+						class="sandbox-button sandbox-button--full"
+						type="button"
+					>
+						Format config
+					</button>
+				</div>
 			</section>
 			<div
 				id="module-config-status"
 				class="sandbox-status"
 				data-state="ok"
 			></div>
-			<div class="sandbox-button-row">
+			<div class="sandbox-button-row" style={{ width: "100%" }}>
 				<button
 					id="module-config-reset"
-					class="sandbox-button"
+					class="sandbox-button sandbox-button--grow"
 					type="button"
 					disabled
+					style={{ flex: 1 }}
 				>
 					Revert draft
 				</button>
 				<button
-					id="module-config-format"
-					class="sandbox-button"
-					type="button"
-				>
-					Format config
-				</button>
-				<button
 					id="module-config-refresh-styles"
-					class="sandbox-button"
+					class="sandbox-button sandbox-button--grow"
 					type="button"
+					style={{ flex: 1 }}
 				>
 					Refresh styles
 				</button>
 			</div>
-			<div class="sandbox-button-row sandbox-button-row--full">
+			<div class="sandbox-button-row" style={{ width: "100%" }}>
 				<button
 					id="module-config-save"
-					class="sandbox-button sandbox-button--full"
+					class="sandbox-button sandbox-button--grow"
 					type="button"
+					style={{ flex: 1 }}
 				>
 					Save and reload
 				</button>

@@ -1,6 +1,6 @@
 {
 	"name": "@angeldeejay/magicmirror-module-sandbox",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Single-module MagicMirror dev sandbox with a Fastify host, Preact shell, real node_helper wiring, and browser-based debugging",
 	"author": {
 		"name": "Andrés Vanegas Jiménez",
@@ -98,6 +98,7 @@
 		"magicmirror": "^2.35.0",
 		"node-fetch": "^3.3.2",
 		"playwright": "^1.58.2",
+		"preact-render-to-string": "^6.6.7",
 		"prettier": "^3.8.1",
 		"sass": "^1.99.0",
 		"typescript": "^6.0.3",

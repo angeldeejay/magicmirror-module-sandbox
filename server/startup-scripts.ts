@@ -36,10 +36,41 @@ function getPackageScripts(
 }
 
 /**
- * Gets npm command.
+ * Quotes Windows command argument.
  */
-function getNpmCommand(): string {
-	return process.platform === "win32" ? "npm.cmd" : "npm";
+function quoteWindowsCommandArgument(value: string): string {
+	return `"${value.replace(/(["^&|<>])/g, "^$1")}"`;
+}
+
+/**
+ * Gets npm spawn command.
+ */
+function getNpmSpawnCommand(repoRoot: string, scriptName: string) {
+	const baseOptions = {
+		cwd: repoRoot,
+		stdio: "inherit" as const,
+		env: process.env
+	};
+
+	if (process.platform === "win32") {
+		return {
+			command: `npm run ${quoteWindowsCommandArgument(scriptName)}`,
+			args: [],
+			options: {
+				...baseOptions,
+				shell: true
+			}
+		};
+	}
+
+	return {
+		command: "npm",
+		args: ["run", scriptName],
+		options: {
+			...baseOptions,
+			shell: false
+		}
+	};
 }
 
 /**
@@ -66,11 +97,12 @@ function runStartupScript({
 		);
 	}
 
-	const result = spawnProcess(getNpmCommand(), ["run", scriptName], {
-		cwd: repoRoot,
-		stdio: "inherit",
-		env: process.env
-	});
+	const npmSpawn = getNpmSpawnCommand(repoRoot, scriptName);
+	const result = spawnProcess(
+		npmSpawn.command,
+		npmSpawn.args,
+		npmSpawn.options
+	);
 
 	if (result.error) {
 		throw result.error;
@@ -113,12 +145,20 @@ function runStartupScripts({
 		}
 
 		log(`[module-sandbox] running startup script: ${scriptName}`);
-		const child = spawnProcess(getNpmCommand(), ["run", scriptName], {
-			cwd: repoRoot,
-			stdio: "inherit",
-			env: process.env,
-			detached: process.platform !== "win32"
-		});
+		let child: ChildProcess;
+		try {
+			const npmSpawn = getNpmSpawnCommand(repoRoot, scriptName);
+			child = spawnProcess(npmSpawn.command, npmSpawn.args, {
+				...npmSpawn.options,
+				detached: process.platform !== "win32"
+			});
+		} catch (error) {
+			const spawnError = error as Error;
+			log(
+				`[module-sandbox] startup script error (${scriptName}): ${spawnError.message}`
+			);
+			continue;
+		}
 
 		child.on("error", (error: Error & { code?: string }) => {
 			log(

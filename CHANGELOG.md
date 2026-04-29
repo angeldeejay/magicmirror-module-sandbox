@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.1
+
+- Added MagicMirror-style browser-side Nunjucks template support through `getTemplate()`, `getTemplateData()`, and `nunjucksEnvironment()`.
+- Synced the Nunjucks, Moment, Moment Timezone, and Croner browser vendor assets from the local `magicmirror` dependency into the sandbox client build so published installs keep working without requiring `magicmirror` at runtime.
+- Added `_super()` binding compatibility in the browser runtime so overridden module methods stay closer to MagicMirror behavior.
+- Replaced the old synchronous template-cache workaround with a runtime adapter for `getDom()` + `this._super()` so overriding modules receive an immediate wrapper while deferred template content still resolves before the sandbox commits the render.
+- Removed the duplicate early stage-module script injection path so mounted modules no longer fail with `Module is not defined` before the sandbox runtime boots.
+- Overrode MagicMirror's hidden-cursor default inside the sandbox shell styles so the operator UI remains usable in normal browsers.
+- Aligned the server-rendered Config sidebar markup with the hydrated Preact shell so button ids, layout, and hydration stay consistent.
+- Fixed mounted-module `sandbox.startup` scripts on Windows so consumer npm scripts launch reliably without blocking sandbox startup when child process creation fails.
+- Added shell SSR parity unit coverage across the hydrated Eta/Preact topbar, sidebar domains, and footer, plus fallback branch coverage that keeps the unit coverage threshold green.
+- Updated the fixture module to exercise `.njk` template rendering plus the integrated `getDom()` + `_super()` adapter path and keep integration coverage aligned with real third-party module patterns.
+
 ## v1.0.0
 
 - Initial public release of the single-module MagicMirror sandbox package.

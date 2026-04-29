@@ -28,6 +28,8 @@ export function createContract() {
 			"getScripts() sequential loading",
 			"getStyles() stylesheet loading",
 			"getTranslations() with MagicMirror-like language + fallback loading",
+			"getTemplate() / getTemplateData() with browser-side Nunjucks rendering",
+			"module nunjucksEnvironment() with MagicMirror-like WebLoader + translate filter",
 			"global Translator with module/core/fallback lookup order",
 			"translate(key, variables?) returning key when missing",
 			"translate(key, defaultValue?) and translate(key, variables, defaultValue?) signatures matching MagicMirror behavior",
@@ -65,7 +67,6 @@ export function createContract() {
 		],
 		unsupportedMagicMirrorSurface: [
 			"multi-module layout regions",
-			"template/nunjucks module rendering",
 			"hide/show animation parity",
 			"Electron runtime",
 			"generic module compatibility beyond the mounted module under test"
