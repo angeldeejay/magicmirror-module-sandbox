@@ -294,6 +294,8 @@
 				pingTimeout: 120000
 			});
 
+			core.rootSocket = rootSocket;
+
 			rootSocket.on("harness:reload", (payload) => {
 				const scope =
 					payload && typeof payload.scope === "string"
@@ -310,6 +312,14 @@
 						: undefined
 				);
 			});
+
+			rootSocket.on("harness:quality-result", (result) => {
+				globalScope.dispatchEvent(
+					new CustomEvent("module-sandbox:quality-result", {
+						detail: result
+					})
+				);
+			});
 		}
 
 		if (frame) {
@@ -322,5 +332,8 @@
 		}
 
 		core.initializeDebugPanel();
+		if (typeof core.initializeQualityPanel === "function") {
+			core.initializeQualityPanel();
+		}
 	});
 })(window);

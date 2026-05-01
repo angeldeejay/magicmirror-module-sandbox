@@ -4,8 +4,86 @@
 
 import chokidar from "chokidar";
 import * as fs from "node:fs";
-import * as path from "node:path";
+import ignore from "ignore";
+import * as path from "pathe";
 import { configRoot, harnessRoot, repoRoot } from "./paths.ts";
+
+/**
+ * Normalizes a chokidar-delivered file path to forward slashes + lowercase for
+ * string comparisons. pathe already produces forward slashes for all built paths;
+ * this normalizes the incoming chokidar path to the same form.
+ */
+function norm(p: string): string {
+	return p.replace(/\\/g, "/").toLowerCase();
+}
+
+// ── Module .gitignore integration ─────────────────────────────────────────────
+
+type GitignoreMatcher = ReturnType<typeof ignore>;
+
+let moduleGitignoreMatcher: GitignoreMatcher | null = null;
+
+/**
+ * Reads and compiles the mounted module's .gitignore file, if present.
+ * Stores the result in moduleGitignoreMatcher for use in isIgnoredByModuleGitignore().
+ * Safe to call multiple times — replaces the previous matcher on each call.
+ */
+function loadModuleGitignore(): void {
+	const gitignorePath = path.join(repoRoot, ".gitignore");
+	if (!fs.existsSync(gitignorePath)) {
+		moduleGitignoreMatcher = null;
+		return;
+	}
+	try {
+		const content = fs.readFileSync(gitignorePath, "utf-8");
+		moduleGitignoreMatcher = ignore().add(content);
+	} catch {
+		moduleGitignoreMatcher = null;
+	}
+}
+
+/**
+ * Returns true if the given absolute file path is excluded by the mounted
+ * module's .gitignore patterns. Files outside repoRoot always return false.
+ * config.sandbox.json is always watched regardless of .gitignore.
+ */
+function isIgnoredByModuleGitignore(filePath: string): boolean {
+	if (!moduleGitignoreMatcher) {
+		return false;
+	}
+	const normalized = norm(filePath);
+	const normalizedRoot = norm(repoRoot);
+	if (!normalized.startsWith(normalizedRoot + "/")) {
+		return false;
+	}
+	const relative = normalized.slice(normalizedRoot.length + 1);
+	if (!relative) {
+		return false;
+	}
+	// Always watch config.sandbox.json even if the module gitignores it.
+	if (relative === "config.sandbox.json") {
+		return false;
+	}
+	try {
+		return moduleGitignoreMatcher.ignores(relative);
+	} catch {
+		return false;
+	}
+}
+
+// ── File classification helpers ───────────────────────────────────────────────
+
+/**
+ * Determines whether a file path has an extension that should trigger any sandbox action.
+ * Filters out irrelevant files (images, lock files, etc.) that land from directory watching.
+ */
+function isRelevantFile(filePath: string): boolean {
+	const normalized = norm(filePath);
+	return (
+		isSandboxPersistedConfigFile(filePath) ||
+		/\.(js|ts|tsx|mjs|cjs|css|scss|json|eta|md)$/i.test(normalized)
+	);
+}
 
 /**
  * Determines whether sandbox persisted config file.
@@ -13,6 +91,7 @@ import { configRoot, harnessRoot, repoRoot } from "./paths.ts";
 function isSandboxPersistedConfigFile(filePath: string): boolean {
 	const baseName = path.basename(filePath).toLowerCase();
 	return (
+		baseName === "config.sandbox.json" ||
 		baseName === "module.config.json" ||
 		baseName === "runtime.config.json" ||
 		baseName.startsWith("module.config.") ||
@@ -24,10 +103,10 @@ function isSandboxPersistedConfigFile(filePath: string): boolean {
  * Determines whether restart backend.
  */
 function shouldRestartBackend(filePath: string): boolean {
-	const normalized = filePath.toLowerCase();
+	const normalized = norm(filePath);
 	return (
 		normalized.endsWith("node_helper.js") ||
-		normalized.includes("\\backend\\") ||
+		normalized.includes("/backend/") ||
 		normalized.endsWith("cache-manager.js") ||
 		isSandboxPersistedConfigFile(filePath) ||
 		normalized.endsWith("harness.config.js") ||
@@ -39,13 +118,13 @@ function shouldRestartBackend(filePath: string): boolean {
  * Determines whether harness client source file.
  */
 function isHarnessClientSourceFile(filePath: string): boolean {
-	const normalized = filePath.toLowerCase();
-	const clientRoot = path.join(harnessRoot, "client").toLowerCase();
+	const normalized = norm(filePath);
+	const clientRoot = norm(path.join(harnessRoot, "client"));
 	return (
 		normalized.startsWith(clientRoot) &&
-		!normalized.includes(`${path.sep}generated${path.sep}`.toLowerCase()) &&
-		!normalized.includes(`${path.sep}styles${path.sep}`.toLowerCase()) &&
-		!normalized.includes(`${path.sep}fonts${path.sep}`.toLowerCase()) &&
+		!normalized.includes("/generated/") &&
+		!normalized.includes("/styles/") &&
+		!normalized.includes("/fonts/") &&
 		(/\.(ts|tsx|scss)$/i.test(filePath) ||
 			normalized.endsWith("vite.config.mjs"))
 	);
@@ -55,11 +134,11 @@ function isHarnessClientSourceFile(filePath: string): boolean {
  * Determines whether harness node compat source file.
  */
 function isHarnessNodeCompatSourceFile(filePath: string): boolean {
-	const normalized = filePath.toLowerCase();
-	const shimsRoot = path.join(harnessRoot, "shims").toLowerCase();
+	const normalized = norm(filePath);
+	const shimsRoot = norm(path.join(harnessRoot, "shims"));
 	return (
 		normalized.startsWith(shimsRoot) &&
-		!normalized.includes(`${path.sep}generated${path.sep}`.toLowerCase()) &&
+		!normalized.includes("/generated/") &&
 		normalized.endsWith(".ts")
 	);
 }
@@ -71,40 +150,22 @@ function getReloadScope(
 	filePath: string,
 	harnessConfig: { moduleEntry: string; moduleName: string }
 ): "stage" | "shell" {
-	const normalized = filePath.toLowerCase();
-	const moduleEntryPath = path
-		.join(repoRoot, harnessConfig.moduleEntry)
-		.toLowerCase();
-	const moduleCssPath = path
-		.join(repoRoot, `${harnessConfig.moduleName}.css`)
-		.toLowerCase();
-	const stageTemplatePath = path
-		.join(harnessRoot, "server", "templates", "stage-page.eta")
-		.toLowerCase();
-	const stageViewportPartialPath = path
-		.join(
-			harnessRoot,
-			"server",
-			"templates",
-			"partials",
-			"stage-viewport.eta"
-		)
-		.toLowerCase();
+	const normalized = norm(filePath);
 	const stageOnlyPaths = [
-		moduleEntryPath,
-		path.join(repoRoot, "node_helper.js").toLowerCase(),
-		path.join(repoRoot, "cache-manager.js").toLowerCase(),
-		path.join(repoRoot, "competition-provider.js").toLowerCase(),
-		path.join(repoRoot, "canonical-view-adapter.js").toLowerCase(),
-		moduleCssPath,
-		stageTemplatePath,
-		stageViewportPartialPath
+		norm(path.join(repoRoot, harnessConfig.moduleEntry)),
+		norm(path.join(repoRoot, "node_helper.js")),
+		norm(path.join(repoRoot, "cache-manager.js")),
+		norm(path.join(repoRoot, "competition-provider.js")),
+		norm(path.join(repoRoot, "canonical-view-adapter.js")),
+		norm(path.join(repoRoot, `${harnessConfig.moduleName}.css`)),
+		norm(path.join(harnessRoot, "server", "templates", "stage-page.eta")),
+		norm(path.join(harnessRoot, "server", "templates", "partials", "stage-viewport.eta"))
 	];
 	const stagePrefixes = [
-		path.join(repoRoot, "backend").toLowerCase(),
-		path.join(repoRoot, "providers").toLowerCase(),
-		path.join(repoRoot, "constants").toLowerCase(),
-		path.join(repoRoot, "translations").toLowerCase()
+		norm(path.join(repoRoot, "backend")),
+		norm(path.join(repoRoot, "providers")),
+		norm(path.join(repoRoot, "constants")),
+		norm(path.join(repoRoot, "translations"))
 	];
 
 	if (
@@ -117,6 +178,8 @@ function getReloadScope(
 
 	return "shell";
 }
+
+// ── Watcher ───────────────────────────────────────────────────────────────────
 
 /**
  * Starts watcher.
@@ -144,40 +207,43 @@ function startWatcher({
 		return null;
 	}
 
+	// Load mounted module's .gitignore patterns on startup.
+	loadModuleGitignore();
+
 	const harnessConfig = getHarnessConfig();
 	const moduleConfigPath = getModuleConfigPath();
 	const runtimeConfigPath = getRuntimeConfigPath();
+
+	// Watch directories and specific files directly — no glob patterns.
+	// Chokidar v5 does not reliably expand absolute glob patterns on Windows;
+	// extension/path filtering is handled in the event handlers instead.
 	const watchPaths = [
-		path.join(repoRoot, "*.js"),
-		path.join(repoRoot, "*.css"),
-		path.join(repoRoot, harnessConfig.moduleEntry),
-		path.join(repoRoot, "providers", "**", "*.js"),
-		path.join(repoRoot, "backend", "**", "*.js"),
-		path.join(repoRoot, "constants", "**", "*.js"),
-		path.join(repoRoot, "translations", "**", "*.json"),
+		repoRoot,
 		moduleConfigPath,
 		runtimeConfigPath,
-		path.join(configRoot, "harness.config.js"),
-		path.join(configRoot, "harness.config.ts"),
-		path.join(configRoot, "contract.js"),
-		path.join(configRoot, "contract.ts"),
-		path.join(configRoot, "**", "*.js"),
-		path.join(configRoot, "**", "*.ts"),
-		path.join(harnessRoot, "client", "**", "*.ts"),
-		path.join(harnessRoot, "client", "**", "*.tsx"),
-		path.join(harnessRoot, "client", "**", "*.scss"),
-		path.join(harnessRoot, "shims", "**", "*.ts"),
-		path.join(harnessRoot, "server", "**", "*.js"),
-		path.join(harnessRoot, "server", "**", "*.ts"),
-		path.join(harnessRoot, "server", "**", "*.eta"),
+		configRoot,
+		path.join(harnessRoot, "client"),
+		path.join(harnessRoot, "shims"),
+		path.join(harnessRoot, "server"),
 		path.join(harnessRoot, "vite.config.mjs")
 	];
+
+	const moduleGitignorePath = norm(path.join(repoRoot, ".gitignore"));
 
 	let pending: NodeJS.Timeout | null = null;
 	const watcher = chokidar.watch(watchPaths, {
 		ignoreInitial: true,
 		usePolling: true,
 		interval: 250,
+		ignored: (filePath: string) => {
+			const f = filePath.replace(/\\/g, "/");
+			return (
+				f.includes("/node_modules/") ||
+				f.includes("/.git/") ||
+				f.includes("/client/generated/") ||
+				f.includes("/shims/generated/")
+			);
+		},
 		awaitWriteFinish: {
 			stabilityThreshold: 300,
 			pollInterval: 100
@@ -185,6 +251,22 @@ function startWatcher({
 	});
 
 	watcher.on("all", (eventName: string, filePath: string) => {
+		// If the module's .gitignore changed: reload patterns silently, no browser reload.
+		if (norm(filePath) === moduleGitignorePath) {
+			loadModuleGitignore();
+			console.log("[module-sandbox] .gitignore updated — reload patterns");
+			return;
+		}
+
+		if (!isRelevantFile(filePath)) {
+			return;
+		}
+
+		// Skip files excluded by the mounted module's .gitignore.
+		if (isIgnoredByModuleGitignore(filePath)) {
+			return;
+		}
+
 		if (pending) {
 			clearTimeout(pending);
 		}

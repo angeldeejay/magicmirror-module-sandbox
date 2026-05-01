@@ -379,6 +379,68 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 			"whitespace remains visible",
 			"undefined falls back to module name"
 		]
+	},
+	{
+		id: "ui-domain-navigation-order",
+		suite: "ui",
+		label: "Domain navigation order",
+		description:
+			"Topbar link order and sidebar panel order match the canonical domain sequence.",
+		transitions: ["navigation:topbar-rendered", "navigation:sidebar-rendered"],
+		outcomes: [
+			"topbar links in canonical order",
+			"sidebar panels in canonical order",
+			"topbar and sidebar orders match"
+		]
+	},
+	{
+		id: "ui-domain-nav-runtime",
+		suite: "ui",
+		label: "Runtime domain navigation",
+		description: "Clicking Runtime in topbar activates only the Runtime panel.",
+		transitions: ["navigation:runtime-opened"],
+		outcomes: ["runtime panel active", "other panels inactive"]
+	},
+	{
+		id: "ui-domain-nav-config",
+		suite: "ui",
+		label: "Config domain navigation",
+		description: "Clicking Config in topbar activates only the Config panel.",
+		transitions: ["navigation:config-opened"],
+		outcomes: ["config panel active", "other panels inactive"]
+	},
+	{
+		id: "ui-domain-nav-notifications",
+		suite: "ui",
+		label: "Notifications domain navigation",
+		description:
+			"Clicking Notifications in topbar activates only the Notifications panel.",
+		transitions: ["navigation:notifications-opened"],
+		outcomes: ["notifications panel active", "other panels inactive"]
+	},
+	{
+		id: "ui-domain-nav-debug",
+		suite: "ui",
+		label: "Debug domain navigation",
+		description: "Clicking Debug in topbar activates only the Debug panel.",
+		transitions: ["navigation:debug-opened"],
+		outcomes: ["debug panel active", "other panels inactive"]
+	},
+	{
+		id: "ui-domain-nav-quality",
+		suite: "ui",
+		label: "Quality domain navigation",
+		description: "Clicking Quality in topbar activates only the Quality panel.",
+		transitions: ["navigation:quality-opened"],
+		outcomes: ["quality panel active", "other panels inactive"]
+	},
+	{
+		id: "ui-domain-nav-about",
+		suite: "ui",
+		label: "About domain navigation",
+		description: "Clicking About in topbar activates only the About panel.",
+		transitions: ["navigation:about-opened"],
+		outcomes: ["about panel active", "other panels inactive"]
 	}
 ] as const;
 

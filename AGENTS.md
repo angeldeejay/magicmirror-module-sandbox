@@ -8,30 +8,30 @@ Keep this file, `README.md`, `docs/`, `.github/CONTRIBUTING.md`, `CHANGELOG.md`,
 Run commands from the repository root.
 
 ```bash
-npm install
-npm run build
-npm run build:client-assets
-npm run build:client-shell
-npm run build:client-runtime
-npm run build:node-compat
-npm run sync:mm-assets
-npm start
-npm run start:preview
-npm run watch
-npm run watch:preview
-npm run typecheck
-npm test
-npm run test:unit
-npm run test:unit:coverage
-npm run test:integration
-npm run test:integration:headed
-npm run test:e2e
-npm run test:ui
-npm run test:ui:headed
-npm run test:browser:headed
-npm run styles
-npm run lint
-npm run format
+node --run install
+node --run build
+node --run build:client-assets
+node --run build:client-shell
+node --run build:client-runtime
+node --run build:node-compat
+node --run sync:mm-assets
+node --run start
+node --run start:preview
+node --run watch
+node --run watch:preview
+node --run typecheck
+node --run test
+node --run test:unit
+node --run test:unit:coverage
+node --run test:integration
+node --run test:integration:headed
+node --run test:e2e
+node --run test:ui
+node --run test:ui:headed
+node --run test:browser:headed
+node --run styles
+node --run lint
+node --run format
 ```
 
 ## Product scope
@@ -57,8 +57,8 @@ npm run format
 - Do not let the frontend own disk writes; config persistence stays in the backend.
 - Keep paths, docs, and package metadata aligned with the repository root package layout.
 - Preserve LF line endings and tab indentation unless a file already requires otherwise.
-- Validate JS/TS changes with `npm run lint`, `npm run typecheck`, and the relevant test commands.
-- Keep npm publishing on the GitHub Actions trusted-publishing path defined by `.github/workflows/publish.yml` unless the npm package settings are updated in lockstep.
+- Validate JS/TS changes with `node --run lint`, `node --run typecheck`, and the relevant test commands.
+- Keep node --run publishing on the GitHub Actions trusted-publishing path defined by `.github/workflows/publish.yml` unless the node --run package settings are updated in lockstep.
 - Keep automated regression coverage sandbox-owned: Vitest unit tests with a minimum 80% instrumented coverage threshold, Vitest packaged-install e2e coverage under `tests/e2e/`, and Vitest browser-backed coverage under `tests/integration/` and `tests/ui/`.
 - Keep browser-backed sandbox coverage on the shared Vitest + Playwright-provider stack, with reusable cross-suite helpers in `tests/_helpers/` and per-suite specs under `tests/integration/` and `tests/ui/`.
 - Keep maintainer browser inspection on the same Vitest + Playwright-provider stack: headed inspection runs should stay opt-in, single-worker, and close automatically when the suite ends.
@@ -69,7 +69,33 @@ npm run format
 - Keep the shell UI on the Vite + Preact boundary and validate new shared browser/server contracts with Zod when a typed boundary is introduced.
 - Preserve the explicit split between user autodiscovery and maintainer `--preview`; if neither resolves a real mounted module, fail clearly instead of inventing a fallback identity.
 
+## Active handoff
+
+`HANDOFF.md` exists at the repo root. Read it before making any architectural decisions.
+It contains: established definitions for defensive protection vs divergence, the MM core coupling layer analysis, known technical debt, and planned corrections not yet implemented.
+Delete the reference here and the file itself once all planned corrections are implemented and validated.
+
 ## Pending direction
 
 - The config editor now supports draft-state feedback plus local revert/format actions, but it is not fully finished yet.
 - Future refinement should keep moving config editing closer to a real MagicMirror config authoring feel.
+
+## Delegation rules
+
+1. **Delegate by default.** Delegate every task that can be handled by a specialized subagent, unless the user explicitly says not to delegate a specific task or plan.
+2. **Always ask before delegating.** Before delegating any task, present the viable delegation options with the recommended default marked. The user can pick a different agent or deny delegation entirely.
+3. **"No delegate" option is mandatory.** Every delegation prompt must include an explicit option to not delegate.
+4. **Split multi-agent tasks.** When a task requires multiple concerns (e.g., implementation + tests + review), delegate each concern to its most appropriate subagent separately.
+5. **Phrase trigger — stop delegating.** If the user says "de aquí en adelante no delegarás" or semantically equivalent, stop delegating entirely until the user re-enables it. The inverse applies: a phrase like "vuelve a delegar" re-enables delegation.
+6. **Delegate runs in background.** The purpose of delegating to subagents is to parallelize work. Always spawn delegated agents in the background (`run_in_background: true`) so multiple fronts can proceed concurrently. Handle agent responses asynchronously — do not block waiting for one agent before starting another.
+
+### Delegation prompt format
+
+When about to delegate, always show:
+
+```
+Delegar a: [AgentName] (default) | [AlternativeAgent] | No delegar
+Tarea: <one-line description>
+```
+
+Wait for confirmation before spawning the agent.

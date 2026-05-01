@@ -9,14 +9,15 @@
  */
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSync } from "esbuild";
 import * as sass from "sass";
 
 type BuildScope = "all" | "styles" | "shell" | "runtime";
 
-const __filename = fileURLToPath(import.meta.url);
+const fromOS = (p: string) => p.replace(/\\/g, "/");
+const __filename = fromOS(fileURLToPath(import.meta.url));
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
 const clientRoot = path.join(root, "client");

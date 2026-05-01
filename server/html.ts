@@ -3,20 +3,22 @@
  */
 
 import fs from "node:fs";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { Eta } from "eta";
 import {
 	getModuleConfigUiMetadata,
 	normalizeModuleConfig
 } from "../config/module-options.ts";
+import { fromOS } from "./paths.ts";
 
-const currentFilePath =
+const currentFilePath = fromOS(
 	typeof __filename === "string"
 		? __filename
-		: fileURLToPath(import.meta.url);
+		: fileURLToPath(import.meta.url)
+);
 const currentDirPath =
-	typeof __dirname === "string" ? __dirname : path.dirname(currentFilePath);
+	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 
 export type HtmlPageOptions = {
 	watchEnabled?: boolean;
@@ -157,6 +159,7 @@ function createHtmlPage({
 		"/__harness/generated/vendor/json-editor.js",
 		"/__harness/generated/vendor/module-config-editor.js",
 		"/__harness/generated/runtime/debug-panel.js",
+		"/__harness/generated/runtime/quality-panel.js",
 		"/__harness/generated/runtime/shell-stage.js"
 	].map((src) => appendAssetVersion(src, assetVersion));
 	const shellAppScriptUrl = resolveShellAppScriptUrl(assetVersion);

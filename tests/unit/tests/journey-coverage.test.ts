@@ -64,13 +64,13 @@ test("buildJourneyCoverageSummary computes suite and overall percentages from pa
 	assert.equal(summary.suites.length, 1);
 	assert.equal(summary.suites[0].suite, "ui");
 	assert.equal(summary.suites[0].journeys.covered, 1);
-	assert.equal(summary.suites[0].journeys.total, 6);
+	assert.equal(summary.suites[0].journeys.total, 13);
 	assert.equal(
 		summary.suites[0].journeys.missed.includes("ui-debug-sidebar"),
 		true
 	);
 	assert.equal(summary.overall.suites[0], "ui");
 	assert.equal(summary.overall.journeys.covered, 1);
-	assert.equal(summary.overall.journeys.total, 6);
+	assert.equal(summary.overall.journeys.total, 13);
 	assert.equal(summary.overall.score > 0, true);
 });

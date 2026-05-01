@@ -4,7 +4,7 @@
 
 import fastifyStatic from "@fastify/static";
 import * as fs from "node:fs";
-import * as path from "node:path";
+import * as path from "pathe";
 import type { HtmlPageOptions } from "./html.ts";
 import { repoRoot, harnessRoot } from "./paths.ts";
 import {
@@ -39,6 +39,8 @@ type RegisterRoutesOptions = {
 	io: import("socket.io").Server;
 	restartHelper: () => Promise<void>;
 	watchEnabled: boolean;
+	getAnalysisResult: () => import("./analysis-types.ts").ModuleAnalysisResult | null;
+	triggerAnalysis: () => Promise<void>;
 };
 
 /**
@@ -66,7 +68,9 @@ async function registerRoutes({
 	resolveFontAwesomeCss,
 	io,
 	restartHelper,
-	watchEnabled
+	watchEnabled,
+	getAnalysisResult,
+	triggerAnalysis
 }: RegisterRoutesOptions): Promise<void> {
 	const harnessConfig = getHarnessConfig();
 
@@ -235,6 +239,20 @@ async function registerRoutes({
 					error: routeError.message || "Failed to save module config."
 				});
 		}
+	});
+
+	app.get("/__harness/analysis", async (_request, reply) => {
+		const result = getAnalysisResult();
+		if (!result) {
+			return reply.code(202).send({ status: "pending" });
+		}
+		return reply.send(result);
+	});
+
+	app.post("/__harness/analysis", async (_request, reply) => {
+		// Fire-and-forget — result is pushed to clients via Socket.IO when ready.
+		void triggerAnalysis();
+		return reply.code(202).send({ status: "pending" });
 	});
 }
 

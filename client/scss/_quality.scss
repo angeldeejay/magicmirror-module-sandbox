@@ -1,0 +1,304 @@
+@use "abstracts";
+
+// ── Domain container ─────────────────────────────────────────────────────────
+
+.sandbox-quality-domain[data-active="true"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+}
+
+// ── Finding row ───────────────────────────────────────────────────────────────
+
+.sandbox-quality-finding {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 6px;
+	padding: 7px 10px;
+	border-left: 3px solid transparent;
+	border-radius: 4px;
+	background: #101010;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.sandbox-quality-finding + .sandbox-quality-finding {
+	margin-top: 4px;
+}
+
+// Severity variants
+
+.sandbox-quality-finding--error {
+	border-left-color: #c0392b;
+	background: #180f0f;
+}
+
+.sandbox-quality-finding--warning {
+	border-left-color: #c07c00;
+	background: #181208;
+}
+
+.sandbox-quality-finding--info {
+	border-left-color: #2e6a9e;
+	background: #0d1118;
+}
+
+// Finding sub-elements
+
+.sandbox-quality-finding__severity {
+	flex: 0 0 auto;
+	font-size: 10px;
+	line-height: 1;
+	color: inherit;
+}
+
+.sandbox-quality-finding--error .sandbox-quality-finding__severity {
+	color: #e74c3c;
+}
+
+.sandbox-quality-finding--warning .sandbox-quality-finding__severity {
+	color: #e6950a;
+}
+
+.sandbox-quality-finding--info .sandbox-quality-finding__severity {
+	color: #6ab0dc;
+}
+
+.sandbox-quality-finding__id {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-weight: 700;
+	font-family: Consolas, monospace;
+	color: #6ab0dc;
+}
+
+.sandbox-quality-finding__category {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #9aa8c8;
+}
+
+.sandbox-quality-finding__file {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 11px;
+	font-family: Consolas, monospace;
+	color: #7a8a9a;
+}
+
+.sandbox-quality-finding__description {
+	flex: 1 1 100%;
+	min-width: 0;
+	color: #d0d8e8;
+	font-size: 12px;
+	word-break: break-word;
+}
+
+// ── Inline links inside finding descriptions ─────────────────────────────────
+
+.sandbox-quality-link {
+	color: #6ab0dc;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+
+	&:hover {
+		color: #8ecef0;
+	}
+}
+
+// ── Empty state inside a tab panel ───────────────────────────────────────────
+
+.sandbox-quality-empty {
+	margin: 0;
+	padding: 10px 0;
+	font-size: 12px;
+	color: var(--sandbox-control-text-muted);
+	text-align: center;
+}
+
+// ── Loading state ─────────────────────────────────────────────────────────────
+
+.sandbox-quality-loading {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	margin-top: 24px;
+	font-size: 13px;
+	color: var(--sandbox-control-text-muted);
+	animation: sandbox-quality-pulse 1.6s ease-in-out infinite;
+}
+
+.sandbox-quality-loading[data-visible="true"] {
+	display: flex;
+}
+
+@keyframes sandbox-quality-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.4;
+	}
+}
+
+// ── Error state ───────────────────────────────────────────────────────────────
+
+.sandbox-quality-error {
+	display: none;
+	margin-top: 16px;
+	padding: 10px 12px;
+	background: #200a0a;
+	border: 1px solid #5c1a1a;
+	border-radius: 6px;
+	font-size: 12px;
+	color: #ff9e9e;
+}
+
+.sandbox-quality-error[data-visible="true"] {
+	display: block;
+}
+
+// ── Footer ────────────────────────────────────────────────────────────────────
+
+.sandbox-quality-footer {
+	display: none;
+	flex-wrap: wrap;
+	gap: 8px;
+	justify-content: space-between;
+	align-items: baseline;
+	margin-top: 10px;
+	padding-top: 8px;
+	border-top: 1px solid #2a2a2a;
+	font-size: 11px;
+	color: #7a8a9a;
+}
+
+.sandbox-quality-footer[data-visible="true"] {
+	display: flex;
+}
+
+.sandbox-quality-stale-note {
+	flex: 1 1 auto;
+	font-style: italic;
+	color: #555f6f;
+}
+
+// ── Status pill separator inside quality domain ───────────────────────────────
+
+.sandbox-quality-domain .status-pill {
+	margin-bottom: 10px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid #2a2a2a;
+}
+
+// ── Severity filter checkboxes ────────────────────────────────────────────────
+
+.sandbox-quality-filters {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-bottom: 10px;
+}
+
+.sandbox-quality-filter {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 10px;
+	background: #101010;
+	border: 1px solid #2a2a2a;
+	border-radius: 4px;
+	cursor: pointer;
+	user-select: none;
+
+	&:hover {
+		background: #181818;
+		border-color: #383838;
+	}
+}
+
+.sandbox-quality-filter__checkbox {
+	appearance: none;
+	flex: 0 0 auto;
+	width: 13px;
+	height: 13px;
+	border: 1px solid #444;
+	border-radius: 3px;
+	background: #0a0a0a;
+	cursor: pointer;
+	position: relative;
+
+	&:checked {
+		border-color: #666;
+		background: #222;
+
+		&::after {
+			content: "";
+			display: block;
+			position: absolute;
+			inset: 2px;
+			border-radius: 1px;
+			background: currentColor;
+		}
+	}
+}
+
+.sandbox-quality-filter--errors .sandbox-quality-filter__checkbox {
+	color: #e74c3c;
+}
+
+.sandbox-quality-filter--warnings .sandbox-quality-filter__checkbox {
+	color: #e6950a;
+}
+
+.sandbox-quality-filter--info .sandbox-quality-filter__checkbox {
+	color: #6ab0dc;
+}
+
+.sandbox-quality-filter__label {
+	flex: 1 1 auto;
+	font-size: 12px;
+	font-weight: 500;
+	color: #d0d8e8;
+}
+
+.sandbox-quality-filter__count {
+	flex: 0 0 auto;
+	font-size: 11px;
+	font-weight: 700;
+	font-family: Consolas, monospace;
+	min-width: 16px;
+	text-align: right;
+}
+
+.sandbox-quality-filter--errors .sandbox-quality-filter__count {
+	color: #e74c3c;
+}
+
+.sandbox-quality-filter--warnings .sandbox-quality-filter__count {
+	color: #e6950a;
+}
+
+.sandbox-quality-filter--info .sandbox-quality-filter__count {
+	color: #6ab0dc;
+}
+
+// ── Unified findings panel ────────────────────────────────────────────────────
+
+.sandbox-quality-panel {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding-right: 2px;
+	@include abstracts.scrollbar;
+}

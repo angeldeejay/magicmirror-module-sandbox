@@ -10,6 +10,7 @@ coverage/
 
 # Test artifacts and reports
 test-results/
+.playwright-mcp/
 playwright-report/
 .vitest-attachments/
 tests/**/__screenshots__/
@@ -27,4 +28,9 @@ yarn-error.log*
 # OS-specific files
 .DS_Store
 .secrets
+
+# Agent related ignores
+.github/copilot-instructions.md
+HANDOFF.md
+CLAUDE.md
 TODO.md

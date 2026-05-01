@@ -2,7 +2,7 @@
  * Resolve runtime asset locations shared by the Fastify host and build flows.
  */
 
-import * as path from "node:path";
+import * as path from "pathe";
 import { createRequire } from "node:module";
 import { harnessRoot } from "./paths.ts";
 

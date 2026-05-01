@@ -4,11 +4,12 @@
 
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
 
-const __filename = fileURLToPath(import.meta.url);
+const fromOS = (p: string) => p.replace(/\\/g, "/");
+const __filename = fromOS(fileURLToPath(import.meta.url));
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
 const shimsRoot = path.join(root, "shims");
@@ -307,7 +308,7 @@ export function buildNodeCompat(): void {
 }
 
 const isMain = process.argv[1]
-	? path.resolve(process.argv[1]) === __filename
+	? path.resolve(fromOS(process.argv[1])) === __filename
 	: false;
 
 if (isMain) {

@@ -6,7 +6,7 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as os from "node:os";
-import * as path from "node:path";
+import * as path from "pathe";
 import { createContract } from "../config/contract.ts";
 import { createHarnessConfig } from "../config/harness.config.ts";
 import { magicMirrorLanguages } from "../config/magicmirror-languages.ts";
@@ -208,6 +208,13 @@ function resolveSandboxPersistencePaths(
 }
 
 /**
+ * Filename that, when present in the mounted module root, takes precedence over
+ * the sandbox-managed temp config file. Module authors can commit or gitignore
+ * this file freely; the sandbox always watches it regardless of .gitignore.
+ */
+const SANDBOX_CONFIG_FILENAME = "config.sandbox.json";
+
+/**
  * Creates config api.
  */
 function createConfigApi({
@@ -221,12 +228,86 @@ function createConfigApi({
 			.runtimeConfigPath
 }: ConfigApiOptions = {}) {
 	const mountedModuleInfo = resolveActiveModuleInfo();
-	const moduleConfigPath = resolveModuleConfigPath({
+	const tempModuleConfigPath = resolveModuleConfigPath({
 		mountedModuleInfo
 	});
 	const runtimeConfigPath = resolveRuntimeConfigPath({
 		mountedModuleInfo
 	});
+
+	/**
+	 * Returns the path of config.sandbox.json in the module root if the file
+	 * currently exists, otherwise null.
+	 */
+	function getSandboxModuleConfigPath(): string | null {
+		if (!mountedModuleInfo) {
+			return null;
+		}
+		const candidate = path.join(
+			mountedModuleInfo.rootPath,
+			SANDBOX_CONFIG_FILENAME
+		);
+		return fs.existsSync(candidate) ? candidate : null;
+	}
+
+	/**
+	 * Reads sandbox.moduleConfig from the mounted module's package.json fresh on
+	 * every call so that package.json edits are reflected without a server restart.
+	 * Returns null if absent or malformed.
+	 */
+	function readPackageSandboxModuleConfig(): JsonObject | null {
+		if (!mountedModuleInfo) {
+			return null;
+		}
+		const packagePath = path.join(mountedModuleInfo.rootPath, "package.json");
+		if (!fs.existsSync(packagePath)) {
+			return null;
+		}
+		try {
+			const packageData = JSON.parse(
+				fs.readFileSync(packagePath, "utf-8")
+			) as JsonObject;
+			const sandbox = packageData.sandbox;
+			if (
+				!sandbox ||
+				typeof sandbox !== "object" ||
+				Array.isArray(sandbox)
+			) {
+				return null;
+			}
+			const moduleConfig = (sandbox as JsonObject).moduleConfig;
+			if (
+				!moduleConfig ||
+				typeof moduleConfig !== "object" ||
+				Array.isArray(moduleConfig)
+			) {
+				return null;
+			}
+			return moduleConfig as JsonObject;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Returns the path to write module config edits to.
+	 *
+	 * Precedence:
+	 *   1. config.sandbox.json exists → write there.
+	 *   2. sandbox.moduleConfig active (no sandbox file yet) → promote: create
+	 *      config.sandbox.json and write there (option-A promotion).
+	 *   3. Fallback → temp file.
+	 */
+	function getModuleConfigWritePath(): string {
+		const sandboxPath = getSandboxModuleConfigPath();
+		if (sandboxPath) {
+			return sandboxPath;
+		}
+		if (mountedModuleInfo && readPackageSandboxModuleConfig() !== null) {
+			return path.join(mountedModuleInfo.rootPath, SANDBOX_CONFIG_FILENAME);
+		}
+		return tempModuleConfigPath;
+	}
 
 	/**
 	 * Gets available languages.
@@ -307,28 +388,46 @@ function createConfigApi({
 	}
 
 	/**
-	 * Gets module config.
+	 * Gets module config following the full precedence chain:
+	 *   1. config.sandbox.json in module root (file, highest)
+	 *   2. package.json → sandbox.moduleConfig (inline, read-only seed)
+	 *   3. Sandbox temp file (lowest)
 	 */
 	function getModuleConfig(): Record<string, unknown> {
-		if (!fs.existsSync(moduleConfigPath)) {
-			return normalizeModuleConfig(
-				{},
-				{
-					defaultConfigDeepMerge: getHarnessConfig().configDeepMerge
-				}
-			);
+		const deepMerge = getHarnessConfig().configDeepMerge;
+
+		// 1. config.sandbox.json
+		const sandboxConfigPath = getSandboxModuleConfigPath();
+		if (sandboxConfigPath) {
+			return normalizeModuleConfig(readJsonFile(sandboxConfigPath), {
+				defaultConfigDeepMerge: deepMerge
+			});
 		}
 
-		return normalizeModuleConfig(readJsonFile(moduleConfigPath), {
-			defaultConfigDeepMerge: getHarnessConfig().configDeepMerge
+		// 2. package.json → sandbox.moduleConfig
+		const pkgModuleConfig = readPackageSandboxModuleConfig();
+		if (pkgModuleConfig !== null) {
+			return normalizeModuleConfig(pkgModuleConfig, {
+				defaultConfigDeepMerge: deepMerge
+			});
+		}
+
+		// 3. Temp file
+		if (!fs.existsSync(tempModuleConfigPath)) {
+			return normalizeModuleConfig({}, { defaultConfigDeepMerge: deepMerge });
+		}
+		return normalizeModuleConfig(readJsonFile(tempModuleConfigPath), {
+			defaultConfigDeepMerge: deepMerge
 		});
 	}
 
 	/**
-	 * Gets module config path.
+	 * Returns the temp module config path.
+	 * Used by the watcher to explicitly watch the temp file; repoRoot already
+	 * covers config.sandbox.json so the dynamic path is not needed here.
 	 */
 	function getModuleConfigPath(): string {
-		return moduleConfigPath;
+		return tempModuleConfigPath;
 	}
 
 	/**
@@ -339,13 +438,16 @@ function createConfigApi({
 	}
 
 	/**
-	 * Saves module config.
+	 * Saves module config to the appropriate path following write precedence:
+	 *   1. config.sandbox.json exists → write there.
+	 *   2. sandbox.moduleConfig active → promote: create config.sandbox.json.
+	 *   3. Fallback → temp file.
 	 */
 	function saveModuleConfig(nextConfig: unknown): Record<string, unknown> {
 		const normalizedConfig = normalizeModuleConfig(nextConfig, {
 			defaultConfigDeepMerge: getHarnessConfig().configDeepMerge
 		});
-		writeJsonFile(moduleConfigPath, normalizedConfig);
+		writeJsonFile(getModuleConfigWritePath(), normalizedConfig);
 		return cloneJson(normalizedConfig);
 	}
 

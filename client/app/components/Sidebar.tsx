@@ -7,6 +7,7 @@ import { AboutDomain } from "./sidebar/AboutDomain";
 import { ConfigDomain } from "./sidebar/ConfigDomain";
 import { DebugDomain } from "./sidebar/DebugDomain";
 import { NotificationsDomain } from "./sidebar/NotificationsDomain";
+import { QualityDomain } from "./sidebar/QualityDomain";
 import { RuntimeDomain } from "./sidebar/RuntimeDomain";
 
 type SidebarProps = {
@@ -43,6 +44,7 @@ export function Sidebar({ harness }: SidebarProps) {
 				<ConfigDomain harness={harness} />
 				<NotificationsDomain />
 				<DebugDomain />
+				<QualityDomain />
 				<AboutDomain />
 			</div>
 		</aside>

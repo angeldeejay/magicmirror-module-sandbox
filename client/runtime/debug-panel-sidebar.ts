@@ -13,6 +13,10 @@
 			title: "Config",
 			copy: "Tune general sandbox/module options or edit the mounted module config block."
 		},
+		quality: {
+			title: "Quality",
+			copy: "Module quality analysis against MagicMirror 3rd-party criteria."
+		},
 		notifications: {
 			title: "Notifications",
 			copy: "Emit and inspect frontend MagicMirror notifications."

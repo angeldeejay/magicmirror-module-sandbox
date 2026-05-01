@@ -12,6 +12,7 @@
     <%~ include("./sidebar-config") %>
     <%~ include("./sidebar-notifications") %>
     <%~ include("./sidebar-debug") %>
+    <%~ include("./sidebar-quality") %>
     <%~ include("./sidebar-about") %>
   </div>
 </aside>

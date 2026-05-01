@@ -6,12 +6,13 @@
  * lean runtime package.
  */
 import * as fs from "node:fs";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
 import { buildNodeCompat } from "./build-node-compat.ts";
 
-const __filename = fileURLToPath(import.meta.url);
+const fromOS = (p: string) => p.replace(/\\/g, "/");
+const __filename = fromOS(fileURLToPath(import.meta.url));
 const __dirname = path.dirname(__filename);
 const root: string = path.resolve(__dirname, "..");
 const distRoot: string = path.join(root, "dist");

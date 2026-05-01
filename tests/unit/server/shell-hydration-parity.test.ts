@@ -267,6 +267,47 @@ parityCases.forEach(({ name, selector, render }) => {
 	});
 });
 
+// ── Domain ordering guards ────────────────────────────────────────────────────
+// These tests exist to catch mismatches between Topbar.tsx and sidebar ordering.
+// The bug pattern: changing one without the other produces wrong panels on click.
+
+const CANONICAL_DOMAIN_ORDER = [
+	"runtime",
+	"config",
+	"notifications",
+	"debug",
+	"quality",
+	"about"
+] as const;
+
+test("Topbar menu items follow the canonical domain order", () => {
+	const topbarHtml = renderToString(h(Topbar, { harness }));
+	const topbarRoot = parse(topbarHtml);
+	const links = topbarRoot.querySelectorAll("[data-domain]");
+	const actualOrder = links.map((el) => el.getAttribute("data-domain"));
+	assert.deepEqual(actualOrder, [...CANONICAL_DOMAIN_ORDER]);
+});
+
+test("Sidebar domain sections follow the canonical domain order", () => {
+	const sidebarHtml = renderToString(h(Sidebar, { harness }));
+	const sidebarRoot = parse(sidebarHtml);
+	const sections = sidebarRoot.querySelectorAll("[data-domain]:not([data-tab]):not([data-tab-panel])");
+	const actualOrder = [...new Set(sections.map((el) => el.getAttribute("data-domain")))];
+	assert.deepEqual(actualOrder, [...CANONICAL_DOMAIN_ORDER]);
+});
+
+test("Topbar domain order matches sidebar domain order", () => {
+	const topbarHtml = renderToString(h(Topbar, { harness }));
+	const sidebarHtml = renderToString(h(Sidebar, { harness }));
+	const topbarLinks = parse(topbarHtml)
+		.querySelectorAll("[data-domain]")
+		.map((el) => el.getAttribute("data-domain"));
+	const sidebarSections = parse(sidebarHtml)
+		.querySelectorAll("[data-domain]:not([data-tab]):not([data-tab-panel])");
+	const sidebarOrder = [...new Set(sidebarSections.map((el) => el.getAttribute("data-domain")))];
+	assert.deepEqual(topbarLinks, sidebarOrder, "Topbar and sidebar domain order must match exactly");
+});
+
 test("Topbar and RuntimeDomain fall back to empty/default harness values", () => {
 	const minimalHarness: HarnessState = {};
 	const topbarRoot = parse(renderToString(h(Topbar, { harness: minimalHarness })));

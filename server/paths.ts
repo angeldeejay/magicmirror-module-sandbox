@@ -3,7 +3,7 @@
  */
 
 import * as fs from "node:fs";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 
 type JsonObject = Record<string, unknown>;
@@ -17,12 +17,24 @@ type MountedModuleInfo = {
 	sandbox: JsonObject;
 };
 
-const currentFilePath =
+/**
+ * Normalizes an OS-native path (may contain backslashes on Windows) to
+ * forward slashes so it is safe to pass into pathe functions.
+ * On Linux/macOS this is a no-op.
+ *
+ * @param {string} p - OS-native path string.
+ * @returns {string} Forward-slash path.
+ */
+export function fromOS(p: string): string {
+	return p.replace(/\\/g, "/");
+}
+
+const currentFilePath = fromOS(
 	typeof __filename === "string"
 		? __filename
-		: fileURLToPath(import.meta.url);
-const currentDirPath =
-	typeof __dirname === "string" ? __dirname : path.dirname(currentFilePath);
+		: fileURLToPath(import.meta.url)
+);
+const currentDirPath = path.dirname(currentFilePath);
 
 export const harnessRoot: string = path.resolve(currentDirPath, "..");
 export const MAX_PARENT_PACKAGE_DEPTH = 3;
@@ -160,7 +172,7 @@ export function getPackageSandboxConfig(
 export function resolveMountedModuleInfo(
 	directoryPath = process.cwd()
 ): MountedModuleInfo | null {
-	const rootPath = path.resolve(directoryPath);
+	const rootPath = path.resolve(fromOS(directoryPath));
 	const packageData = readPackageJson(rootPath);
 	if (!packageData) {
 		return null;
@@ -230,7 +242,7 @@ export function findMountedModuleRoot(
 	startPath: string,
 	maxParentLevels = MAX_PARENT_PACKAGE_DEPTH
 ): string | null {
-	let currentPath = path.resolve(startPath);
+	let currentPath = path.resolve(fromOS(startPath));
 
 	if (isMountedModuleRoot(currentPath)) {
 		return currentPath;
@@ -256,13 +268,13 @@ export function findMountedModuleRoot(
  */
 export function resolveRepoRoot(): string {
 	if (process.env.MM_SANDBOX_MOUNTED_MODULE_ROOT) {
-		return path.resolve(process.env.MM_SANDBOX_MOUNTED_MODULE_ROOT);
+		return path.resolve(fromOS(process.env.MM_SANDBOX_MOUNTED_MODULE_ROOT));
 	}
 
 	return (
-		findMountedModuleRoot(process.cwd(), MAX_PARENT_PACKAGE_DEPTH) ||
+		findMountedModuleRoot(fromOS(process.cwd()), MAX_PARENT_PACKAGE_DEPTH) ||
 		findMountedModuleRoot(harnessRoot, MAX_PARENT_PACKAGE_DEPTH) ||
-		process.cwd()
+		fromOS(process.cwd())
 	);
 }
 
@@ -277,7 +289,7 @@ export function resolveActiveMountedModuleInfo(): MountedModuleInfo | null {
 	}
 
 	const cwdMountedRoot = findMountedModuleRoot(
-		process.cwd(),
+		fromOS(process.cwd()),
 		MAX_PARENT_PACKAGE_DEPTH
 	);
 	if (cwdMountedRoot) {

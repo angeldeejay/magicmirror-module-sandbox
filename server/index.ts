@@ -4,7 +4,7 @@
 
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import fastifyMiddie from "@fastify/middie";
 import Fastify from "fastify";
@@ -21,27 +21,36 @@ import { createConfigApi } from "./config.ts";
 import { createHelperRuntime, injectShimResolution } from "./helper-runtime.ts";
 import { createHtmlPage, createStagePage } from "./html.ts";
 import { attachSocketServer, getHelperLogEntries } from "./log-store.ts";
-import { resolveRepoRoot } from "./paths.ts";
+import {
+	VendorModuleAnalyzer,
+	attachAnalysisSocketServer,
+	getLastAnalysisResult,
+	setAnalysisResult
+} from "./module-analysis.ts";
+import { fromOS, resolveRepoRoot } from "./paths.ts";
 import { registerRoutes } from "./routes.ts";
 import { runStartupScripts } from "./startup-scripts.ts";
+import { startAnalysisWatcher } from "./analysis-watcher.ts";
 import { startWatcher } from "./watch.ts";
 
 type ShutdownOptions = {
 	app: import("fastify").FastifyInstance;
 	io: import("socket.io").Server;
 	watcher: import("chokidar").FSWatcher | null;
+	analysisWatcher: import("chokidar").FSWatcher | null;
 	helperRuntime: { stopHelper: () => Promise<void> };
 	startupController: { stopAll: () => Promise<void> };
 };
 
 const args = process.argv.slice(2);
 const watchEnabled = args.includes("--watch");
-const currentFilePath =
+const currentFilePath = fromOS(
 	typeof __filename === "string"
 		? __filename
-		: fileURLToPath(import.meta.url);
+		: fileURLToPath(import.meta.url)
+);
 const currentDirPath =
-	typeof __dirname === "string" ? __dirname : path.dirname(currentFilePath);
+	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 const {
 	getAvailableLanguages,
 	getHarnessConfig,
@@ -126,6 +135,7 @@ function registerShutdownHandlers({
 	app,
 	io,
 	watcher,
+	analysisWatcher,
 	helperRuntime,
 	startupController
 }: ShutdownOptions): void {
@@ -143,6 +153,9 @@ function registerShutdownHandlers({
 		try {
 			if (watcher) {
 				await watcher.close();
+			}
+			if (analysisWatcher) {
+				await analysisWatcher.close();
 			}
 			await helperRuntime.stopHelper();
 			await startupController.stopAll();
@@ -228,10 +241,8 @@ async function startServer(): Promise<void> {
 		const normalized = filePath.toLowerCase();
 		const scope = normalized.endsWith(".scss")
 			? "styles"
-			: normalized.includes(`${path.sep}app${path.sep}`.toLowerCase()) ||
-				  normalized.endsWith(
-						`${path.sep}vite.config.mjs`.toLowerCase()
-				  )
+			: normalized.includes("/app/") ||
+				  normalized.endsWith("/vite.config.mjs")
 				? "shell"
 				: "runtime";
 		const result = spawnSync(
@@ -276,7 +287,12 @@ async function startServer(): Promise<void> {
 		resolveFontAwesomeCss,
 		io,
 		restartHelper: helperRuntime.restartHelper,
-		watchEnabled
+		watchEnabled,
+		getAnalysisResult: getLastAnalysisResult,
+		triggerAnalysis: async () => {
+			const result = await moduleAnalyzer.analyze(repoRoot, harnessConfig.moduleName);
+			setAnalysisResult(result);
+		}
 	});
 
 	await helperRuntime.restartHelper();
@@ -313,10 +329,28 @@ async function startServer(): Promise<void> {
 		rebuildNodeCompat
 	});
 
+	attachAnalysisSocketServer(io);
+	const moduleAnalyzer = new VendorModuleAnalyzer();
+	const analysisWatcher = startAnalysisWatcher({
+		enabled: watchEnabled,
+		moduleRoot: repoRoot,
+		moduleName: harnessConfig.moduleName,
+		moduleEntry: harnessConfig.moduleEntry,
+		hasNodeHelper: fs.existsSync(path.join(repoRoot, "node_helper.js")),
+		io,
+		analyzer: moduleAnalyzer
+	});
+
+	// Run initial analysis immediately so the quality panel has data on first load.
+	moduleAnalyzer.analyze(repoRoot, harnessConfig.moduleName).then(setAnalysisResult).catch((err: unknown) => {
+		console.error("[module-sandbox] initial analysis error", err);
+	});
+
 	registerShutdownHandlers({
 		app,
 		io,
 		watcher,
+		analysisWatcher,
 		helperRuntime,
 		startupController
 	});

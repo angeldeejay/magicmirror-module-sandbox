@@ -4,7 +4,7 @@
 
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 
 type CssNode = {
@@ -44,12 +44,14 @@ type CssTreeModule = {
 	) => void;
 };
 
-const currentFilePath =
+const fromOS = (p: string) => p.replace(/\\/g, "/");
+const currentFilePath = fromOS(
 	typeof __filename === "string"
 		? __filename
-		: fileURLToPath(import.meta.url);
+		: fileURLToPath(import.meta.url)
+);
 const currentDirPath =
-	typeof __dirname === "string" ? __dirname : path.dirname(currentFilePath);
+	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 const nodeRequire = createRequire(
 	typeof __filename === "string" ? __filename : import.meta.url
 );

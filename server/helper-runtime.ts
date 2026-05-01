@@ -4,7 +4,7 @@
 
 import * as fs from "node:fs";
 import Module, { createRequire } from "node:module";
-import * as path from "node:path";
+import * as path from "pathe";
 import { configRoot, harnessRoot, repoRoot, shimsRoot } from "./paths.ts";
 
 const nodeModule = Module as typeof Module & {
@@ -92,15 +92,18 @@ function injectShimResolution(): void {
  */
 function clearModuleRequireCache(): void {
 	Object.keys(nodeRequire.cache).forEach((cacheKey) => {
+		// require.cache keys use OS-native separators; normalize to forward slashes
+		// so comparisons work consistently across Windows, Linux, and macOS.
+		const normalizedKey = cacheKey.replace(/\\/g, "/");
 		if (
-			cacheKey.startsWith(repoRoot) &&
-			!cacheKey.includes(`${path.sep}node_modules${path.sep}`) &&
-			!cacheKey.startsWith(harnessRoot)
+			normalizedKey.startsWith(repoRoot) &&
+			!normalizedKey.includes("/node_modules/") &&
+			!normalizedKey.startsWith(harnessRoot)
 		) {
 			delete nodeRequire.cache[cacheKey];
 		}
 
-		if (cacheKey.startsWith(configRoot)) {
+		if (normalizedKey.startsWith(configRoot)) {
 			delete nodeRequire.cache[cacheKey];
 		}
 	});

@@ -3,8 +3,10 @@
  */
 
 import * as fs from "node:fs";
-import * as path from "node:path";
+import * as path from "pathe";
 import { fileURLToPath } from "node:url";
+
+const fromOS = (p: string) => p.replace(/\\/g, "/");
 
 const PREVIEW_MODULE_NAME = "MMM-TestModule";
 const PREVIEW_MODULE_ENTRY = "MMM-TestModule.js";
@@ -15,12 +17,13 @@ type PreviewEnvOptions = {
 	packageRoot?: string;
 };
 
-const currentFilePath =
+const currentFilePath = fromOS(
 	typeof __filename === "string"
 		? __filename
-		: fileURLToPath(import.meta.url);
+		: fileURLToPath(import.meta.url)
+);
 const currentDirPath =
-	typeof __dirname === "string" ? __dirname : path.dirname(currentFilePath);
+	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 
 /**
  * Gets package root.

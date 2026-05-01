@@ -13,6 +13,7 @@ const menuItems = [
 	{ id: "config", label: "Config" },
 	{ id: "notifications", label: "Notifications" },
 	{ id: "debug", label: "Debug" },
+	{ id: "quality", label: "Quality" },
 	{ id: "about", label: "About" }
 ] as const;
 
