@@ -37,6 +37,7 @@ export function NotificationsDomain() {
 					data-tab="emit"
 					data-active="false"
 				>
+					<i class="fa-solid fa-paper-plane" aria-hidden="true" />
 					Emit
 				</button>
 				<button
@@ -46,6 +47,7 @@ export function NotificationsDomain() {
 					data-tab="log"
 					data-active="false"
 				>
+					<i class="fa-solid fa-list" aria-hidden="true" />
 					Log
 				</button>
 				<button
@@ -55,6 +57,7 @@ export function NotificationsDomain() {
 					data-tab="websocket"
 					data-active="false"
 				>
+					<i class="fa-solid fa-plug" aria-hidden="true" />
 					WebSocket
 				</button>
 			</div>
@@ -107,6 +110,7 @@ export function NotificationsDomain() {
 						class="sandbox-button sandbox-button--full"
 						type="button"
 					>
+						<i class="fa-solid fa-paper-plane" aria-hidden="true" />
 						Emit
 					</button>
 				</div>
@@ -128,6 +132,7 @@ export function NotificationsDomain() {
 						class="sandbox-button sandbox-button--full"
 						type="button"
 					>
+						<i class="fa-solid fa-trash" aria-hidden="true" />
 						Clear log
 					</button>
 				</div>
@@ -149,6 +154,7 @@ export function NotificationsDomain() {
 						class="sandbox-button sandbox-button--full"
 						type="button"
 					>
+						<i class="fa-solid fa-trash" aria-hidden="true" />
 						Clear websocket log
 					</button>
 				</div>

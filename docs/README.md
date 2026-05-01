@@ -6,34 +6,18 @@ These pages walk through the main parts of the MagicMirror Module Sandbox UI.
 
 ## What you will find here
 
-The sidebar is organized into five main areas:
+The sidebar is organized into six main areas:
 
 - [Runtime](runtime.md)
 - [Config](config.md)
 - [Notifications](notifications.md)
 - [Debug](debug.md)
+- [Quality](quality.md)
 - [About](about.md)
 
 These guides describe the sandbox as it exists today. They are meant to help
 you use the product, not to promise broad compatibility outside the supported
 slice.
-
-## Screenshot index
-
-- [Runtime](runtime.md): `Lifecycle`
-  ![Runtime lifecycle screenshot](screenshots/runtime-lifecycle.png)
-- [Config](config.md): `General` and `Module`
-  ![Config General screenshot](screenshots/config-general.png)
-  ![Config Module screenshot](screenshots/config-module.png)
-- [Notifications](notifications.md): `Emit`, `Log`, and `WebSocket`
-  ![Notifications Emit screenshot](screenshots/notifications-emit.png)
-  ![Notifications Log screenshot](screenshots/notifications-log.png)
-  ![Notifications WebSocket screenshot](screenshots/notifications-websocket.png)
-- [Debug](debug.md): `Helper Log` and `Console Log`
-  ![Debug Helper Log screenshot](screenshots/debug-helper-log.png)
-  ![Debug Console Log screenshot](screenshots/debug-console-log.png)
-- [About](about.md)
-  ![About screenshot](screenshots/about.png)
 
 ## A simple way to use the sandbox
 

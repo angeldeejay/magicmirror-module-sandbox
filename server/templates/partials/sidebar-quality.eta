@@ -25,6 +25,6 @@
     <span id="quality-footer-time"></span>
   </div>
   <div class="sandbox-button-row sandbox-button-row--full">
-    <button id="quality-analyze-btn" class="sandbox-button sandbox-button--full" type="button">Analyze module</button>
+    <button id="quality-analyze-btn" class="sandbox-button sandbox-button--full" type="button"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Analyze module</button>
   </div>
 </section>

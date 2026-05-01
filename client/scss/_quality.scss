@@ -20,7 +20,7 @@
 	padding: 7px 10px;
 	border-left: 3px solid transparent;
 	border-radius: 4px;
-	background: #101010;
+	background: var(--hns-bg-panel);
 	font-size: 12px;
 	line-height: 1.5;
 }
@@ -32,18 +32,18 @@
 // Severity variants
 
 .sandbox-quality-finding--error {
-	border-left-color: #c0392b;
-	background: #180f0f;
+	border-left-color: var(--hns-sev-error-border);
+	background: var(--hns-sev-error-bg);
 }
 
 .sandbox-quality-finding--warning {
-	border-left-color: #c07c00;
-	background: #181208;
+	border-left-color: var(--hns-sev-warning-border);
+	background: var(--hns-sev-warning-bg);
 }
 
 .sandbox-quality-finding--info {
-	border-left-color: #2e6a9e;
-	background: #0d1118;
+	border-left-color: var(--hns-sev-info-border);
+	background: var(--hns-sev-info-bg);
 }
 
 // Finding sub-elements
@@ -56,15 +56,15 @@
 }
 
 .sandbox-quality-finding--error .sandbox-quality-finding__severity {
-	color: #e74c3c;
+	color: var(--hns-sev-error-icon);
 }
 
 .sandbox-quality-finding--warning .sandbox-quality-finding__severity {
-	color: #e6950a;
+	color: var(--hns-sev-warning-icon);
 }
 
 .sandbox-quality-finding--info .sandbox-quality-finding__severity {
-	color: #6ab0dc;
+	color: var(--hns-sev-info-icon);
 }
 
 .sandbox-quality-finding__id {
@@ -72,7 +72,7 @@
 	font-size: 11px;
 	font-weight: 700;
 	font-family: Consolas, monospace;
-	color: #6ab0dc;
+	color: var(--hns-sev-info-icon);
 }
 
 .sandbox-quality-finding__category {
@@ -81,7 +81,7 @@
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
-	color: #9aa8c8;
+	color: var(--hns-quality-text-muted);
 }
 
 .sandbox-quality-finding__file {
@@ -92,13 +92,13 @@
 	white-space: nowrap;
 	font-size: 11px;
 	font-family: Consolas, monospace;
-	color: #7a8a9a;
+	color: var(--hns-quality-text-dim);
 }
 
 .sandbox-quality-finding__description {
 	flex: 1 1 100%;
 	min-width: 0;
-	color: #d0d8e8;
+	color: var(--hns-quality-text);
 	font-size: 12px;
 	word-break: break-word;
 }
@@ -106,12 +106,12 @@
 // ── Inline links inside finding descriptions ─────────────────────────────────
 
 .sandbox-quality-link {
-	color: #6ab0dc;
+	color: var(--hns-sev-info-icon);
 	text-decoration: underline;
 	text-underline-offset: 2px;
 
 	&:hover {
-		color: #8ecef0;
+		color: var(--hns-sev-info-icon-hover);
 	}
 }
 
@@ -157,11 +157,11 @@
 	display: none;
 	margin-top: 16px;
 	padding: 10px 12px;
-	background: #200a0a;
-	border: 1px solid #5c1a1a;
+	background: var(--hns-quality-error-bg);
+	border: 1px solid var(--hns-quality-error-border);
 	border-radius: 6px;
 	font-size: 12px;
-	color: #ff9e9e;
+	color: var(--hns-quality-error-text);
 }
 
 .sandbox-quality-error[data-visible="true"] {
@@ -178,9 +178,9 @@
 	align-items: baseline;
 	margin-top: 10px;
 	padding-top: 8px;
-	border-top: 1px solid #2a2a2a;
+	border-top: 1px solid var(--hns-quality-filter-border);
 	font-size: 11px;
-	color: #7a8a9a;
+	color: var(--hns-quality-text-dim);
 }
 
 .sandbox-quality-footer[data-visible="true"] {
@@ -190,7 +190,7 @@
 .sandbox-quality-stale-note {
 	flex: 1 1 auto;
 	font-style: italic;
-	color: #555f6f;
+	color: var(--hns-quality-text-very-dim);
 }
 
 // ── Status pill separator inside quality domain ───────────────────────────────
@@ -198,7 +198,7 @@
 .sandbox-quality-domain .status-pill {
 	margin-bottom: 10px;
 	padding-bottom: 10px;
-	border-bottom: 1px solid #2a2a2a;
+	border-bottom: 1px solid var(--hns-quality-filter-border);
 }
 
 // ── Severity filter checkboxes ────────────────────────────────────────────────
@@ -215,15 +215,15 @@
 	align-items: center;
 	gap: 8px;
 	padding: 7px 10px;
-	background: #101010;
-	border: 1px solid #2a2a2a;
+	background: var(--hns-bg-panel);
+	border: 1px solid var(--hns-quality-filter-border);
 	border-radius: 4px;
 	cursor: pointer;
 	user-select: none;
 
 	&:hover {
-		background: #181818;
-		border-color: #383838;
+		background: var(--hns-quality-filter-hover-bg);
+		border-color: var(--hns-quality-filter-hover-border);
 	}
 }
 
@@ -232,15 +232,15 @@
 	flex: 0 0 auto;
 	width: 13px;
 	height: 13px;
-	border: 1px solid #444;
+	border: 1px solid var(--hns-quality-filter-cb-border);
 	border-radius: 3px;
-	background: #0a0a0a;
+	background: var(--hns-bg-input);
 	cursor: pointer;
 	position: relative;
 
 	&:checked {
-		border-color: #666;
-		background: #222;
+		border-color: var(--hns-quality-filter-cb-border-chk);
+		background: var(--hns-quality-filter-cb-bg-chk);
 
 		&::after {
 			content: "";
@@ -254,22 +254,22 @@
 }
 
 .sandbox-quality-filter--errors .sandbox-quality-filter__checkbox {
-	color: #e74c3c;
+	color: var(--hns-sev-error-icon);
 }
 
 .sandbox-quality-filter--warnings .sandbox-quality-filter__checkbox {
-	color: #e6950a;
+	color: var(--hns-sev-warning-icon);
 }
 
 .sandbox-quality-filter--info .sandbox-quality-filter__checkbox {
-	color: #6ab0dc;
+	color: var(--hns-sev-info-icon);
 }
 
 .sandbox-quality-filter__label {
 	flex: 1 1 auto;
 	font-size: 12px;
 	font-weight: 500;
-	color: #d0d8e8;
+	color: var(--hns-quality-text);
 }
 
 .sandbox-quality-filter__count {
@@ -282,15 +282,15 @@
 }
 
 .sandbox-quality-filter--errors .sandbox-quality-filter__count {
-	color: #e74c3c;
+	color: var(--hns-sev-error-icon);
 }
 
 .sandbox-quality-filter--warnings .sandbox-quality-filter__count {
-	color: #e6950a;
+	color: var(--hns-sev-warning-icon);
 }
 
 .sandbox-quality-filter--info .sandbox-quality-filter__count {
-	color: #6ab0dc;
+	color: var(--hns-sev-info-icon);
 }
 
 // ── Unified findings panel ────────────────────────────────────────────────────

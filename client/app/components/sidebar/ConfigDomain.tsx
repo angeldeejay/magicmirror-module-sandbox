@@ -86,6 +86,7 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 					data-active="false"
 					aria-selected="false"
 				>
+					<i class="fa-solid fa-sliders" aria-hidden="true" />
 					General
 				</button>
 				<button
@@ -96,6 +97,7 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 					data-active="false"
 					aria-selected="false"
 				>
+					<i class="fa-solid fa-code" aria-hidden="true" />
 					Module
 				</button>
 			</div>
@@ -276,6 +278,7 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 						class="sandbox-button sandbox-button--full"
 						type="button"
 					>
+						<i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
 						Format config
 					</button>
 				</div>
@@ -293,6 +296,7 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 					disabled
 					style={{ flex: 1 }}
 				>
+					<i class="fa-solid fa-arrow-rotate-left" aria-hidden="true" />
 					Revert draft
 				</button>
 				<button
@@ -301,6 +305,7 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 					type="button"
 					style={{ flex: 1 }}
 				>
+					<i class="fa-solid fa-rotate-right" aria-hidden="true" />
 					Refresh styles
 				</button>
 			</div>
@@ -311,6 +316,7 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 					type="button"
 					style={{ flex: 1 }}
 				>
+					<i class="fa-solid fa-rotate-right" aria-hidden="true" />
 					Save and reload
 				</button>
 			</div>

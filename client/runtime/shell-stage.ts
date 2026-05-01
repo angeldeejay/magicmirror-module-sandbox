@@ -95,6 +95,24 @@
 	};
 
 	/**
+	 * Show the shell-level backdrop with an optional label.
+	 */
+	core.showBackdrop = function showBackdrop(label) {
+		const backdrop = document.getElementById("harness-backdrop");
+		const labelEl = document.getElementById("harness-backdrop-label");
+		if (backdrop) backdrop.dataset.visible = "true";
+		if (labelEl) labelEl.textContent = label || "Loading\u2026";
+	};
+
+	/**
+	 * Hide the shell-level backdrop.
+	 */
+	core.hideBackdrop = function hideBackdrop() {
+		const backdrop = document.getElementById("harness-backdrop");
+		if (backdrop) backdrop.dataset.visible = "false";
+	};
+
+	/**
 	 * Internal helper for reload stage.
 	 */
 	core.reloadStage = function reloadStage(version) {
@@ -202,6 +220,7 @@
 		switch (message.type) {
 			case "stage-ready":
 				core.stageReady = true;
+				core.hideBackdrop();
 				replaceMirroredEntries(
 					"notificationLog",
 					message.detail && message.detail.notificationLog,
@@ -306,6 +325,7 @@
 					return;
 				}
 
+				core.showBackdrop("Loading\u2026");
 				core.reloadStage(
 					payload && typeof payload.version === "string"
 						? payload.version
@@ -335,5 +355,106 @@
 		if (typeof core.initializeQualityPanel === "function") {
 			core.initializeQualityPanel();
 		}
+
+		const restartBtn = document.getElementById("harness-restart-btn");
+		if (restartBtn instanceof HTMLButtonElement) {
+			const restartLabel = restartBtn.querySelector(".harness-restart-label");
+			const restartIcon = restartBtn.querySelector(".harness-restart-icon");
+			const originalLabel = restartLabel ? restartLabel.textContent : "Restart";
+
+			restartBtn.addEventListener("click", () => {
+				if (restartBtn.disabled) {
+					return;
+				}
+				restartBtn.disabled = true;
+				if (restartIcon) {
+					restartIcon.classList.add("fa-spin");
+				}
+				if (restartLabel) {
+					restartLabel.textContent = "Restarting…";
+				}
+				core.showBackdrop("Restarting sandbox\u2026");
+				fetch("/__harness/restart", { method: "POST" })
+					.catch(() => {})
+					.finally(() => {
+						restartBtn.disabled = false;
+						if (restartIcon) {
+							restartIcon.classList.remove("fa-spin");
+						}
+						if (restartLabel) {
+							restartLabel.textContent = originalLabel;
+						}
+					});
+			});
+		}
+
+		(function initThemePicker() {
+			const LS_KEY = "harness-theme";
+			const THEMES = [
+				"carbon-slate",
+				"obsidian-amber",
+				"violet-circuit",
+				"phosphor-green"
+			];
+
+			const saved = globalScope.localStorage.getItem(LS_KEY);
+			if (saved && THEMES.includes(saved)) {
+				document.documentElement.dataset.theme = saved;
+			}
+
+			const picker = document.getElementById("harness-theme-picker");
+			const btn = document.getElementById("harness-theme-btn");
+			if (!picker || !btn) {
+				return;
+			}
+
+			const items = picker.querySelectorAll("[data-theme-value]");
+
+			function syncActive() {
+				const current = document.documentElement.dataset.theme || THEMES[0];
+				items.forEach((item) => {
+					if (item instanceof HTMLElement) {
+						item.setAttribute(
+							"aria-selected",
+							item.dataset.themeValue === current ? "true" : "false"
+						);
+					}
+				});
+			}
+
+			function closeMenu() {
+				picker.dataset.open = "false";
+				btn.setAttribute("aria-expanded", "false");
+			}
+
+			btn.addEventListener("click", (e) => {
+				e.stopPropagation();
+				const isOpen = picker.dataset.open === "true";
+				picker.dataset.open = isOpen ? "false" : "true";
+				btn.setAttribute("aria-expanded", String(!isOpen));
+				if (!isOpen) {
+					syncActive();
+				}
+			});
+
+			items.forEach((item) => {
+				item.addEventListener("click", () => {
+					if (!(item instanceof HTMLElement)) {
+						return;
+					}
+					const value = item.dataset.themeValue;
+					if (value) {
+						document.documentElement.dataset.theme = value;
+						globalScope.localStorage.setItem(LS_KEY, value);
+					}
+					closeMenu();
+					syncActive();
+				});
+			});
+
+			globalScope.addEventListener("click", closeMenu);
+
+			syncActive();
+		})();
 	});
 })(window);

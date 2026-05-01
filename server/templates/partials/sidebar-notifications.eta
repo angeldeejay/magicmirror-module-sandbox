@@ -1,9 +1,9 @@
 <section id="domain-notifications" class="sandbox-domain" data-domain="notifications" data-active="false">
   <span class="status-pill">Emit and inspect frontend MagicMirror notifications.</span>
   <div class="sandbox-tabbar" role="tablist" aria-label="Notification panels">
-    <button class="sandbox-tab" type="button" data-domain="notifications" data-tab="emit" data-active="false">Emit</button>
-    <button class="sandbox-tab" type="button" data-domain="notifications" data-tab="log" data-active="false">Log</button>
-    <button class="sandbox-tab" type="button" data-domain="notifications" data-tab="websocket" data-active="false">WebSocket</button>
+    <button class="sandbox-tab" type="button" data-domain="notifications" data-tab="emit" data-active="false"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Emit</button>
+    <button class="sandbox-tab" type="button" data-domain="notifications" data-tab="log" data-active="false"><i class="fa-solid fa-list" aria-hidden="true"></i> Log</button>
+    <button class="sandbox-tab" type="button" data-domain="notifications" data-tab="websocket" data-active="false"><i class="fa-solid fa-plug" aria-hidden="true"></i> WebSocket</button>
   </div>
   <section class="sandbox-tabpanel sandbox-tabpanel--stack sandbox-emit-panel" data-domain="notifications" data-tab-panel="emit" data-active="false">
     <div class="sandbox-section-title">Emitter</div>
@@ -20,21 +20,21 @@
     <json-editor id="notification-payload-editor" class="sandbox-json-editor sandbox-json-editor--fill" indent="2" value="{}"></json-editor>
     <div id="notification-status" class="sandbox-status" data-state="ok"></div>
     <div class="sandbox-button-row sandbox-button-row--full">
-      <button id="notification-send" class="sandbox-button sandbox-button--full" type="button">Emit</button>
+      <button id="notification-send" class="sandbox-button sandbox-button--full" type="button"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Emit</button>
     </div>
   </section>
   <section class="sandbox-tabpanel sandbox-tabpanel--stack" data-domain="notifications" data-tab-panel="log" data-active="false">
     <div class="sandbox-section-title">Log</div>
     <div id="notification-log" class="notification-log notification-log--padded"></div>
     <div class="sandbox-button-row sandbox-button-row--full">
-      <button id="notification-clear" class="sandbox-button sandbox-button--full" type="button">Clear log</button>
+      <button id="notification-clear" class="sandbox-button sandbox-button--full" type="button"><i class="fa-solid fa-trash" aria-hidden="true"></i> Clear log</button>
     </div>
   </section>
   <section class="sandbox-tabpanel sandbox-tabpanel--stack" data-domain="notifications" data-tab-panel="websocket" data-active="false">
     <div class="sandbox-section-title">WebSocket</div>
     <div id="websocket-log" class="notification-log notification-log--padded"></div>
     <div class="sandbox-button-row sandbox-button-row--full">
-      <button id="websocket-clear" class="sandbox-button sandbox-button--full" type="button">Clear websocket log</button>
+      <button id="websocket-clear" class="sandbox-button sandbox-button--full" type="button"><i class="fa-solid fa-trash" aria-hidden="true"></i> Clear websocket log</button>
     </div>
   </section>
 </section>

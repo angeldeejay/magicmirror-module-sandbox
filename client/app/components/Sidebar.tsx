@@ -35,7 +35,9 @@ export function Sidebar({ harness }: SidebarProps) {
 						id="sidebar-close"
 						class="harness-sidebar-close"
 						type="button"
+						aria-label="Close panel"
 					>
+						<i class="fa-solid fa-xmark" aria-hidden="true" />
 						Close
 					</button>
 				</div>

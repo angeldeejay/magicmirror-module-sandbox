@@ -48,6 +48,13 @@ test("parseConfigSaveBody rejects non-object nested payloads with route-safe mes
 	);
 });
 
+test("parseConfigSaveBody rejects null body with generic payload error", () => {
+	assert.throws(
+		() => parseConfigSaveBody(null),
+		/Sandbox config payload must be a JSON object/
+	);
+});
+
 test("parseModuleConfigBody rejects invalid module-only payloads", () => {
 	assert.deepEqual(parseModuleConfigBody({ header: "hello" }), {
 		header: "hello"

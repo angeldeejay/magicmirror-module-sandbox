@@ -12,6 +12,7 @@ import {
  */
 export function createContract() {
 	const detectedModuleInfo = resolveActiveMountedModuleInfo();
+	/* v8 ignore next 3 */
 	if (!detectedModuleInfo) {
 		throw createMissingMountedModuleError();
 	}

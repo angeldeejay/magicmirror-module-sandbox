@@ -6,7 +6,7 @@
 	padding: 0;
 	border-radius: 0;
 	background: transparent;
-	color: #8bd0ff;
+	color: var(--hns-accent);
 	font-size: 12px;
 }
 
@@ -15,7 +15,7 @@
 	font-size: 12px;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
-	color: #8bd0ff;
+	color: var(--hns-accent);
 }
 
 .sandbox-domain {
@@ -43,28 +43,31 @@
 
 .sandbox-tab {
 	appearance: none;
-	border: 1px solid #343434;
-	background: #141414;
-	color: #cfcfcf;
+	border: 1px solid var(--hns-border-control);
+	background: var(--hns-bg-panel-alt);
+	color: var(--hns-text-secondary);
 	border-radius: 2px;
 	padding: 6px 12px;
 	font-size: 12px;
 	cursor: pointer;
 	white-space: nowrap;
 	width: 100%;
-	text-align: center;
 	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
 }
 
 .sandbox-tab:hover {
-	background: #202020;
-	color: #f3f3f3;
+	background: var(--hns-bg-hover);
+	color: var(--hns-text-primary);
 }
 
 .sandbox-tab[data-active="true"] {
-	background: #222;
-	color: #8bd0ff;
-	border-color: #3b3b3b;
+	background: var(--hns-bg-active);
+	color: var(--hns-accent);
+	border-color: var(--hns-border-active);
 }
 
 .sandbox-tabpanel {
@@ -99,7 +102,7 @@
 	display: block;
 	margin: 10px 0 4px;
 	font-size: 12px;
-	color: #cfcfcf;
+	color: var(--hns-text-secondary);
 }
 
 .sandbox-input,
@@ -160,14 +163,14 @@ select.sandbox-input {
 	display: block;
 	font-size: 12px;
 	font-weight: 700;
-	color: #f3f3f3;
+	color: var(--hns-text-primary);
 }
 
 .sandbox-editor-copy span {
 	display: block;
 	margin-top: 3px;
 	font-size: 11px;
-	color: #bcbcbc;
+	color: var(--hns-text-muted);
 }
 
 .sandbox-editor-state-group {
@@ -199,20 +202,20 @@ select.sandbox-input {
 }
 
 .sandbox-json-editor::part(string) {
-	color: #8bd0ff;
+	color: var(--hns-accent);
 }
 
 .sandbox-json-editor::part(key) {
-	color: #ff9cc2;
+	color: var(--hns-status-pink);
 }
 
 .sandbox-json-editor::part(number) {
-	color: #b7e48b;
+	color: var(--hns-status-green);
 }
 
 .sandbox-json-editor::part(braces),
 .sandbox-json-editor::part(brackets) {
-	color: #9aa8ff;
+	color: var(--hns-status-purple);
 }
 
 .sandbox-button-row {
@@ -228,6 +231,10 @@ select.sandbox-input {
 
 .sandbox-button {
 	@include abstracts.control-button;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
 	font-size: 12px;
 	line-height: 1.4;
 }
@@ -244,10 +251,10 @@ select.sandbox-input {
 }
 
 .sandbox-button--full {
-	display: block;
+	display: flex;
+	justify-content: center;
 	width: 100%;
 	box-sizing: border-box;
-	text-align: center;
 	border-radius: 6px;
 }
 
@@ -268,9 +275,9 @@ select.sandbox-input {
 .sandbox-status {
 	margin-top: 8px;
 	font-size: 12px;
-	color: #9ed39e;
+	color: var(--hns-status-mint);
 }
 
 .sandbox-status[data-state="error"] {
-	color: #ff9e9e;
+	color: var(--hns-status-red);
 }

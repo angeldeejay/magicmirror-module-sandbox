@@ -21,6 +21,7 @@ It mounts **one real third-party module at a time**, keeps real
 - Config editing
 - Notification inspection
 - Helper and browser debug output
+- Module quality analysis against MagicMirror 3rd-party criteria
 - Quick product context while you work
 
 The goal is simple: give a MagicMirror module author a narrow, practical place

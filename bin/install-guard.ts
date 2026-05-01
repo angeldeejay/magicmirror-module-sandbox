@@ -12,11 +12,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const fromOS = (p: string) => p.replace(/\\/g, "/");
 
 const currentFilePath = fromOS(
+	/* v8 ignore next 3 */
 	typeof __filename === "string"
 		? __filename
 		: fileURLToPath(import.meta.url)
 );
 const currentDirPath =
+	/* v8 ignore next */
 	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 
 type PackageJsonManifest = {
@@ -76,9 +78,11 @@ function syncMagicMirrorAssetsForMaintainerRepo({
 		"bin",
 		"sync-magicmirror-assets.js"
 	);
+	/* v8 ignore next 3 */
 	const scriptPath = fs.existsSync(sourceScriptPath)
 		? sourceScriptPath
 		: distScriptPath;
+	/* v8 ignore next 3 */
 	const args = scriptPath.endsWith(".ts")
 		? ["--experimental-strip-types", scriptPath]
 		: [scriptPath];
@@ -87,6 +91,7 @@ function syncMagicMirrorAssetsForMaintainerRepo({
 		stdio: "inherit"
 	});
 
+	/* v8 ignore next 4 */
 	if (result.status !== 0) {
 		throw new Error(
 			`[module-sandbox] MagicMirror asset sync failed during postinstall (exit ${String(result.status)}).`
@@ -270,6 +275,7 @@ function runPostinstall({
 /**
  * Determines whether direct execution.
  */
+/* v8 ignore start */
 function isDirectExecution(): boolean {
 	const entrypointPath = process.argv[1];
 	if (!entrypointPath) {
@@ -289,6 +295,7 @@ if (isDirectExecution()) {
 		process.exit(1);
 	}
 }
+/* v8 ignore stop */
 
 export {
 	assertSupportedInstallType,

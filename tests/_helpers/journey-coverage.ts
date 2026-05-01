@@ -26,6 +26,13 @@ export type JourneyId =
 	| "ui-bootstrap"
 	| "ui-config-sidebar"
 	| "ui-debug-sidebar"
+	| "ui-domain-nav-about"
+	| "ui-domain-nav-config"
+	| "ui-domain-nav-debug"
+	| "ui-domain-nav-notifications"
+	| "ui-domain-nav-quality"
+	| "ui-domain-nav-runtime"
+	| "ui-domain-navigation-order"
 	| "ui-notifications-sidebar"
 	| "ui-runtime-controls";
 

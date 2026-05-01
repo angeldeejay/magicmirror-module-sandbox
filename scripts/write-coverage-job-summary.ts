@@ -256,22 +256,26 @@ function buildJourneySection(): string[] {
 		let rowPercentage = 0.0;
 		let rowTotal = 0;
 		let rowCovered = 0;
-		return [
-			toTitleCase(suite.suite),
-			...labels.map((label) => {
-				rowPercentage += suite[label].percent;
-				rowTotal += suite[label].total;
-				rowCovered += suite[label].covered;
-				return formatCoverageRatio(suite[label].covered, suite[label].total);
-			}),
-			formatPercent(rowPercentage / labels.length),
-			formatCoverageRatio(rowCovered, rowTotal),
-			toJourneyScore(
-				suite.journeys.percent,
-				suite.transitions.percent,
-				suite.outcomes.percent
-			)
-		].join(" | ");
+		return (
+			"| " +
+			[
+				toTitleCase(suite.suite),
+				...labels.map((label) => {
+					rowPercentage += suite[label].percent;
+					rowTotal += suite[label].total;
+					rowCovered += suite[label].covered;
+					return formatCoverageRatio(suite[label].covered, suite[label].total);
+				}),
+				formatPercent(rowPercentage / labels.length),
+				formatCoverageRatio(rowCovered, rowTotal),
+				toJourneyScore(
+					suite.journeys.percent,
+					suite.transitions.percent,
+					suite.outcomes.percent
+				)
+			].join(" | ") +
+			" |"
+		);
 	};
 
 	const overall = buildJourneyOverall(suites);

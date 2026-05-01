@@ -53,9 +53,9 @@ jobs:
 
             - name: Publish coverage artifacts branch
               if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && hashFiles('coverage/coverage-summary.json') != '' }}
-              uses: peaceiris/actions-gh-pages@v4
+              uses: JamesIves/github-pages-deploy-action@v4
               with:
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
-                  publish_dir: ./coverage
-                  publish_branch: coverage
-                  allow_empty_commit: true
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  folder: ./coverage
+                  branch: coverage
+                  single-commit: true

@@ -7,7 +7,7 @@
     <li>Watch mode: <code><%= it.watchEnabledLabel %></code></li>
   </ul>
   <div class="sandbox-tabbar" role="tablist" aria-label="Runtime panels">
-    <button class="sandbox-tab" type="button" data-domain="runtime" data-tab="lifecycle" data-active="false">Lifecycle</button>
+    <button class="sandbox-tab" type="button" data-domain="runtime" data-tab="lifecycle" data-active="false"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Lifecycle</button>
   </div>
   <section class="sandbox-tabpanel" data-domain="runtime" data-tab-panel="lifecycle" data-active="false">
     <div class="sandbox-section-title">Lifecycle</div>

@@ -575,12 +575,10 @@
 		};
 		let waitingForViewportReload = false;
 		let waitingForStyleRefresh = false;
-		const refreshStylesButtonLabel = moduleConfigRefreshStylesButton
-			? moduleConfigRefreshStylesButton.textContent
-			: "Refresh styles";
-		const saveButtonLabel = moduleConfigSaveButton
-			? moduleConfigSaveButton.textContent
-			: "Save and reload";
+		const refreshStylesButtonHTML =
+			'<i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Refresh styles';
+		const saveButtonHTML =
+			'<i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Save and reload';
 
 		/**
 		 * Ask the iframe runtime to reload mounted module styles without full boot.
@@ -611,7 +609,8 @@
 
 			waitingForStyleRefresh = true;
 			moduleConfigRefreshStylesButton.disabled = true;
-			moduleConfigRefreshStylesButton.textContent = "Refreshing...";
+			moduleConfigRefreshStylesButton.innerHTML =
+				'<i class="fa-solid fa-rotate-right fa-spin" aria-hidden="true"></i> Refreshing\u2026';
 			setModuleConfigStatus("Refreshing mounted module stylesheets...");
 		};
 
@@ -654,7 +653,6 @@
 				return;
 			}
 
-			const originalLabel = moduleConfigSaveButton.textContent;
 			const selectedLanguage = configLanguageSelect
 				? String(configLanguageSelect.value || "")
 						.trim()
@@ -665,7 +663,9 @@
 				return;
 			}
 			moduleConfigSaveButton.disabled = true;
-			moduleConfigSaveButton.textContent = "Saving...";
+			moduleConfigSaveButton.innerHTML =
+				'<i class="fa-solid fa-rotate-right fa-spin" aria-hidden="true"></i> Saving\u2026';
+			core.showBackdrop("Saving and reloading\u2026");
 			setModuleConfigStatus("Saving sandbox config to disk...");
 
 			try {
@@ -763,12 +763,12 @@
 					true
 				);
 				moduleConfigSaveButton.disabled = false;
-				moduleConfigSaveButton.textContent = originalLabel;
+				moduleConfigSaveButton.innerHTML = saveButtonHTML;
 				syncModuleConfigEditorState();
 				return;
 			}
 
-			moduleConfigSaveButton.textContent = originalLabel;
+			moduleConfigSaveButton.innerHTML = saveButtonHTML;
 		};
 
 		/**
@@ -1093,8 +1093,7 @@
 			core.stageReady = true;
 			if (moduleConfigRefreshStylesButton && !waitingForStyleRefresh) {
 				moduleConfigRefreshStylesButton.disabled = false;
-				moduleConfigRefreshStylesButton.textContent =
-					refreshStylesButtonLabel;
+				moduleConfigRefreshStylesButton.innerHTML = refreshStylesButtonHTML;
 			}
 			if (!waitingForViewportReload || !moduleConfigSaveButton) {
 				return;
@@ -1102,7 +1101,7 @@
 
 			waitingForViewportReload = false;
 			moduleConfigSaveButton.disabled = false;
-			moduleConfigSaveButton.textContent = saveButtonLabel;
+			moduleConfigSaveButton.innerHTML = saveButtonHTML;
 			syncModuleConfigEditorState();
 			setModuleConfigStatus("Sandbox config saved. Viewport reloaded.");
 		});
@@ -1110,8 +1109,7 @@
 			waitingForStyleRefresh = false;
 			if (moduleConfigRefreshStylesButton) {
 				moduleConfigRefreshStylesButton.disabled = false;
-				moduleConfigRefreshStylesButton.textContent =
-					refreshStylesButtonLabel;
+				moduleConfigRefreshStylesButton.innerHTML = refreshStylesButtonHTML;
 			}
 			setModuleConfigStatus("Mounted module styles refreshed.");
 		});
@@ -1123,8 +1121,7 @@
 				waitingForStyleRefresh = false;
 				if (moduleConfigRefreshStylesButton) {
 					moduleConfigRefreshStylesButton.disabled = false;
-					moduleConfigRefreshStylesButton.textContent =
-						refreshStylesButtonLabel;
+					moduleConfigRefreshStylesButton.innerHTML = refreshStylesButtonHTML;
 				}
 				setModuleConfigStatus(
 					detail &&

@@ -16,8 +16,9 @@ and how to use it, while this file explains how it is put together.
 - **helper-runtime.ts** reloads `node_helper.js` on watch restarts, instantiates
   core-style helper constructors, and injects sandbox helper compat resolution
 - **startup-scripts.ts** owns optional consumer startup command lifecycles
-- **watch.ts** watches sandbox and mounted-module files and emits
-  `harness:reload`
+- **watch.ts** exposes two independent watchers: a module watcher (always-on,
+  stage scope) and a sandbox watcher (--watch mode only, shell scope), both
+  emitting `harness:reload`
 - **Eta templates** under `server/templates/` render the sandbox host HTML
 
 ### Browser side
@@ -51,27 +52,86 @@ and how to use it, while this file explains how it is put together.
   resolve the synced core compatibility artifacts
 - `shims/generated/magicmirror-core/` mirrors the current MagicMirror helper-side
   `js/class.js`, `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
-  `js/server_functions.js` files, with sandbox adaptation patches applied during
-  sync plus a package-scoped imports map so helper-side path-based requires
-  behave like current core
+  `js/server_functions.js` files without source patches; `logger.js` and
+  `node_helper.js` receive sandbox postludes appended after sync; a package-scoped
+  imports map keeps helper-side path-based requires aligned with current core
+- `shims/generated/node_modules/express/` and `shims/generated/node_modules/undici/`
+  bundle the dependencies from MagicMirror's own `node_modules` so `node_helper.js`
+  can `require("express")` and `server_functions.js` can `require("undici")` via
+  standard Node module resolution, without source patches and without adding them
+  as sandbox dependencies
 
 ## Watch mode details
 
-Watch mode is pragmatic, not fancy HMR.
+Watch mode is pragmatic, not fancy HMR. Two independent watchers handle separate
+concerns:
 
-Behavior:
+**Module watcher** — always-on, regardless of `--watch`:
 
-1. detect file changes
-2. restart backend pieces when needed
-3. emit a reload event with a fresh stage/shell version token
-4. let the persistent shell refresh only the iframe when the change is
-   stage-local
-5. fall back to a full shell reload only when shell-owned UI files changed
+1. observes `repoRoot` only
+2. restarts the helper on every change except CSS/SCSS and translation files
+3. emits `harness:reload` with scope `"stage"` so only the iframe refreshes
+
+**Sandbox watcher** — active only when `--watch` is passed:
+
+1. observes harness-owned paths (client source, shims source, config files)
+2. triggers `rebuildClientAssets` or `rebuildNodeCompat` when source changes
+3. calls `restartHelper` only on sandbox config file changes
+4. emits `harness:reload` with scope `"shell"` so the full shell reloads
 
 Windows note:
 
 - the watcher uses polling plus explicit config file paths because that is more
   reliable here than relying only on filesystem events
+
+## CSS token system and theming
+
+All sandbox shell colors are defined as `--hns-*` CSS custom properties on
+`:root` in `client/scss/_abstracts.scss`. Roughly 60 tokens cover backgrounds,
+borders, text, accents, status colors, scrollbars, and component-specific
+surfaces. The existing `--sandbox-*` control variables (height, radius, border,
+scrollbar) are preserved and derived from `--hns-*` tokens so no downstream SCSS
+API changes were required.
+
+Four themes override selected tokens through `[data-theme]` attribute selectors
+in `client/scss/_themes.scss`:
+
+| Theme | Key accent |
+|---|---|
+| `carbon-slate` | `#4ecdc4` teal/cyan |
+| `obsidian-amber` | `#d4a843` golden amber |
+| `violet-circuit` | `#a78bfa` lavender |
+| `phosphor-green` | `#39d353` terminal green |
+
+The server-rendered HTML sets `data-theme="carbon-slate"` on `<html>` to
+establish the default without a flash. The theme switcher in the topbar shell
+writes `document.documentElement.dataset.theme` and persists the choice to
+`localStorage` under key `harness-theme`.
+
+No JavaScript is needed for CSS updates — all theme logic runs through the
+attribute selector chain.
+
+## Loading backdrop
+
+`harness-backdrop` is a full-viewport overlay shown during stage loads and
+sandbox restarts. Two helpers on the shell microcore control it:
+
+- `core.showBackdrop(label?)` — sets `data-visible="true"` and writes the label
+- `core.hideBackdrop()` — sets `data-visible="false"`
+
+The stage clears the backdrop automatically on `stage-ready`. The restart button
+triggers it before posting to `/__harness/restart`.
+
+## Static asset cache policy
+
+All responses served under `/__harness/` carry `Cache-Control: no-store` so
+watch-mode rebuilds take effect immediately without a hard browser refresh. This
+applies to the compiled shell bundle, the SCSS-compiled stylesheet, and all
+other harness static assets.
+
+In addition, sandbox startup in `--watch` mode calls `runClientAssetsBuild()`
+before the server opens so the operator shell always reflects the current SCSS
+and runtime sources when the process comes up.
 
 ## Cache behavior
 

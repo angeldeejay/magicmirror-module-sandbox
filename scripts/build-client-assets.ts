@@ -13,10 +13,10 @@ import * as path from "pathe";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSync } from "esbuild";
 import * as sass from "sass";
+import { ensureDirectory, fromOS, resolveMagicMirrorRoot } from "./shared.ts";
 
 type BuildScope = "all" | "styles" | "shell" | "runtime";
 
-const fromOS = (p: string) => p.replace(/\\/g, "/");
 const __filename = fromOS(fileURLToPath(import.meta.url));
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
@@ -59,15 +59,6 @@ function collectTypeScriptEntries(directoryPath: string): string[] {
 }
 
 /**
- * Ensures directory.
- */
-function ensureDirectory(directoryPath: string): void {
-	fs.mkdirSync(directoryPath, {
-		recursive: true
-	});
-}
-
-/**
  * Clears runtime outputs.
  */
 function clearRuntimeOutputs(): void {
@@ -82,16 +73,6 @@ function clearRuntimeOutputs(): void {
 	fs.rmSync(path.join(generatedRoot, "runtime.js"), {
 		force: true
 	});
-}
-
-/**
- * Resolves magic mirror root.
- */
-function resolveMagicMirrorRoot(): string {
-	const magicMirrorEntryPath = nodeRequire.resolve("magicmirror", {
-		paths: [root]
-	});
-	return path.resolve(path.dirname(magicMirrorEntryPath), "..");
 }
 
 /**
@@ -125,7 +106,7 @@ function resolveCoreVendorAssetPath(
  * choices.
  */
 function syncCoreBrowserVendorAssets(): void {
-	const magicMirrorRoot = resolveMagicMirrorRoot();
+	const magicMirrorRoot = resolveMagicMirrorRoot(root);
 	const magicMirrorVendorMapPath = path.join(
 		magicMirrorRoot,
 		"js",
@@ -153,9 +134,50 @@ function syncCoreBrowserVendorAssets(): void {
 }
 
 /**
+ * Syncs Font Awesome webfonts from node_modules into client/webfonts/.
+ * This keeps the copied fonts aligned with the installed FA version.
+ */
+function syncFontAwesomeWebfonts(): void {
+	const sourceDir = path.join(
+		root,
+		"node_modules",
+		"@fortawesome",
+		"fontawesome-free",
+		"webfonts"
+	);
+	const destDir = path.join(clientRoot, "webfonts");
+	ensureDirectory(destDir);
+	for (const file of fs.readdirSync(sourceDir)) {
+		if (file.endsWith(".woff2")) {
+			fs.copyFileSync(path.join(sourceDir, file), path.join(destDir, file));
+		}
+	}
+}
+
+/**
+ * Copies Font Awesome all.min.css from node_modules into client/styles/ so
+ * the runtime can serve it without a prod dependency on the npm package.
+ */
+function syncFontAwesomeCss(): void {
+	const sourcePath = path.join(
+		root,
+		"node_modules",
+		"@fortawesome",
+		"fontawesome-free",
+		"css",
+		"all.min.css"
+	);
+	const destPath = path.join(clientRoot, "styles", "font-awesome.css");
+	ensureDirectory(path.dirname(destPath));
+	fs.copyFileSync(sourcePath, destPath);
+}
+
+/**
  * Builds styles.
  */
 function buildStyles(): void {
+	syncFontAwesomeWebfonts();
+	syncFontAwesomeCss();
 	const result = sass.compile(stylesInputPath, {
 		style: "compressed",
 		sourceMap: false

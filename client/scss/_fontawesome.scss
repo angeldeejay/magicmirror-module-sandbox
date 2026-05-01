@@ -1,0 +1,8 @@
+/**
+ * Font Awesome 7 Free — solid subset only.
+ * Webfonts are served from /__harness/webfonts/ via fastify-static.
+ * FA7 default $font-path is "../webfonts", which resolves correctly
+ * from /__harness/styles/harness.css → /__harness/webfonts/.
+ */
+@use "../../node_modules/@fortawesome/fontawesome-free/scss/fontawesome";
+@use "../../node_modules/@fortawesome/fontawesome-free/scss/solid";

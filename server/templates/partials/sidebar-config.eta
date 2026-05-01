@@ -8,7 +8,7 @@
       data-tab="general"
       data-active="false"
       aria-selected="false">
-      General
+      <i class="fa-solid fa-sliders" aria-hidden="true"></i> General
     </button>
     <button
       class="sandbox-tab"
@@ -17,7 +17,7 @@
       data-tab="module"
       data-active="false"
       aria-selected="false">
-      Module
+      <i class="fa-solid fa-code" aria-hidden="true"></i> Module
     </button>
   </div>
   <section class="sandbox-tabpanel" data-domain="config" data-tab-panel="general" data-active="false">
@@ -97,15 +97,15 @@
     </div>
     <module-config-editor id="module-config-editor" class="sandbox-json-editor sandbox-json-editor--fill sandbox-json-editor--embedded" indent="2" module-name="<%= it.runtimeState.moduleName %>" language="<%= it.runtimeState.language %>" locale="<%= it.runtimeState.locale %>"></module-config-editor>
     <div class="sandbox-button-row sandbox-button-row--full">
-      <button id="module-config-format" class="sandbox-button sandbox-button--full" type="button">Format config</button>
+      <button id="module-config-format" class="sandbox-button sandbox-button--full" type="button"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Format config</button>
     </div>
   </section>
   <div id="module-config-status" class="sandbox-status" data-state="ok"></div>
   <div class="sandbox-button-row" style="width: 100%;">
-    <button id="module-config-reset" class="sandbox-button sandbox-button--grow" type="button" disabled style="flex: 1;">Revert draft</button>
-    <button id="module-config-refresh-styles" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Refresh styles</button>
+    <button id="module-config-reset" class="sandbox-button sandbox-button--grow" type="button" disabled style="flex: 1;"><i class="fa-solid fa-arrow-rotate-left" aria-hidden="true"></i> Revert draft</button>
+    <button id="module-config-refresh-styles" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Refresh styles</button>
   </div>
   <div class="sandbox-button-row" style="width: 100%;">
-    <button id="module-config-save" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Save and reload</button>
+    <button id="module-config-save" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Save and reload</button>
   </div>
 </section>

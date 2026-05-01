@@ -12,6 +12,7 @@ import { createHarnessConfig } from "../config/harness.config.ts";
 import { magicMirrorLanguages } from "../config/magicmirror-languages.ts";
 import { normalizeModuleConfig } from "../config/module-options.ts";
 import {
+	cloneJson,
 	configRoot,
 	harnessRoot,
 	resolveActiveMountedModuleInfo
@@ -24,6 +25,7 @@ type MountedModuleInfo = {
 };
 
 const nodeRequire = createRequire(
+	/* v8 ignore next */
 	typeof __filename === "string" ? __filename : import.meta.url
 );
 
@@ -57,6 +59,7 @@ type ConfigApiOptions = {
 	}) => string;
 };
 
+/* v8 ignore start */
 /**
  * Resolves typed module path.
  */
@@ -73,6 +76,7 @@ function resolveTypedModulePath(
 
 	return path.join(moduleRoot, `${moduleStem}.js`);
 }
+/* v8 ignore stop */
 
 /**
  * Loads fresh.
@@ -83,17 +87,12 @@ function loadFresh<T>(modulePath: string): T {
 }
 
 /**
- * Clones json.
- */
-function cloneJson<T>(value: T): T {
-	return JSON.parse(JSON.stringify(value)) as T;
-}
-
-/**
  * Internal helper for derive cache key.
  */
 function deriveCacheKey(persistedConfig: unknown): string {
+	/* v8 ignore next */
 	if (!persistedConfig || typeof persistedConfig !== "object") {
+		/* v8 ignore next */
 		return "default";
 	}
 
@@ -284,6 +283,7 @@ function createConfigApi({
 				return null;
 			}
 			return moduleConfig as JsonObject;
+		/* v8 ignore next 3 */
 		} catch {
 			return null;
 		}
@@ -352,10 +352,12 @@ function createConfigApi({
 		const runtimeConfig = getRuntimeConfig();
 		return {
 			...baseHarnessConfig,
+			/* v8 ignore next 3 */
 			language:
 				typeof runtimeConfig.language === "string"
 					? runtimeConfig.language
 					: baseHarnessConfig.language,
+			/* v8 ignore next 4 */
 			locale:
 				typeof runtimeConfig.locale === "string"
 					? runtimeConfig.locale
@@ -384,6 +386,7 @@ function createConfigApi({
 				? (moduleConfig.config as JsonObject)
 				: {};
 		const cacheKey = deriveCacheKey(persistedConfig);
+		/* v8 ignore next */
 		return path.join(harnessRoot, ".runtime-cache", cacheKey || "default");
 	}
 

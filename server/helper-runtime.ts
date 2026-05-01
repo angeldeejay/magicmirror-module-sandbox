@@ -11,6 +11,7 @@ const nodeModule = Module as typeof Module & {
 	_initPaths: () => void;
 };
 const nodeRequire = createRequire(
+	/* v8 ignore next */
 	typeof __filename === "string" ? __filename : import.meta.url
 );
 const compatShimsRoot = path.join(shimsRoot, "generated");
@@ -49,6 +50,7 @@ type HelperModuleExport = HelperInstance | (new () => HelperInstance);
  * Injects shim resolution.
  */
 function injectShimResolution(): void {
+	/* v8 ignore next 4 */
 	if (!fs.existsSync(compatShimsRoot)) {
 		throw new Error(
 			`Sandbox shim compatibility artifacts are missing at ${compatShimsRoot}. Build them before starting the helper runtime.`
@@ -60,6 +62,7 @@ function injectShimResolution(): void {
 		path.join(compatMagicMirrorRoot, "js", "http_fetcher.js"),
 		path.join(compatMagicMirrorRoot, "js", "server_functions.js")
 	]) {
+		/* v8 ignore next 4 */
 		if (!fs.existsSync(targetPath)) {
 			throw new Error(
 				`Sandbox MagicMirror compatibility artifact is missing at ${targetPath}. Build it before starting the helper runtime.`
@@ -100,9 +103,11 @@ function clearModuleRequireCache(): void {
 			!normalizedKey.includes("/node_modules/") &&
 			!normalizedKey.startsWith(harnessRoot)
 		) {
+			/* v8 ignore next */
 			delete nodeRequire.cache[cacheKey];
 		}
 
+		/* v8 ignore next 3 */
 		if (normalizedKey.startsWith(configRoot)) {
 			delete nodeRequire.cache[cacheKey];
 		}

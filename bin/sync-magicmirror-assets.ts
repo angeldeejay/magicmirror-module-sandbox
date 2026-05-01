@@ -17,13 +17,16 @@ import {
 const MANAGED_ASSET_MANIFEST_FILE = ".magicmirror-managed-assets.json";
 const fromOS = (p: string) => p.replace(/\\/g, "/");
 const currentFilePath = fromOS(
+	/* v8 ignore next 3 */
 	typeof __filename === "string"
 		? __filename
 		: fileURLToPath(import.meta.url)
 );
 const currentDirPath =
+	/* v8 ignore next */
 	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 const nodeRequire = createRequire(
+	/* v8 ignore next */
 	typeof __filename === "string" ? __filename : import.meta.url
 );
 

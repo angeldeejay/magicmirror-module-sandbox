@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="carbon-slate">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -29,6 +29,12 @@
     </div>
     <div id="harness-footer-root">
       <%~ include("./partials/footer") %>
+    </div>
+    <div id="harness-backdrop" class="harness-backdrop" data-visible="true" aria-live="polite">
+      <div class="harness-backdrop-body">
+        <span class="harness-backdrop-spinner" aria-hidden="true"></span>
+        <span id="harness-backdrop-label" class="harness-backdrop-label">Loading…</span>
+      </div>
     </div>
   </div>
 </body>

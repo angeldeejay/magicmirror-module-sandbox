@@ -72,6 +72,27 @@ test("recordHelperLog stringifies non-serializable values through the fallback b
 	assert.equal(entries[0].args[0], "[object Object]");
 });
 
+test("recordHelperLog serializes anonymous function with fallback name", async () => {
+	const logStore = await loadFreshLogStore();
+	logStore.attachSocketServer(null);
+
+	// eslint-disable-next-line func-names
+	logStore.recordHelperLog("debug", [function () {}]);
+
+	const entries = logStore.getHelperLogEntries();
+	assert.equal(entries[0].args[0], "[Function anonymous]");
+});
+
+test("recordHelperLog coerces non-array args to empty array", async () => {
+	const logStore = await loadFreshLogStore();
+	logStore.attachSocketServer(null);
+
+	logStore.recordHelperLog("info", "not-an-array" as unknown as unknown[]);
+
+	const entries = logStore.getHelperLogEntries();
+	assert.deepEqual(entries[0].args, []);
+});
+
 test("recordHelperLog keeps only the latest 200 entries", async () => {
 	const logStore = await loadFreshLogStore();
 	logStore.attachSocketServer(null);

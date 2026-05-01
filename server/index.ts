@@ -2,7 +2,7 @@
  * Fastify entrypoint that boots the sandbox host, helper runtime, startup scripts, and watch flow.
  */
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "pathe";
 import { fileURLToPath } from "node:url";
@@ -31,12 +31,13 @@ import { fromOS, resolveRepoRoot } from "./paths.ts";
 import { registerRoutes } from "./routes.ts";
 import { runStartupScripts } from "./startup-scripts.ts";
 import { startAnalysisWatcher } from "./analysis-watcher.ts";
-import { startWatcher } from "./watch.ts";
+import { startModuleWatcher, startSandboxWatcher } from "./watch.ts";
 
 type ShutdownOptions = {
 	app: import("fastify").FastifyInstance;
 	io: import("socket.io").Server;
-	watcher: import("chokidar").FSWatcher | null;
+	moduleWatcher: import("chokidar").FSWatcher | null;
+	sandboxWatcher: import("chokidar").FSWatcher | null;
 	analysisWatcher: import("chokidar").FSWatcher | null;
 	helperRuntime: { stopHelper: () => Promise<void> };
 	startupController: { stopAll: () => Promise<void> };
@@ -63,6 +64,30 @@ const {
 	saveModuleConfig,
 	saveRuntimeConfig
 } = createConfigApi();
+
+/**
+ * Wraps child_process.spawn in a Promise so watch-path rebuilds don't block
+ * the event loop. Only for watch-triggered rebuilds — startup uses spawnSync.
+ */
+function spawnAsync(
+	command: string,
+	args: string[],
+	options: { cwd?: string }
+): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		const child = spawn(command, args, { ...options, stdio: "inherit" });
+		child.on("close", (code) => {
+			if (code !== 0) {
+				reject(
+					new Error(`Process exited with code ${String(code)}`)
+				);
+			} else {
+				resolve();
+			}
+		});
+		child.on("error", reject);
+	});
+}
 
 /**
  * Runs node compat build.
@@ -102,7 +127,9 @@ function hasNodeCompatArtifacts(): boolean {
 		"node_helper.js",
 		path.join("magicmirror-core", "package.json"),
 		path.join("magicmirror-core", "js", "http_fetcher.js"),
-		path.join("magicmirror-core", "js", "server_functions.js")
+		path.join("magicmirror-core", "js", "server_functions.js"),
+		path.join("node_modules", "express", "index.js"),
+		path.join("node_modules", "undici", "index.js")
 	].every((fileName) => {
 		return fs.existsSync(
 			path.join(currentDirPath, "..", "shims", "generated", fileName)
@@ -122,10 +149,56 @@ function ensureNodeCompatBuild(): void {
 }
 
 /**
- * Internal helper for rebuild node compat.
+ * Runs a full client assets build synchronously.
+ * Called at startup in --watch mode to ensure outputs are current before the
+ * server accepts requests. Without this, stale compiled files from the last
+ * session would be served until the watcher triggers a rebuild.
+ */
+function runClientAssetsBuild(): void {
+	const scriptPath = path.join(
+		currentDirPath,
+		"..",
+		"scripts",
+		"build-client-assets.ts"
+	);
+	if (!fs.existsSync(scriptPath)) {
+		return;
+	}
+
+	const result = spawnSync(
+		process.execPath,
+		["--experimental-strip-types", scriptPath],
+		{
+			cwd: path.join(currentDirPath, ".."),
+			stdio: "inherit"
+		}
+	);
+	if (result.status !== 0) {
+		throw new Error(
+			`Client assets build failed (exit ${String(result.status)})`
+		);
+	}
+}
+
+/**
+ * Rebuilds node compat shims asynchronously for watch-triggered rebuilds.
+ * Does not block the event loop.
  */
 async function rebuildNodeCompat(): Promise<void> {
-	runNodeCompatBuild();
+	const nodeCompatScriptPath = path.join(
+		currentDirPath,
+		"..",
+		"scripts",
+		"build-node-compat.ts"
+	);
+	if (!fs.existsSync(nodeCompatScriptPath)) {
+		return;
+	}
+	await spawnAsync(
+		process.execPath,
+		["--experimental-strip-types", nodeCompatScriptPath],
+		{ cwd: path.join(currentDirPath, "..") }
+	);
 }
 
 /**
@@ -134,7 +207,8 @@ async function rebuildNodeCompat(): Promise<void> {
 function registerShutdownHandlers({
 	app,
 	io,
-	watcher,
+	moduleWatcher,
+	sandboxWatcher,
 	analysisWatcher,
 	helperRuntime,
 	startupController
@@ -151,8 +225,11 @@ function registerShutdownHandlers({
 		shuttingDown = true;
 
 		try {
-			if (watcher) {
-				await watcher.close();
+			if (moduleWatcher) {
+				await moduleWatcher.close();
+			}
+			if (sandboxWatcher) {
+				await sandboxWatcher.close();
 			}
 			if (analysisWatcher) {
 				await analysisWatcher.close();
@@ -204,6 +281,9 @@ async function startServer(): Promise<void> {
 		startupScripts: (harnessConfig.sandbox?.startup as string[]) || []
 	});
 	ensureNodeCompatBuild();
+	if (watchEnabled) {
+		runClientAssetsBuild();
+	}
 	injectShimResolution();
 	Object.assign(global, {
 		config: {
@@ -245,7 +325,7 @@ async function startServer(): Promise<void> {
 				  normalized.endsWith("/vite.config.mjs")
 				? "shell"
 				: "runtime";
-		const result = spawnSync(
+		await spawnAsync(
 			process.execPath,
 			[
 				"--experimental-strip-types",
@@ -253,45 +333,48 @@ async function startServer(): Promise<void> {
 				"--scope",
 				scope
 			],
-			{
-				cwd: path.join(currentDirPath, ".."),
-				stdio: "inherit"
-			}
+			{ cwd: path.join(currentDirPath, "..") }
 		);
-		if (result.status !== 0) {
-			throw new Error(
-				`Client asset rebuild failed for scope ${scope} (exit ${String(result.status)})`
-			);
-		}
 	};
+
+	attachAnalysisSocketServer(io);
+	const moduleAnalyzer = new VendorModuleAnalyzer();
 
 	await registerRoutes({
 		app,
-		getAvailableLanguages,
-		getHarnessConfig,
-		getModuleConfig,
-		getModuleConfigPath,
-		getRuntimeConfig,
-		getRuntimeConfigPath,
-		saveModuleConfig,
-		saveRuntimeConfig,
-		getContract,
-		createHtmlPage,
-		createStagePage,
-		getHelperLogEntries,
-		resolveWebfontsRoot,
-		resolveAnimateCss,
-		resolveCronerPath,
-		resolveMomentPath,
-		resolveMomentTimezonePath,
-		resolveFontAwesomeCss,
-		io,
-		restartHelper: helperRuntime.restartHelper,
-		watchEnabled,
-		getAnalysisResult: getLastAnalysisResult,
-		triggerAnalysis: async () => {
-			const result = await moduleAnalyzer.analyze(repoRoot, harnessConfig.moduleName);
-			setAnalysisResult(result);
+		configService: {
+			getAvailableLanguages,
+			getHarnessConfig,
+			getModuleConfig,
+			getModuleConfigPath,
+			getRuntimeConfig,
+			getRuntimeConfigPath,
+			saveModuleConfig,
+			saveRuntimeConfig,
+			getContract
+		},
+		assetService: {
+			resolveWebfontsRoot,
+			resolveAnimateCss,
+			resolveCronerPath,
+			resolveMomentPath,
+			resolveMomentTimezonePath,
+			resolveFontAwesomeCss,
+			createHtmlPage,
+			createStagePage
+		},
+		runtimeService: {
+			io,
+			restartHelper: helperRuntime.restartHelper,
+			watchEnabled,
+			getHelperLogEntries
+		},
+		analysisService: {
+			getAnalysisResult: getLastAnalysisResult,
+			triggerAnalysis: async () => {
+				const result = await moduleAnalyzer.analyze(repoRoot, harnessConfig.moduleName);
+				setAnalysisResult(result);
+			}
 		}
 	});
 
@@ -318,19 +401,23 @@ async function startServer(): Promise<void> {
 		`[module-sandbox] ${watchEnabled ? "watch mode enabled" : "watch mode disabled"}`
 	);
 
-	const watcher = startWatcher({
+	// Module watcher: always-on. Observes repoRoot only. Scope always "stage".
+	const moduleWatcher = startModuleWatcher({
+		io,
+		restartHelper: helperRuntime.restartHelper
+	});
+
+	// Sandbox watcher: active only in --watch mode. Observes harness paths. Scope always "shell".
+	const sandboxWatcher = startSandboxWatcher({
 		enabled: watchEnabled,
 		io,
 		restartHelper: helperRuntime.restartHelper,
-		getHarnessConfig,
 		getModuleConfigPath,
 		getRuntimeConfigPath,
 		rebuildClientAssets,
 		rebuildNodeCompat
 	});
 
-	attachAnalysisSocketServer(io);
-	const moduleAnalyzer = new VendorModuleAnalyzer();
 	const analysisWatcher = startAnalysisWatcher({
 		enabled: watchEnabled,
 		moduleRoot: repoRoot,
@@ -349,7 +436,8 @@ async function startServer(): Promise<void> {
 	registerShutdownHandlers({
 		app,
 		io,
-		watcher,
+		moduleWatcher,
+		sandboxWatcher,
 		analysisWatcher,
 		helperRuntime,
 		startupController

@@ -30,6 +30,7 @@ export function fromOS(p: string): string {
 }
 
 const currentFilePath = fromOS(
+	/* v8 ignore next 3 */
 	typeof __filename === "string"
 		? __filename
 		: fileURLToPath(import.meta.url)
@@ -43,7 +44,7 @@ const harnessConfigRoot: string = path.join(harnessRoot, "config");
 /**
  * Clones json.
  */
-function cloneJson<T>(value: T): T {
+export function cloneJson<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
 }
 

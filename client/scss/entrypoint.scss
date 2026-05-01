@@ -1,4 +1,5 @@
 @use "abstracts";
+@use "fontawesome";
 @use "shell";
 @use "shared";
 @use "runtime";
@@ -7,6 +8,7 @@
 @use "notifications";
 @use "debug";
 @use "input-group";
+@use "themes";
 
 html {
 	cursor: auto;

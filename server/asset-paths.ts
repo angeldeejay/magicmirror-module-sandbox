@@ -21,20 +21,14 @@ export function resolveAnimateCss(): string {
  * Resolves font awesome css.
  */
 export function resolveFontAwesomeCss(): string {
-	const packageRoot = path.dirname(
-		nodeRequire.resolve("@fortawesome/fontawesome-free/package.json")
-	);
-	return path.join(packageRoot, "css", "all.min.css");
+	return path.join(harnessRoot, "client", "styles", "font-awesome.css");
 }
 
 /**
  * Resolves webfonts root.
  */
 export function resolveWebfontsRoot(): string {
-	const packageRoot = path.dirname(
-		nodeRequire.resolve("@fortawesome/fontawesome-free/package.json")
-	);
-	return path.join(packageRoot, "webfonts");
+	return path.join(harnessRoot, "client", "webfonts");
 }
 
 /**

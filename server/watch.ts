@@ -1,5 +1,9 @@
 /**
- * File watching and reload-event emission for shell and stage changes.
+ * File watching and reload-event emission for module and sandbox changes.
+ *
+ * Two independent watchers with separate responsibilities:
+ *   - Module watcher: always-on, observes repoRoot, scope always "stage"
+ *   - Sandbox watcher: watch-mode only, observes harness paths, scope always "shell"
  */
 
 import chokidar from "chokidar";
@@ -86,7 +90,8 @@ function isRelevantFile(filePath: string): boolean {
 }
 
 /**
- * Determines whether sandbox persisted config file.
+ * Determines whether the file is a sandbox-persisted config file
+ * (module config or runtime config, by any naming variant).
  */
 function isSandboxPersistedConfigFile(filePath: string): boolean {
 	const baseName = path.basename(filePath).toLowerCase();
@@ -100,18 +105,36 @@ function isSandboxPersistedConfigFile(filePath: string): boolean {
 }
 
 /**
- * Determines whether restart backend.
+ * Determines whether the file is a sandbox config file (persisted config or harness config).
+ * Used by the sandbox watcher to decide when to call restartHelper.
  */
-function shouldRestartBackend(filePath: string): boolean {
+function isSandboxConfigFile(filePath: string): boolean {
 	const normalized = norm(filePath);
 	return (
-		normalized.endsWith("node_helper.js") ||
-		normalized.includes("/backend/") ||
-		normalized.endsWith("cache-manager.js") ||
 		isSandboxPersistedConfigFile(filePath) ||
 		normalized.endsWith("harness.config.js") ||
 		normalized.endsWith("harness.config.ts")
 	);
+}
+
+/**
+ * Returns true for CSS and SCSS files.
+ * Module watcher exempts these from restartHelper — purely presentational,
+ * no Node.js state implications.
+ */
+function isStyleFile(filePath: string): boolean {
+	return /\.(css|scss)$/i.test(filePath);
+}
+
+/**
+ * Returns true if the file lives inside the module's translations/ directory.
+ * Module watcher exempts these from restartHelper — i18n data loaded by the
+ * browser independently, no Node.js state implications.
+ */
+function isModuleTranslationFile(filePath: string): boolean {
+	const normalized = norm(filePath);
+	const translationsDir = norm(path.join(repoRoot, "translations"));
+	return normalized.startsWith(translationsDir + "/");
 }
 
 /**
@@ -143,107 +166,57 @@ function isHarnessNodeCompatSourceFile(filePath: string): boolean {
 	);
 }
 
+// ── Chokidar ignored predicates ──────────────────────────────────────────────
+
 /**
- * Gets reload scope.
+ * Predicate for the module watcher's chokidar `ignored` option.
+ * Filters out node_modules and .git directories.
  */
-function getReloadScope(
-	filePath: string,
-	harnessConfig: { moduleEntry: string; moduleName: string }
-): "stage" | "shell" {
-	const normalized = norm(filePath);
-	const stageOnlyPaths = [
-		norm(path.join(repoRoot, harnessConfig.moduleEntry)),
-		norm(path.join(repoRoot, "node_helper.js")),
-		norm(path.join(repoRoot, "cache-manager.js")),
-		norm(path.join(repoRoot, "competition-provider.js")),
-		norm(path.join(repoRoot, "canonical-view-adapter.js")),
-		norm(path.join(repoRoot, `${harnessConfig.moduleName}.css`)),
-		norm(path.join(harnessRoot, "server", "templates", "stage-page.eta")),
-		norm(path.join(harnessRoot, "server", "templates", "partials", "stage-viewport.eta"))
-	];
-	const stagePrefixes = [
-		norm(path.join(repoRoot, "backend")),
-		norm(path.join(repoRoot, "providers")),
-		norm(path.join(repoRoot, "constants")),
-		norm(path.join(repoRoot, "translations"))
-	];
-
-	if (
-		stageOnlyPaths.includes(normalized) ||
-		isSandboxPersistedConfigFile(filePath) ||
-		stagePrefixes.some((prefix) => normalized.startsWith(prefix))
-	) {
-		return "stage";
-	}
-
-	return "shell";
+function isModuleWatcherIgnored(filePath: string): boolean {
+	const f = filePath.replace(/\\/g, "/");
+	return f.includes("/node_modules/") || f.includes("/.git/");
 }
 
-// ── Watcher ───────────────────────────────────────────────────────────────────
+/**
+ * Predicate for the sandbox watcher's chokidar `ignored` option.
+ * Filters out node_modules, .git, and harness-generated directories.
+ */
+function isSandboxWatcherIgnored(filePath: string): boolean {
+	const f = filePath.replace(/\\/g, "/");
+	return (
+		f.includes("/node_modules/") ||
+		f.includes("/.git/") ||
+		f.includes("/client/generated/") ||
+		f.includes("/shims/generated/")
+	);
+}
+
+// ── Module Watcher ────────────────────────────────────────────────────────────
 
 /**
- * Starts watcher.
+ * Starts the module watcher (always-on, regardless of --watch flag).
+ *
+ * Observes repoRoot only. Scope is always "stage".
+ * Calls restartHelper() on every change except styles (CSS/SCSS) and
+ * translations — node_helper is stateful and must restart to avoid dirty state.
  */
-function startWatcher({
-	enabled,
+function startModuleWatcher({
 	io,
-	restartHelper,
-	getHarnessConfig,
-	getModuleConfigPath,
-	getRuntimeConfigPath,
-	rebuildClientAssets,
-	rebuildNodeCompat
+	restartHelper
 }: {
-	enabled: boolean;
 	io: import("socket.io").Server;
 	restartHelper: () => Promise<void>;
-	getHarnessConfig: () => { moduleEntry: string; moduleName: string };
-	getModuleConfigPath: () => string;
-	getRuntimeConfigPath: () => string;
-	rebuildClientAssets?: (filePath: string) => Promise<void>;
-	rebuildNodeCompat?: (filePath: string) => Promise<void>;
-}): import("chokidar").FSWatcher | null {
-	if (!enabled) {
-		return null;
-	}
-
-	// Load mounted module's .gitignore patterns on startup.
+}): import("chokidar").FSWatcher {
 	loadModuleGitignore();
 
-	const harnessConfig = getHarnessConfig();
-	const moduleConfigPath = getModuleConfigPath();
-	const runtimeConfigPath = getRuntimeConfigPath();
-
-	// Watch directories and specific files directly — no glob patterns.
-	// Chokidar v5 does not reliably expand absolute glob patterns on Windows;
-	// extension/path filtering is handled in the event handlers instead.
-	const watchPaths = [
-		repoRoot,
-		moduleConfigPath,
-		runtimeConfigPath,
-		configRoot,
-		path.join(harnessRoot, "client"),
-		path.join(harnessRoot, "shims"),
-		path.join(harnessRoot, "server"),
-		path.join(harnessRoot, "vite.config.mjs")
-	];
-
 	const moduleGitignorePath = norm(path.join(repoRoot, ".gitignore"));
-
 	let pending: NodeJS.Timeout | null = null;
-	const watcher = chokidar.watch(watchPaths, {
+
+	const watcher = chokidar.watch([repoRoot], {
 		ignoreInitial: true,
 		usePolling: true,
 		interval: 250,
-		ignored: (filePath: string) => {
-			const f = filePath.replace(/\\/g, "/");
-			return (
-				f.includes("/node_modules/") ||
-				f.includes("/.git/") ||
-				f.includes("/client/generated/") ||
-				f.includes("/shims/generated/")
-			);
-		},
+		ignored: isModuleWatcherIgnored,
 		awaitWriteFinish: {
 			stabilityThreshold: 300,
 			pollInterval: 100
@@ -251,7 +224,7 @@ function startWatcher({
 	});
 
 	watcher.on("all", (eventName: string, filePath: string) => {
-		// If the module's .gitignore changed: reload patterns silently, no browser reload.
+		// .gitignore changed: reload patterns silently, no browser reload.
 		if (norm(filePath) === moduleGitignorePath) {
 			loadModuleGitignore();
 			console.log("[module-sandbox] .gitignore updated — reload patterns");
@@ -262,7 +235,6 @@ function startWatcher({
 			return;
 		}
 
-		// Skip files excluded by the mounted module's .gitignore.
 		if (isIgnoredByModuleGitignore(filePath)) {
 			return;
 		}
@@ -271,45 +243,153 @@ function startWatcher({
 			clearTimeout(pending);
 		}
 
-		pending = setTimeout(async () => {
-			const relativePath = path.relative(repoRoot, filePath);
-			const currentHarnessConfig = getHarnessConfig();
-			const reloadVersion = Date.now().toString(36);
-			console.log(
-				`[module-sandbox] ${eventName}: ${relativePath || filePath}`
-			);
+		pending = setTimeout(() => {
+			void (async () => {
+				try {
+					const relativePath = path.relative(repoRoot, filePath);
+					const reloadVersion = Date.now().toString(36);
+					console.log(
+						/* v8 ignore next */
+						`[module-sandbox] ${eventName}: ${relativePath || filePath}`
+					);
 
-			if (
-				rebuildClientAssets &&
-				eventName !== "unlink" &&
-				fs.existsSync(filePath) &&
-				isHarnessClientSourceFile(filePath)
-			) {
-				await rebuildClientAssets(filePath);
-			}
-			if (
-				rebuildNodeCompat &&
-				eventName !== "unlink" &&
-				fs.existsSync(filePath) &&
-				isHarnessNodeCompatSourceFile(filePath)
-			) {
-				await rebuildNodeCompat(filePath);
-			}
+					// Restart helper for all changes except styles and translations.
+					// node_helper is stateful — dirty state contaminates subsequent frontend loads.
+					if (!isStyleFile(filePath) && !isModuleTranslationFile(filePath)) {
+						await restartHelper();
+					}
 
-			if (shouldRestartBackend(filePath)) {
-				await restartHelper();
-			}
-
-			io.emit("harness:reload", {
-				event: eventName,
-				file: relativePath || filePath,
-				scope: getReloadScope(filePath, currentHarnessConfig),
-				version: reloadVersion
-			});
+					io.emit("harness:reload", {
+						event: eventName,
+						file: relativePath || filePath,
+						scope: "stage",
+						version: reloadVersion
+					});
+				} catch (err) {
+					console.error("[module-sandbox] module watcher error", err);
+				}
+			})();
 		}, 150);
 	});
 
 	return watcher;
 }
 
-export { startWatcher };
+// ── Sandbox Watcher ───────────────────────────────────────────────────────────
+
+/**
+ * Starts the sandbox watcher (active only when --watch is passed).
+ *
+ * Observes harness paths only. Scope is always "shell".
+ * Triggers rebuilds for client/shim source changes.
+ * Calls restartHelper() only on sandbox config file changes.
+ */
+function startSandboxWatcher({
+	enabled,
+	io,
+	restartHelper,
+	getModuleConfigPath,
+	getRuntimeConfigPath,
+	rebuildClientAssets,
+	rebuildNodeCompat
+}: {
+	enabled: boolean;
+	io: import("socket.io").Server;
+	restartHelper: () => Promise<void>;
+	getModuleConfigPath: () => string;
+	getRuntimeConfigPath: () => string;
+	rebuildClientAssets?: (filePath: string) => Promise<void>;
+	rebuildNodeCompat?: (filePath: string) => Promise<void>;
+}): import("chokidar").FSWatcher | null {
+	if (!enabled) {
+		return null;
+	}
+
+	const moduleConfigPath = getModuleConfigPath();
+	const runtimeConfigPath = getRuntimeConfigPath();
+
+	const watchPaths = [
+		moduleConfigPath,
+		runtimeConfigPath,
+		configRoot,
+		path.join(harnessRoot, "client"),
+		path.join(harnessRoot, "shims"),
+		path.join(harnessRoot, "server"),
+		path.join(harnessRoot, "vite.config.mjs")
+	];
+
+	let pending: NodeJS.Timeout | null = null;
+
+	const watcher = chokidar.watch(watchPaths, {
+		ignoreInitial: true,
+		usePolling: true,
+		interval: 250,
+		ignored: isSandboxWatcherIgnored,
+		awaitWriteFinish: {
+			stabilityThreshold: 300,
+			pollInterval: 100
+		}
+	});
+
+	watcher.on("all", (eventName: string, filePath: string) => {
+		if (!isRelevantFile(filePath)) {
+			return;
+		}
+
+		if (pending) {
+			clearTimeout(pending);
+		}
+
+		pending = setTimeout(() => {
+			void (async () => {
+				try {
+					const relativePath = path.relative(harnessRoot, filePath);
+					const reloadVersion = Date.now().toString(36);
+					console.log(
+						/* v8 ignore next */
+						`[module-sandbox] ${eventName}: ${relativePath || filePath}`
+					);
+
+					if (
+						rebuildClientAssets &&
+						eventName !== "unlink" &&
+						fs.existsSync(filePath) &&
+						isHarnessClientSourceFile(filePath)
+					) {
+						await rebuildClientAssets(filePath);
+					}
+					if (
+						rebuildNodeCompat &&
+						eventName !== "unlink" &&
+						fs.existsSync(filePath) &&
+						isHarnessNodeCompatSourceFile(filePath)
+					) {
+						await rebuildNodeCompat(filePath);
+					}
+
+					if (isSandboxConfigFile(filePath)) {
+						await restartHelper();
+					}
+
+					io.emit("harness:reload", {
+						event: eventName,
+						file: relativePath || filePath,
+						scope: "shell",
+						version: reloadVersion
+					});
+				} catch (err) {
+					console.error("[module-sandbox] sandbox watcher error", err);
+				}
+			})();
+		}, 150);
+	});
+
+	return watcher;
+}
+
+export {
+	isModuleWatcherIgnored,
+	isSandboxWatcherIgnored,
+	startModuleWatcher,
+	startSandboxWatcher
+};

@@ -224,7 +224,7 @@ export default defineConfig(async () => {
 				path.join(repoRoot, "tests", "vitest-global-setup.ts")
 			],
 			coverage: {
-				exclude: ["shims/generated/**"],
+				exclude: ["shims/generated/**", "tests/**"],
 				provider: "v8",
 				reportOnFailure: true,
 				reporter: ["text-summary", "json-summary", "json"],

@@ -25,6 +25,7 @@ export function DebugDomain() {
 					data-tab="helper-log"
 					data-active="false"
 				>
+					<i class="fa-solid fa-server" aria-hidden="true" />
 					Helper Log
 				</button>
 				<button
@@ -34,6 +35,7 @@ export function DebugDomain() {
 					data-tab="console-log"
 					data-active="false"
 				>
+					<i class="fa-solid fa-terminal" aria-hidden="true" />
 					Console Log
 				</button>
 			</div>
@@ -51,6 +53,7 @@ export function DebugDomain() {
 						class="sandbox-button sandbox-button--full"
 						type="button"
 					>
+						<i class="fa-solid fa-trash" aria-hidden="true" />
 						Clear helper log
 					</button>
 				</div>
@@ -69,6 +72,7 @@ export function DebugDomain() {
 						class="sandbox-button sandbox-button--full"
 						type="button"
 					>
+						<i class="fa-solid fa-trash" aria-hidden="true" />
 						Clear console log
 					</button>
 				</div>

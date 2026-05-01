@@ -70,12 +70,11 @@
 		}
 	}
 
-	/**
-	 * Build the severity icon string for a finding row.
-	 */
-	function severityIcon(): string {
-		return "\u25CF";
-	}
+	const SEVERITY_ICON: Record<AnalysisSeverity, string> = {
+		error: "fa-circle-exclamation",
+		warning: "fa-triangle-exclamation",
+		info: "fa-lightbulb"
+	};
 
 	/**
 	 * Render a single finding row element.
@@ -85,9 +84,9 @@
 		row.className = `sandbox-quality-finding sandbox-quality-finding--${finding.severity}`;
 		row.dataset.severity = finding.severity;
 
-		const icon = document.createElement("span");
-		icon.className = "sandbox-quality-finding__severity";
-		icon.textContent = severityIcon();
+		const icon = document.createElement("i");
+		icon.className = `fa-solid ${SEVERITY_ICON[finding.severity]} sandbox-quality-finding__severity`;
+		icon.setAttribute("aria-hidden", "true");
 		row.appendChild(icon);
 
 		const category = document.createElement("span");
@@ -322,7 +321,8 @@
 		const btn = getById<HTMLButtonElement>("quality-analyze-btn");
 		if (btn) {
 			btn.disabled = true;
-			btn.textContent = "Analyzing…";
+			btn.innerHTML =
+				'<i class="fa-solid fa-magnifying-glass fa-spin" aria-hidden="true"></i> Analyzing\u2026';
 		}
 		showLoading();
 		try {
@@ -333,7 +333,8 @@
 		} finally {
 			if (btn) {
 				btn.disabled = false;
-				btn.textContent = "Analyze module";
+				btn.innerHTML =
+					'<i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Analyze module';
 			}
 		}
 	}

@@ -28,7 +28,10 @@ export function AboutDomain() {
 				Official MagicMirror references worth keeping close while
 				building modules.
 			</span>
-			<div class="sandbox-section-title">MagicMirror references</div>
+			<div class="sandbox-section-title">
+				<i class="fa-solid fa-book-open" aria-hidden="true" />
+				{" "}MagicMirror references
+			</div>
 			<ul class="sandbox-hint-list">
 				<li>
 					<a

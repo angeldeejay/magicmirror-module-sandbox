@@ -18,17 +18,16 @@ export interface DepResolutionResult {
 	errors: Array<{ file: string; reason: string }>;
 }
 
-const SPECIFIER_RE =
-	/(?:require|import)\s*\(\s*['"]([^'"]+)['"]\s*\)|from\s+['"]([^'"]+)['"]/g;
-
 /**
  * Extracts relative specifiers from file content using a combined require/import regex.
+ * A new RegExp instance is created per call to avoid shared mutable lastIndex state.
  */
 function extractRelativeSpecifiers(content: string): string[] {
+	const specifierRe =
+		/(?:require|import)\s*\(\s*['"]([^'"]+)['"]\s*\)|from\s+['"]([^'"]+)['"]/g;
 	const specifiers: string[] = [];
 	let match: RegExpExecArray | null;
-	SPECIFIER_RE.lastIndex = 0;
-	while ((match = SPECIFIER_RE.exec(content)) !== null) {
+	while ((match = specifierRe.exec(content)) !== null) {
 		const specifier = match[1] ?? match[2];
 		if (typeof specifier === "string" && specifier.startsWith(".")) {
 			specifiers.push(specifier);

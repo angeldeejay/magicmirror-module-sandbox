@@ -7,8 +7,8 @@ import { createRequire } from "node:module";
 import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
+import { ensureDirectory, fromOS, resolveMagicMirrorRoot } from "./shared.ts";
 
-const fromOS = (p: string) => p.replace(/\\/g, "/");
 const __filename = fromOS(fileURLToPath(import.meta.url));
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
@@ -24,11 +24,6 @@ type MagicMirrorCompatTarget = {
 	sourceName: string;
 	destinationPath: string;
 	transformSource?: (source: string) => string;
-};
-type SourceReplacement = {
-	searchValue: string;
-	replaceValue: string;
-	label: string;
 };
 const magicMirrorCompatTargets = [
 	{
@@ -70,15 +65,6 @@ const helperLogMethods = [
 ];
 
 /**
- * Ensures directory.
- */
-function ensureDirectory(directoryPath: string): void {
-	fs.mkdirSync(directoryPath, {
-		recursive: true
-	});
-}
-
-/**
  * Clears directory.
  */
 function clearDirectory(directoryPath: string): void {
@@ -91,30 +77,20 @@ function clearDirectory(directoryPath: string): void {
 }
 
 /**
- * Resolves magic mirror root.
+ * Loads a template file from the templates directory.
  */
-function resolveMagicMirrorRoot(): string {
-	const magicMirrorEntryPath = nodeRequire.resolve("magicmirror", {
-		paths: [root]
-	});
-	return path.resolve(path.dirname(magicMirrorEntryPath), "..");
-}
-
-/**
- * Loads a patch template.
- */
-function loadPatchTemplate(templateName: string): string {
+function loadTemplate(templateName: string): string {
 	return fs.readFileSync(path.join(templatesRoot, templateName), "utf8");
 }
 
 /**
- * Renders a patch template with string replacements.
+ * Renders a template with string replacements.
  */
-function renderPatchTemplate(
+function renderTemplate(
 	templateName: string,
 	replacements: Record<string, string> = {}
 ): string {
-	let rendered = loadPatchTemplate(templateName);
+	let rendered = loadTemplate(templateName);
 	for (const [placeholder, value] of Object.entries(replacements)) {
 		rendered = rendered.replaceAll(placeholder, value);
 	}
@@ -123,58 +99,78 @@ function renderPatchTemplate(
 }
 
 /**
- * Loads source replacements.
- */
-function loadSourceReplacements(templateName: string): SourceReplacement[] {
-	return JSON.parse(loadPatchTemplate(templateName)) as SourceReplacement[];
-}
-
-/**
- * Applies declarative source replacements.
- */
-function applySourceReplacements(
-	source: string,
-	replacements: SourceReplacement[]
-): string {
-	let rewrittenSource = source;
-	for (const { searchValue, replaceValue, label } of replacements) {
-		if (!rewrittenSource.includes(searchValue)) {
-			throw new Error(
-				`Could not adapt ${label} because the expected source snippet was not found.`
-			);
-		}
-		rewrittenSource = rewrittenSource.replace(searchValue, replaceValue);
-	}
-
-	return rewrittenSource;
-}
-
-/**
- * Adapts core logger source.
+ * Adapts core logger source: appends sandbox postlude (log forwarding, setLogLevel re-wrap).
+ * No source patches applied — fidelity principle.
  */
 function adaptCoreLoggerSource(source: string): string {
-	const rewrittenSource = applySourceReplacements(
-		source,
-		loadSourceReplacements("core-logger-replacements.json")
-	);
-
-	return `${rewrittenSource}
-${renderPatchTemplate("core-logger-postlude.js", {
-	__HELPER_LOG_METHODS__: JSON.stringify(helperLogMethods)
-})}`;
+	return `${source}\n${renderTemplate("core-logger-postlude.js", {
+		__HELPER_LOG_METHODS__: JSON.stringify(helperLogMethods)
+	})}`;
 }
 
 /**
- * Adapts core node helper source.
+ * Adapts core node_helper source: appends sandbox postlude (socket namespace rewiring).
+ * No source patches applied — fidelity principle.
  */
 function adaptCoreNodeHelperSource(source: string): string {
-	const rewrittenSource = applySourceReplacements(
-		source,
-		loadSourceReplacements("core-node-helper-replacements.json")
-	);
+	return `${source}\n${renderTemplate("core-node-helper-postlude.js")}`;
+}
 
-	return `${rewrittenSource}
-${renderPatchTemplate("core-node-helper-postlude.js")}`;
+/**
+ * Bundles Express from the magicmirror package's own dependency tree into
+ * shims/generated/node_modules/express/index.js so that node_helper.js can
+ * require('express') via standard Node module resolution without any source patch.
+ */
+function bundleExpressForNodeHelper(): void {
+	const magicMirrorRoot = resolveMagicMirrorRoot(root);
+	const expressEntry = nodeRequire.resolve("express", {
+		paths: [magicMirrorRoot]
+	});
+	const outFile = path.join(
+		generatedRoot,
+		"node_modules",
+		"express",
+		"index.js"
+	);
+	ensureDirectory(path.dirname(outFile));
+	buildSync({
+		entryPoints: [expressEntry],
+		outfile: outFile,
+		bundle: true,
+		format: "cjs",
+		platform: "node",
+		target: "node22",
+		logLevel: "silent"
+	});
+}
+
+/**
+ * Bundles undici from the magicmirror package's own dependency tree into
+ * shims/generated/node_modules/undici/index.js so that server_functions.js can
+ * require('undici') via standard Node module resolution without any source patch
+ * and without adding undici as a sandbox dependency.
+ */
+function bundleUndiciForNodeHelper(): void {
+	const magicMirrorRoot = resolveMagicMirrorRoot(root);
+	const undiciEntry = nodeRequire.resolve("undici", {
+		paths: [magicMirrorRoot]
+	});
+	const outFile = path.join(
+		generatedRoot,
+		"node_modules",
+		"undici",
+		"index.js"
+	);
+	ensureDirectory(path.dirname(outFile));
+	buildSync({
+		entryPoints: [undiciEntry],
+		outfile: outFile,
+		bundle: true,
+		format: "cjs",
+		platform: "node",
+		target: "node22",
+		logLevel: "silent"
+	});
 }
 
 /**
@@ -217,7 +213,7 @@ module.exports.default = __moduleSandboxCompatExport;
  * Synchronizes magic mirror compat files.
  */
 function syncMagicMirrorCompatFiles(): void {
-	const magicMirrorRoot = resolveMagicMirrorRoot();
+	const magicMirrorRoot = resolveMagicMirrorRoot(root);
 	const magicMirrorPackagePath = path.join(magicMirrorRoot, "package.json");
 	const magicMirrorPackage = JSON.parse(
 		fs.readFileSync(magicMirrorPackagePath, "utf8")
@@ -282,6 +278,8 @@ function syncMagicMirrorCompatFiles(): void {
 export function buildNodeCompat(): void {
 	clearDirectory(generatedRoot);
 	ensureDirectory(generatedRoot);
+	bundleExpressForNodeHelper();
+	bundleUndiciForNodeHelper();
 	buildSync({
 		entryPoints,
 		outdir: generatedRoot,

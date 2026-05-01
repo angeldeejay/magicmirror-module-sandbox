@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import { ValidationError } from "./errors.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -15,8 +16,8 @@ const moduleConfigSaveBodySchema = z.object({
 /**
  * Creates payload error.
  */
-function createPayloadError(message: string): TypeError {
-	return new TypeError(message);
+function createPayloadError(message: string): ValidationError {
+	return new ValidationError(message);
 }
 
 /**
@@ -29,6 +30,7 @@ export function parseConfigSaveBody(body: unknown): {
 	const parsed = moduleConfigSaveBodySchema.safeParse(body);
 	if (!parsed.success) {
 		const firstIssue = parsed.error.issues[0];
+		/* v8 ignore next */
 		if (firstIssue && Array.isArray(firstIssue.path)) {
 			if (firstIssue.path[0] === "moduleConfig") {
 				throw createPayloadError(

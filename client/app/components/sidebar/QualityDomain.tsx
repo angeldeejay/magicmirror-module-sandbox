@@ -106,6 +106,7 @@ export function QualityDomain() {
 					class="sandbox-button sandbox-button--full"
 					type="button"
 				>
+					<i class="fa-solid fa-magnifying-glass" aria-hidden="true" />
 					Analyze module
 				</button>
 			</div>

@@ -10,8 +10,8 @@ import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
 import { buildNodeCompat } from "./build-node-compat.ts";
+import { ensureDirectory, fromOS } from "./shared.ts";
 
-const fromOS = (p: string) => p.replace(/\\/g, "/");
 const __filename = fromOS(fileURLToPath(import.meta.url));
 const __dirname = path.dirname(__filename);
 const root: string = path.resolve(__dirname, "..");
@@ -23,6 +23,7 @@ const copyTargets: string[] = [
 	path.join("client", "fonts"),
 	path.join("client", "generated"),
 	path.join("client", "styles"),
+	path.join("client", "webfonts"),
 	path.join("shims", "generated")
 ];
 const nodeEntryTargets: string[] = [
@@ -31,15 +32,6 @@ const nodeEntryTargets: string[] = [
 	path.join("bin", "sync-magicmirror-assets.ts")
 ];
 const nodeSourceDirectories: string[] = ["config", "server", "shims"];
-
-/**
- * Ensures directory.
- */
-function ensureDirectory(directoryPath: string): void {
-	fs.mkdirSync(directoryPath, {
-		recursive: true
-	});
-}
 
 /**
  * Clears directory.

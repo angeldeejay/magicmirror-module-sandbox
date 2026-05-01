@@ -2,22 +2,105 @@
 
 :root {
 	color-scheme: dark;
-	--sandbox-control-height: 34px;
-	--sandbox-control-radius: 6px;
-	--sandbox-control-border: #343434;
-	--sandbox-control-border-hover: #4a4a4a;
-	--sandbox-control-border-focus: #5ba9d6;
-	--sandbox-control-bg: #101010;
-	--sandbox-control-bg-elevated: #202020;
-	--sandbox-control-bg-hover: #2a2a2a;
-	--sandbox-control-bg-disabled: #181818;
-	--sandbox-control-text: #f3f3f3;
-	--sandbox-control-text-muted: #bcbcbc;
-	--sandbox-focus-ring: rgba(91, 169, 214, 0.28);
-	--sandbox-scrollbar-size: 10px;
-	--sandbox-scrollbar-track: #101010;
-	--sandbox-scrollbar-thumb: #3f3f3f;
-	--sandbox-scrollbar-thumb-hover: #595959;
+
+	/* ── Backgrounds ─────────────────────────────────────────── */
+	--hns-bg-page:        #111;
+	--hns-bg-surface:     #181818;
+	--hns-bg-elevated:    #1f2937;
+	--hns-bg-panel:       #101010;
+	--hns-bg-panel-alt:   #141414;
+	--hns-bg-panel-hover: #2a2a2a;
+	--hns-bg-input:       #0a0a0a;
+	--hns-bg-hover:       #202020;
+	--hns-bg-active:      #222;
+	--hns-bg-stage:       #000;
+
+	/* ── Borders ─────────────────────────────────────────────── */
+	--hns-border:               #2b2b2b;
+	--hns-border-subtle:        #242424;
+	--hns-border-panel:         #2d2d2d;
+	--hns-border-active:        #3b3b3b;
+	--hns-border-control:       #343434;
+	--hns-border-control-hover: #4a4a4a;
+
+	/* ── Text ────────────────────────────────────────────────── */
+	--hns-text-primary:   #f3f3f3;
+	--hns-text-secondary: #cfcfcf;
+	--hns-text-muted:     #bcbcbc;
+	--hns-text-dim:       #9a9a9a;
+	--hns-text-dimmer:    #7e7e7e;
+	--hns-text-footer:    #8f8f8f;
+	--hns-text-debug:     #9f9f9f;
+
+	/* ── Accents ─────────────────────────────────────────────── */
+	--hns-accent:           #8bd0ff;
+	--hns-accent-secondary: #5ba9d6;
+	--hns-accent-warning:   #f59e0b;
+	--hns-focus-ring:       rgba(91, 169, 214, 0.28);
+
+	/* ── Scrollbar ───────────────────────────────────────────── */
+	--hns-scrollbar-thumb:       #3f3f3f;
+	--hns-scrollbar-thumb-hover: #595959;
+
+	/* ── Status / JSON editor syntax ─────────────────────────── */
+	--hns-status-pink:   #ff9cc2;
+	--hns-status-green:  #b7e48b;
+	--hns-status-purple: #9aa8ff;
+	--hns-status-mint:   #9ed39e;
+	--hns-status-red:    #ff9e9e;
+
+	/* ── Backdrop ────────────────────────────────────────────── */
+	--hns-backdrop-spinner-outer: #8bd0ff;
+	--hns-backdrop-spinner-inner: #b7e48b;
+
+	/* ── Quality severity ────────────────────────────────────── */
+	--hns-sev-error-border:    #c0392b;
+	--hns-sev-error-bg:        #180f0f;
+	--hns-sev-error-icon:      #e74c3c;
+	--hns-sev-warning-border:  #c07c00;
+	--hns-sev-warning-bg:      #181208;
+	--hns-sev-warning-icon:    #e6950a;
+	--hns-sev-info-border:     #2e6a9e;
+	--hns-sev-info-bg:         #0d1118;
+	--hns-sev-info-icon:       #6ab0dc;
+	--hns-sev-info-icon-hover: #8ecef0;
+
+	/* ── Quality panel text ──────────────────────────────────── */
+	--hns-quality-text:          #d0d8e8;
+	--hns-quality-text-muted:    #9aa8c8;
+	--hns-quality-text-dim:      #7a8a9a;
+	--hns-quality-text-very-dim: #555f6f;
+
+	/* ── Quality error state ─────────────────────────────────── */
+	--hns-quality-error-bg:     #200a0a;
+	--hns-quality-error-border: #5c1a1a;
+	--hns-quality-error-text:   #ff9e9e;
+
+	/* ── Quality filter ──────────────────────────────────────── */
+	--hns-quality-filter-border:        #2a2a2a;
+	--hns-quality-filter-hover-bg:      #181818;
+	--hns-quality-filter-hover-border:  #383838;
+	--hns-quality-filter-cb-border:     #444;
+	--hns-quality-filter-cb-border-chk: #666;
+	--hns-quality-filter-cb-bg-chk:     #222;
+
+	/* ── Derived control vars (unchanged API, now theme-aware) ── */
+	--sandbox-control-height:           34px;
+	--sandbox-control-radius:           6px;
+	--sandbox-control-border:           var(--hns-border-control);
+	--sandbox-control-border-hover:     var(--hns-border-control-hover);
+	--sandbox-control-border-focus:     var(--hns-accent-secondary);
+	--sandbox-control-bg:               var(--hns-bg-panel);
+	--sandbox-control-bg-elevated:      var(--hns-bg-hover);
+	--sandbox-control-bg-hover:         var(--hns-bg-panel-hover);
+	--sandbox-control-bg-disabled:      var(--hns-bg-surface);
+	--sandbox-control-text:             var(--hns-text-primary);
+	--sandbox-control-text-muted:       var(--hns-text-muted);
+	--sandbox-focus-ring:               var(--hns-focus-ring);
+	--sandbox-scrollbar-size:           10px;
+	--sandbox-scrollbar-track:          var(--hns-bg-panel);
+	--sandbox-scrollbar-thumb:          var(--hns-scrollbar-thumb);
+	--sandbox-scrollbar-thumb-hover:    var(--hns-scrollbar-thumb-hover);
 }
 
 @mixin control-field($padding: 8px 10px) {

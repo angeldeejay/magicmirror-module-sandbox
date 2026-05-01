@@ -10,7 +10,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import pathsModule from "../../../server/paths.ts";
 import serverConfigModule from "../../../server/config.ts";
 
-const { createConfigApi, resolveSandboxPersistencePaths } = serverConfigModule;
+const {
+	createConfigApi,
+	deriveLocale,
+	deriveMountedModulePersistenceHash,
+	resolveSandboxPersistencePaths
+} = serverConfigModule;
 const { resolveMountedModuleInfo } = pathsModule;
 const repoRoot = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
@@ -656,4 +661,249 @@ test("harness config fails clearly when neither a mounted module nor preview env
 		process.chdir(originalCwd);
 		restoreEnv("MM_SANDBOX_MOUNTED_MODULE_ROOT", originalRoot);
 	}
+});
+
+// ---------------------------------------------------------------------------
+// deriveLocale
+// ---------------------------------------------------------------------------
+
+test("deriveLocale returns en-US for non-string input", () => {
+	assert.equal(deriveLocale(null), "en-US");
+	assert.equal(deriveLocale(42), "en-US");
+	assert.equal(deriveLocale(undefined), "en-US");
+});
+
+test("deriveLocale returns en-US for empty or whitespace string", () => {
+	assert.equal(deriveLocale(""), "en-US");
+	assert.equal(deriveLocale("   "), "en-US");
+});
+
+test("deriveLocale maps known locale codes", () => {
+	assert.equal(deriveLocale("pt-br"), "pt-BR");
+	assert.equal(deriveLocale("zh-cn"), "zh-CN");
+	assert.equal(deriveLocale("zh-tw"), "zh-TW");
+	assert.equal(deriveLocale("ms-my"), "ms-MY");
+	assert.equal(deriveLocale("en"), "en-US");
+});
+
+test("deriveLocale returns language as-is for unknown codes", () => {
+	assert.equal(deriveLocale("fr"), "fr");
+	assert.equal(deriveLocale("de"), "de");
+});
+
+// ---------------------------------------------------------------------------
+// deriveMountedModulePersistenceHash
+// ---------------------------------------------------------------------------
+
+test("deriveMountedModulePersistenceHash throws for null or invalid input", () => {
+	assert.throws(
+		() => deriveMountedModulePersistenceHash(null as any),
+		/required/
+	);
+	assert.throws(
+		() =>
+			deriveMountedModulePersistenceHash({
+				moduleName: "",
+				rootPath: "/some/path"
+			}),
+		/required/
+	);
+	assert.throws(
+		() =>
+			deriveMountedModulePersistenceHash({
+				moduleName: "MMM-X",
+				rootPath: ""
+			}),
+		/required/
+	);
+});
+
+test("deriveMountedModulePersistenceHash handles missing packageVersion", () => {
+	const hash = deriveMountedModulePersistenceHash({
+		moduleName: "MMM-X",
+		rootPath: "/some/path"
+	});
+	assert.equal(typeof hash, "string");
+	assert.equal(hash.length, 16);
+});
+
+// ---------------------------------------------------------------------------
+// createConfigApi — sandbox.moduleConfig and config.sandbox.json paths
+// ---------------------------------------------------------------------------
+
+test("createConfigApi reads moduleConfig from package.json sandbox.moduleConfig when no temp file exists", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-pkg-config-")
+	);
+	fs.writeFileSync(
+		path.join(tempRoot, "package.json"),
+		JSON.stringify({
+			name: "MMM-PkgConfig",
+			sandbox: { moduleConfig: { apiKey: "fixture-key", maxItems: 5 } }
+		}),
+		"utf8"
+	);
+
+	const configApi = createConfigApi({
+		loadHarnessConfig: () =>
+			createHarnessConfigStub({ moduleName: "MMM-PkgConfig" }),
+		resolveActiveModuleInfo: () => ({
+			moduleName: "MMM-PkgConfig",
+			rootPath: tempRoot,
+			packageVersion: "1.0.0"
+		}),
+		resolveModuleConfigPath: () =>
+			path.join(tempRoot, "missing.config.json"),
+		resolveRuntimeConfigPath: () =>
+			path.join(tempRoot, "missing.runtime.json")
+	});
+
+	assert.deepEqual(configApi.getModuleConfig().config, {
+		apiKey: "fixture-key",
+		maxItems: 5
+	});
+});
+
+test("createConfigApi reads moduleConfig from config.sandbox.json when it exists in module root", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-sandbox-cfg-")
+	);
+	fs.writeFileSync(
+		path.join(tempRoot, "package.json"),
+		JSON.stringify({ name: "MMM-SandboxCfg" }),
+		"utf8"
+	);
+	fs.writeFileSync(
+		path.join(tempRoot, "config.sandbox.json"),
+		JSON.stringify({ config: { fromFile: true } }),
+		"utf8"
+	);
+
+	const configApi = createConfigApi({
+		loadHarnessConfig: () =>
+			createHarnessConfigStub({ moduleName: "MMM-SandboxCfg" }),
+		resolveActiveModuleInfo: () => ({
+			moduleName: "MMM-SandboxCfg",
+			rootPath: tempRoot
+		}),
+		resolveModuleConfigPath: () =>
+			path.join(tempRoot, "missing.config.json"),
+		resolveRuntimeConfigPath: () =>
+			path.join(tempRoot, "missing.runtime.json")
+	});
+
+	assert.deepEqual(configApi.getModuleConfig().config, { fromFile: true });
+});
+
+test("createConfigApi falls back to empty config when no moduleInfo is available", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-no-module-")
+	);
+
+	const configApi = createConfigApi({
+		loadHarnessConfig: () => createHarnessConfigStub(),
+		resolveActiveModuleInfo: () => null,
+		resolveModuleConfigPath: () =>
+			path.join(tempRoot, "missing.config.json"),
+		resolveRuntimeConfigPath: () =>
+			path.join(tempRoot, "missing.runtime.json")
+	});
+
+	assert.deepEqual(configApi.getModuleConfig().config, {});
+});
+
+test("getRuntimeConfig falls back for stored file with invalid language and locale fields", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-rt-fallback-")
+	);
+	const runtimeConfigPath = path.join(tempRoot, "runtime.json");
+	fs.writeFileSync(
+		runtimeConfigPath,
+		JSON.stringify({ language: "  ", locale: null }),
+		"utf8"
+	);
+
+	const configApi = createConfigApi({
+		loadHarnessConfig: () => createHarnessConfigStub(),
+		resolveActiveModuleInfo: () => null,
+		resolveModuleConfigPath: () =>
+			path.join(tempRoot, "missing.config.json"),
+		resolveRuntimeConfigPath: () => runtimeConfigPath
+	});
+
+	const runtimeConfig = configApi.getRuntimeConfig();
+	assert.equal(runtimeConfig.language, "en");
+	assert.equal(runtimeConfig.locale, "en-US");
+});
+
+test("saveRuntimeConfig derives locale when not provided", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-rt-locale-derive-")
+	);
+	const runtimeConfigPath = path.join(tempRoot, "runtime.json");
+
+	const configApi = createConfigApi({
+		loadHarnessConfig: () => createHarnessConfigStub(),
+		resolveActiveModuleInfo: () => null,
+		resolveModuleConfigPath: () =>
+			path.join(tempRoot, "missing.config.json"),
+		resolveRuntimeConfigPath: () => runtimeConfigPath
+	});
+
+	const saved = configApi.saveRuntimeConfig({ language: "en" });
+	assert.equal(saved.language, "en");
+	assert.equal(saved.locale, "en-US");
+});
+
+test("createConfigApi ignores package.json sandbox when it is an array", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-pkg-array-")
+	);
+	fs.writeFileSync(
+		path.join(tempRoot, "package.json"),
+		JSON.stringify({ name: "MMM-ArraySandbox", sandbox: ["bad"] }),
+		"utf8"
+	);
+
+	const configApi = createConfigApi({
+		loadHarnessConfig: () => createHarnessConfigStub(),
+		resolveActiveModuleInfo: () => ({
+			moduleName: "MMM-ArraySandbox",
+			rootPath: tempRoot
+		}),
+		resolveModuleConfigPath: () =>
+			path.join(tempRoot, "missing.config.json"),
+		resolveRuntimeConfigPath: () =>
+			path.join(tempRoot, "missing.runtime.json")
+	});
+
+	assert.deepEqual(configApi.getModuleConfig().config, {});
+});
+
+test("createConfigApi ignores package.json sandbox.moduleConfig when it is an array", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-mc-array-")
+	);
+	fs.writeFileSync(
+		path.join(tempRoot, "package.json"),
+		JSON.stringify({
+			name: "MMM-McArray",
+			sandbox: { moduleConfig: [1, 2] }
+		}),
+		"utf8"
+	);
+
+	const configApi = createConfigApi({
+		loadHarnessConfig: () => createHarnessConfigStub(),
+		resolveActiveModuleInfo: () => ({
+			moduleName: "MMM-McArray",
+			rootPath: tempRoot
+		}),
+		resolveModuleConfigPath: () =>
+			path.join(tempRoot, "missing.config.json"),
+		resolveRuntimeConfigPath: () =>
+			path.join(tempRoot, "missing.runtime.json")
+	});
+
+	assert.deepEqual(configApi.getModuleConfig().config, {});
 });

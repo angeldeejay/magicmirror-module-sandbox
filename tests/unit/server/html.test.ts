@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "pathe";
 import htmlModule from "../../../server/html.ts";
 
-const { createHtmlPage, createStagePage } = htmlModule;
+const { appendAssetVersion, createHtmlPage, createStagePage } = htmlModule;
 
 test("createHtmlPage renders the host shell, topbar domains, and runtime bootstrap", () => {
 	const html = createHtmlPage({
@@ -83,18 +83,14 @@ test("createHtmlPage renders the host shell, topbar domains, and runtime bootstr
 	assert.match(html, /id="config-header-enabled"/);
 	assert.match(html, /id="config-hidden-on-startup"/);
 	assert.match(html, /id="config-disabled"/);
-	assert.match(
-		html,
-		/<button id="module-config-format" class="sandbox-button sandbox-button--full" type="button">Format config<\/button>/
-	);
-	assert.match(
-		html,
-		/<div class="sandbox-button-row" style="width: 100%;">\s*<button id="module-config-reset" class="sandbox-button sandbox-button--grow" type="button" disabled style="flex: 1;">Revert draft<\/button>\s*<button id="module-config-refresh-styles" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Refresh styles<\/button>\s*<\/div>/
-	);
-	assert.match(
-		html,
-		/<div class="sandbox-button-row" style="width: 100%;">\s*<button id="module-config-save" class="sandbox-button sandbox-button--grow" type="button" style="flex: 1;">Save and reload<\/button>\s*<\/div>/
-	);
+	assert.match(html, /id="module-config-format"/);
+	assert.match(html, /Format config/);
+	assert.match(html, /id="module-config-reset"/);
+	assert.match(html, /Revert draft/);
+	assert.match(html, /id="module-config-refresh-styles"/);
+	assert.match(html, /Refresh styles/);
+	assert.match(html, /id="module-config-save"/);
+	assert.match(html, /Save and reload/);
 	assert.match(html, />Spanish \(es\)</);
 	assert.match(html, /watch mode/i);
 });
@@ -257,6 +253,166 @@ test("createStagePage renders the disabled viewport state without loading the mo
 		html,
 		/<script src="\/modules\/MMM-TestModule\/MMM-TestModule\.js"/
 	);
+});
+
+test("createHtmlPage uses language as locale fallback when locale is not set", () => {
+	const html = createHtmlPage({
+		watchEnabled: false,
+		getAvailableLanguages() {
+			return [];
+		},
+		getHarnessConfig() {
+			return {
+				moduleName: "MMM-TestModule",
+				moduleEntry: "MMM-TestModule.js",
+				moduleIdentifier: "MMM-TestModule_sandbox",
+				language: "fr"
+				// locale intentionally omitted
+			};
+		},
+		getModuleConfig() {
+			return {};
+		},
+		getContract() {
+			return {};
+		},
+		getHelperLogEntries() {
+			return [];
+		}
+	});
+
+	assert.match(html, /"locale":"fr"/);
+});
+
+test("createHtmlPage uses provided host and port in sandboxUrl", () => {
+	const html = createHtmlPage({
+		watchEnabled: false,
+		getAvailableLanguages() {
+			return [];
+		},
+		getHarnessConfig() {
+			return {
+				moduleName: "MMM-TestModule",
+				moduleEntry: "MMM-TestModule.js",
+				moduleIdentifier: "MMM-TestModule_sandbox",
+				language: "en",
+				host: "192.168.1.10",
+				port: 4000
+			};
+		},
+		getModuleConfig() {
+			return {};
+		},
+		getContract() {
+			return {};
+		},
+		getHelperLogEntries() {
+			return [];
+		}
+	});
+
+	assert.match(html, /192\.168\.1\.10:4000/);
+});
+
+test("createHtmlPage uses provided mmVersion when set", () => {
+	const html = createHtmlPage({
+		watchEnabled: false,
+		getAvailableLanguages() {
+			return [];
+		},
+		getHarnessConfig() {
+			return {
+				moduleName: "MMM-TestModule",
+				moduleEntry: "MMM-TestModule.js",
+				moduleIdentifier: "MMM-TestModule_sandbox",
+				language: "en",
+				mmVersion: "3.0.0"
+			};
+		},
+		getModuleConfig() {
+			return {};
+		},
+		getContract() {
+			return {};
+		},
+		getHelperLogEntries() {
+			return [];
+		}
+	});
+
+	assert.match(html, /"mmVersion":"3\.0\.0"/);
+});
+
+test("appendAssetVersion appends version query param to plain URL", () => {
+	assert.strictEqual(appendAssetVersion("/foo/bar.js", "abc123"), "/foo/bar.js?v=abc123");
+});
+
+test("appendAssetVersion appends version with & when URL already has query string", () => {
+	assert.strictEqual(appendAssetVersion("/foo/bar.js?x=1", "abc123"), "/foo/bar.js?x=1&v=abc123");
+});
+
+test("appendAssetVersion returns url unchanged when assetVersion is empty", () => {
+	assert.strictEqual(appendAssetVersion("/foo/bar.js", ""), "/foo/bar.js");
+});
+
+test("appendAssetVersion returns url unchanged when url is absolute https", () => {
+	assert.strictEqual(appendAssetVersion("https://cdn.example.com/foo.js", "abc123"), "https://cdn.example.com/foo.js");
+});
+
+test("appendAssetVersion returns url unchanged when url is protocol-relative", () => {
+	assert.strictEqual(appendAssetVersion("//cdn.example.com/foo.js", "abc123"), "//cdn.example.com/foo.js");
+});
+
+test("appendAssetVersion returns url unchanged when url is empty string", () => {
+	assert.strictEqual(appendAssetVersion("", "abc123"), "");
+});
+
+test("appendAssetVersion returns non-string url unchanged", () => {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	assert.strictEqual(appendAssetVersion(null as any, "abc123"), null);
+});
+
+test("createHtmlPage includes the shell bundle script tag when the bundle exists", () => {
+	const originalExistsSync = fs.existsSync;
+	const shellBundleSuffix = path.join("client", "generated", "shell-app.js");
+
+	fs.existsSync = (targetPath) => {
+		if (String(targetPath).endsWith(shellBundleSuffix)) {
+			return true;
+		}
+		return originalExistsSync(targetPath);
+	};
+
+	try {
+		const html = createHtmlPage({
+			watchEnabled: false,
+			getAvailableLanguages() {
+				return [{ code: "en", label: "English" }];
+			},
+			getHarnessConfig() {
+				return {
+					moduleName: "MMM-TestModule",
+					moduleEntry: "MMM-TestModule.js",
+					moduleIdentifier: "MMM-TestModule_sandbox",
+					language: "en",
+					locale: "en-US"
+				};
+			},
+			getModuleConfig() {
+				return {};
+			},
+			getContract() {
+				return {};
+			},
+			getHelperLogEntries() {
+				return [];
+			}
+		});
+
+		assert.match(html, /\/__harness\/generated\/shell-app\.js/);
+	} finally {
+		fs.existsSync = originalExistsSync;
+	}
 });
 
 test("createHtmlPage skips the optional shell bundle when it is not built yet", () => {

@@ -63,19 +63,20 @@ function makeHarnessConfig(overrides: Record<string, unknown> = {}) {
 }
 
 /**
- * Returns the full set of registerRoutes options with sensible defaults.
- * Individual tests can spread-override the relevant fields.
+ * Returns the full set of registerRoutes options with sensible defaults,
+ * grouped into the facade objects that registerRoutes now expects.
+ * Individual tests can pass flat-field overrides; this helper maps them
+ * into the correct facade groups automatically.
  *
  * @param {import("fastify").FastifyInstance} app
- * @param {object} [overrides]
+ * @param {object} [overrides] — flat field overrides, same names as before
  * @returns {object}
  */
 function makeRouteOptions(
 	app: import("fastify").FastifyInstance,
 	overrides: Record<string, unknown> = {}
 ) {
-	return {
-		app,
+	const flat = {
 		getAvailableLanguages: vi.fn(() => [{ code: "en", label: "English" }]),
 		getHarnessConfig: vi.fn(() => makeHarnessConfig()),
 		getModuleConfig: vi.fn(() => ({ position: "middle_center", config: {} })),
@@ -94,10 +95,46 @@ function makeRouteOptions(
 		resolveMomentPath: vi.fn(() => "/stub/moment.js"),
 		resolveMomentTimezonePath: vi.fn(() => "/stub/moment-timezone.js"),
 		resolveFontAwesomeCss: vi.fn(() => "/stub/font-awesome.css"),
-		io: { emit: vi.fn() },
+		io: { emit: vi.fn() } as { emit: ReturnType<typeof vi.fn> },
 		restartHelper: vi.fn(async () => {}),
-		watchEnabled: true,
+		watchEnabled: true as boolean,
+		getAnalysisResult: vi.fn(() => null),
+		triggerAnalysis: vi.fn(async () => {}),
 		...overrides
+	};
+	return {
+		app,
+		configService: {
+			getAvailableLanguages: flat.getAvailableLanguages as () => Array<Record<string, unknown>>,
+			getHarnessConfig: flat.getHarnessConfig as () => Record<string, unknown>,
+			getModuleConfig: flat.getModuleConfig as () => Record<string, unknown>,
+			getModuleConfigPath: flat.getModuleConfigPath as () => string,
+			getRuntimeConfig: flat.getRuntimeConfig as () => Record<string, unknown>,
+			getRuntimeConfigPath: flat.getRuntimeConfigPath as () => string,
+			saveModuleConfig: flat.saveModuleConfig as (n: Record<string, unknown>) => Record<string, unknown>,
+			saveRuntimeConfig: flat.saveRuntimeConfig as (n: Record<string, unknown>) => Record<string, unknown>,
+			getContract: flat.getContract as () => Record<string, unknown>
+		},
+		assetService: {
+			resolveWebfontsRoot: flat.resolveWebfontsRoot as () => string,
+			resolveAnimateCss: flat.resolveAnimateCss as () => string,
+			resolveCronerPath: flat.resolveCronerPath as () => string,
+			resolveMomentPath: flat.resolveMomentPath as () => string,
+			resolveMomentTimezonePath: flat.resolveMomentTimezonePath as () => string,
+			resolveFontAwesomeCss: flat.resolveFontAwesomeCss as () => string,
+			createHtmlPage: flat.createHtmlPage as (o: object) => string,
+			createStagePage: flat.createStagePage as (o: object) => string
+		},
+		runtimeService: {
+			io: flat.io as import("socket.io").Server,
+			restartHelper: flat.restartHelper as () => Promise<void>,
+			watchEnabled: flat.watchEnabled,
+			getHelperLogEntries: flat.getHelperLogEntries as () => Array<Record<string, unknown>>
+		},
+		analysisService: {
+			getAnalysisResult: flat.getAnalysisResult as () => null,
+			triggerAnalysis: flat.triggerAnalysis as () => Promise<void>
+		}
 	};
 }
 
@@ -105,13 +142,13 @@ function makeRouteOptions(
  * Creates and readies a fresh Fastify instance, registers all routes using
  * the provided options, and returns the instance for injection-based testing.
  *
- * @param {object} [overrides] — forwarded to makeRouteOptions
+ * @param {object} [overrides] — flat field overrides forwarded to makeRouteOptions
  * @returns {Promise<import("fastify").FastifyInstance>}
  */
 async function buildApp(overrides: Record<string, unknown> = {}) {
 	const { registerRoutes } = await import("../../../server/routes.ts");
 	const app = Fastify({ logger: false });
-	await registerRoutes(makeRouteOptions(app, overrides) as any);
+	await registerRoutes(makeRouteOptions(app, overrides));
 	await app.ready();
 	return app;
 }
@@ -489,6 +526,40 @@ test("GET /font-awesome.css responds with text/css content-type", async () => {
 	assert.match(response.headers["content-type"] as string, /text\/css/);
 });
 
+// ---------------------------------------------------------------------------
+// Tests — POST /__harness/restart
+// ---------------------------------------------------------------------------
+
+test("POST /__harness/restart returns 200 with ok:true", async () => {
+	const app = await buildApp();
+
+	const response = await app.inject({ method: "POST", url: "/__harness/restart" });
+
+	assert.equal(response.statusCode, 200);
+	assert.deepEqual(response.json(), { ok: true });
+});
+
+test("POST /__harness/restart calls restartHelper and emits harness:reload with scope:stage", async () => {
+	const restartHelper = vi.fn(async () => {});
+	const io = { emit: vi.fn() };
+	const app = await buildApp({ restartHelper, io });
+
+	await app.inject({ method: "POST", url: "/__harness/restart" });
+
+	assert.equal(restartHelper.mock.calls.length, 1);
+	assert.equal(io.emit.mock.calls.length, 1);
+
+	const [eventName, payload] = io.emit.mock.calls[0];
+	assert.equal(eventName, "harness:reload");
+	assert.equal(payload.scope, "stage");
+	assert.equal(payload.event, "manual-restart");
+	assert.equal(typeof payload.version, "string");
+});
+
+// ---------------------------------------------------------------------------
+// Tests — static asset routes
+// ---------------------------------------------------------------------------
+
 test("static asset routes each invoke their resolver function to locate the file", async () => {
 	const resolveMomentPath = vi.fn(() => "/stub/moment.js");
 	const resolveAnimateCss = vi.fn(() => "/stub/animate.css");
@@ -515,4 +586,56 @@ test("static asset routes each invoke their resolver function to locate the file
 	assert.equal(resolveCronerPath.mock.calls.length, 1);
 	assert.equal(resolveMomentTimezonePath.mock.calls.length, 1);
 	assert.equal(resolveFontAwesomeCss.mock.calls.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Tests — GET /__harness/analysis
+// ---------------------------------------------------------------------------
+
+test("GET /__harness/analysis returns 202 with status:pending when no result is available yet", async () => {
+	const getAnalysisResult = vi.fn(() => null);
+	const app = await buildApp({ getAnalysisResult });
+
+	const response = await app.inject({
+		method: "GET",
+		url: "/__harness/analysis"
+	});
+
+	assert.equal(response.statusCode, 202);
+	const body = JSON.parse(response.body);
+	assert.equal(body.status, "pending");
+	assert.equal(getAnalysisResult.mock.calls.length, 1);
+});
+
+test("GET /__harness/analysis returns 200 with the result when analysis is available", async () => {
+	const fakeResult = { errors: [], warnings: [{ message: "test" }] };
+	const getAnalysisResult = vi.fn(() => fakeResult);
+	const app = await buildApp({ getAnalysisResult });
+
+	const response = await app.inject({
+		method: "GET",
+		url: "/__harness/analysis"
+	});
+
+	assert.equal(response.statusCode, 200);
+	const body = JSON.parse(response.body);
+	assert.deepEqual(body, fakeResult);
+});
+
+// ---------------------------------------------------------------------------
+// Tests — POST /__harness/analysis
+// ---------------------------------------------------------------------------
+
+test("POST /__harness/analysis returns 202 with status:pending and triggers analysis", async () => {
+	const triggerAnalysis = vi.fn(async () => {});
+	const app = await buildApp({ triggerAnalysis });
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/analysis"
+	});
+
+	assert.equal(response.statusCode, 202);
+	const body = JSON.parse(response.body);
+	assert.equal(body.status, "pending");
 });

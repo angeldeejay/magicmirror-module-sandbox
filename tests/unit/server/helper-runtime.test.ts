@@ -165,6 +165,140 @@ module.exports = NodeHelper.create({
 	}
 });
 
+test("stopHelper does nothing when helper has no stop method", async () => {
+	const helperRuntime = createHelperRuntime({
+		app: { locals: {} },
+		io: {},
+		/**
+		 * Gets harness config.
+		 */
+		getHarnessConfig() {
+			return { moduleName: "MMM-TestModule" };
+		},
+		/**
+		 * Gets harness cache dir.
+		 */
+		getHarnessCacheDir() {
+			return ".runtime-cache/default";
+		}
+	});
+
+	// stopHelper when no instance is active — must not throw
+	await assert.doesNotReject(async () => {
+		await helperRuntime.stopHelper();
+	});
+});
+
+test("restartHelper boots a helper that has no loaded or start method", async () => {
+	const originalExists = fs.existsSync(helperPath);
+	const originalSource = originalExists
+		? fs.readFileSync(helperPath, "utf8")
+		: null;
+	const calls: string[] = [];
+
+	global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__ = calls;
+	fs.writeFileSync(
+		helperPath,
+		`module.exports = {
+	setName() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setName"); },
+	setPath() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setPath"); },
+	setExpressApp() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setExpressApp"); },
+	setSocketIO() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setSocketIO"); }
+};\n`,
+		"utf8"
+	);
+
+	try {
+		const helperRuntime = createHelperRuntime({
+			app: { use() {} },
+			io: {},
+			/**
+			 * Gets harness config.
+			 */
+			getHarnessConfig() {
+				return { moduleName: "MMM-TestModule" };
+			},
+			/**
+			 * Gets harness cache dir.
+			 */
+			getHarnessCacheDir() {
+				return ".runtime-cache/default";
+			}
+		});
+
+		await assert.doesNotReject(async () => {
+			await helperRuntime.restartHelper();
+		});
+
+		assert.ok(calls.includes("setName"));
+		assert.ok(calls.includes("setSocketIO"));
+		assert.ok(!calls.includes("loaded"));
+		assert.ok(!calls.includes("start"));
+	} finally {
+		delete global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__;
+		delete nodeRequire.cache[nodeRequire.resolve(helperPath)];
+		if (originalExists && originalSource !== null) {
+			fs.writeFileSync(helperPath, originalSource, "utf8");
+		} else if (fs.existsSync(helperPath)) {
+			fs.rmSync(helperPath, { force: true });
+		}
+	}
+});
+
+test("restartHelper works with a constructor-style (class/function) helper export", async () => {
+	const originalExists = fs.existsSync(helperPath);
+	const originalSource = originalExists
+		? fs.readFileSync(helperPath, "utf8")
+		: null;
+	const calls: string[] = [];
+
+	global.__MODULE_SANDBOX_CTOR_CALLS__ = calls;
+	fs.writeFileSync(
+		helperPath,
+		`function HelperClass() {}
+HelperClass.prototype.setName = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setName"); };
+HelperClass.prototype.setPath = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setPath"); };
+HelperClass.prototype.setExpressApp = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setExpressApp"); };
+HelperClass.prototype.setSocketIO = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setSocketIO"); };
+module.exports = HelperClass;\n`,
+		"utf8"
+	);
+
+	try {
+		const helperRuntime = createHelperRuntime({
+			app: { use() {} },
+			io: {},
+			/**
+			 * Gets harness config.
+			 */
+			getHarnessConfig() {
+				return { moduleName: "MMM-TestModule" };
+			},
+			/**
+			 * Gets harness cache dir.
+			 */
+			getHarnessCacheDir() {
+				return ".runtime-cache/default";
+			}
+		});
+
+		await assert.doesNotReject(async () => {
+			await helperRuntime.restartHelper();
+		});
+
+		assert.ok(calls.includes("setName"));
+		assert.ok(calls.includes("setSocketIO"));
+	} finally {
+		delete global.__MODULE_SANDBOX_CTOR_CALLS__;
+		delete nodeRequire.cache[nodeRequire.resolve(helperPath)];
+		if (originalExists && originalSource !== null) {
+			fs.writeFileSync(helperPath, originalSource, "utf8");
+		} else if (fs.existsSync(helperPath)) {
+			fs.rmSync(helperPath, { force: true });
+		}
+	}
+});
+
 test("restartHelper boots and reuses helper wiring while stopHelper shuts down the active instance", async () => {
 	const originalExists = fs.existsSync(helperPath);
 	const originalSource = originalExists

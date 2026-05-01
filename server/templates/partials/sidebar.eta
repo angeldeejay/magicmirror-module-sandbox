@@ -5,7 +5,7 @@
         <h2 id="sidebar-title" class="harness-sidebar-title">Tools</h2>
         <p id="sidebar-copy" class="harness-sidebar-copy">Open a domain from the topbar to inspect or control the sandbox.</p>
       </div>
-      <button id="sidebar-close" class="harness-sidebar-close" type="button">Close</button>
+      <button id="sidebar-close" class="harness-sidebar-close" type="button" aria-label="Close panel"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Close</button>
     </div>
 
     <%~ include("./sidebar-runtime") %>

@@ -18,17 +18,20 @@ type PreviewEnvOptions = {
 };
 
 const currentFilePath = fromOS(
+	/* v8 ignore next 3 */
 	typeof __filename === "string"
 		? __filename
 		: fileURLToPath(import.meta.url)
 );
 const currentDirPath =
+	/* v8 ignore next */
 	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 
 /**
  * Gets package root.
  */
 function getPackageRoot(): string {
+	/* v8 ignore next 4 */
 	return path.basename(currentDirPath) === "bin" &&
 		path.basename(path.dirname(currentDirPath)) === "dist"
 		? path.resolve(currentDirPath, "..", "..")

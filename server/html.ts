@@ -13,11 +13,13 @@ import {
 import { fromOS } from "./paths.ts";
 
 const currentFilePath = fromOS(
+	/* v8 ignore next 3 */
 	typeof __filename === "string"
 		? __filename
 		: fileURLToPath(import.meta.url)
 );
 const currentDirPath =
+	/* v8 ignore next */
 	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
 
 export type HtmlPageOptions = {
@@ -235,9 +237,10 @@ function createStagePage({
 	});
 }
 
-export { createHtmlPage, createStagePage };
+export { appendAssetVersion, createHtmlPage, createStagePage };
 
 export default {
+	appendAssetVersion,
 	createHtmlPage,
 	createStagePage
 };

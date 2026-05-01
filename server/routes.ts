@@ -11,36 +11,49 @@ import {
 	parseConfigSaveBody,
 	parseModuleConfigBody
 } from "./config-payloads.ts";
+import { ValidationError } from "./errors.ts";
 
-type RegisterRoutesOptions = {
-	app: import("fastify").FastifyInstance;
+type ConfigService = {
 	getAvailableLanguages: () => Array<Record<string, unknown>>;
 	getHarnessConfig: HtmlPageOptions["getHarnessConfig"];
 	getModuleConfig: () => Record<string, unknown>;
 	getModuleConfigPath: () => string;
 	getRuntimeConfig: () => Record<string, unknown>;
 	getRuntimeConfigPath: () => string;
-	saveModuleConfig: (
-		nextConfig: Record<string, unknown>
-	) => Record<string, unknown>;
-	saveRuntimeConfig: (
-		nextConfig: Record<string, unknown>
-	) => Record<string, unknown>;
+	saveModuleConfig: (nextConfig: Record<string, unknown>) => Record<string, unknown>;
+	saveRuntimeConfig: (nextConfig: Record<string, unknown>) => Record<string, unknown>;
 	getContract: () => Record<string, unknown>;
-	createHtmlPage: (options: HtmlPageOptions) => string;
-	createStagePage: (options: Omit<HtmlPageOptions, "watchEnabled">) => string;
-	getHelperLogEntries: () => Array<Record<string, unknown>>;
+};
+
+type AssetService = {
 	resolveWebfontsRoot: () => string;
 	resolveAnimateCss: () => string;
 	resolveCronerPath: () => string;
 	resolveMomentPath: () => string;
 	resolveMomentTimezonePath: () => string;
 	resolveFontAwesomeCss: () => string;
+	createHtmlPage: (options: HtmlPageOptions) => string;
+	createStagePage: (options: Omit<HtmlPageOptions, "watchEnabled">) => string;
+};
+
+type RuntimeService = {
 	io: import("socket.io").Server;
 	restartHelper: () => Promise<void>;
 	watchEnabled: boolean;
+	getHelperLogEntries: () => Array<Record<string, unknown>>;
+};
+
+type AnalysisService = {
 	getAnalysisResult: () => import("./analysis-types.ts").ModuleAnalysisResult | null;
 	triggerAnalysis: () => Promise<void>;
+};
+
+type RegisterRoutesOptions = {
+	app: import("fastify").FastifyInstance;
+	configService: ConfigService;
+	assetService: AssetService;
+	runtimeService: RuntimeService;
+	analysisService: AnalysisService;
 };
 
 /**
@@ -48,30 +61,34 @@ type RegisterRoutesOptions = {
  */
 async function registerRoutes({
 	app,
-	getAvailableLanguages,
-	getHarnessConfig,
-	getModuleConfig,
-	getModuleConfigPath,
-	getRuntimeConfig,
-	getRuntimeConfigPath,
-	saveModuleConfig,
-	saveRuntimeConfig,
-	getContract,
-	createHtmlPage,
-	createStagePage,
-	getHelperLogEntries,
-	resolveWebfontsRoot,
-	resolveAnimateCss,
-	resolveCronerPath,
-	resolveMomentPath,
-	resolveMomentTimezonePath,
-	resolveFontAwesomeCss,
-	io,
-	restartHelper,
-	watchEnabled,
-	getAnalysisResult,
-	triggerAnalysis
+	configService,
+	assetService,
+	runtimeService,
+	analysisService
 }: RegisterRoutesOptions): Promise<void> {
+	const {
+		getAvailableLanguages,
+		getHarnessConfig,
+		getModuleConfig,
+		getModuleConfigPath,
+		getRuntimeConfig,
+		getRuntimeConfigPath,
+		saveModuleConfig,
+		saveRuntimeConfig,
+		getContract
+	} = configService;
+	const {
+		resolveWebfontsRoot,
+		resolveAnimateCss,
+		resolveCronerPath,
+		resolveMomentPath,
+		resolveMomentTimezonePath,
+		resolveFontAwesomeCss,
+		createHtmlPage,
+		createStagePage
+	} = assetService;
+	const { io, restartHelper, watchEnabled, getHelperLogEntries } = runtimeService;
+	const { getAnalysisResult, triggerAnalysis } = analysisService;
 	const harnessConfig = getHarnessConfig();
 
 	await app.register(fastifyStatic, {
@@ -87,7 +104,10 @@ async function registerRoutes({
 	await app.register(fastifyStatic, {
 		root: path.join(harnessRoot, "client"),
 		prefix: "/__harness/",
-		decorateReply: false
+		decorateReply: false,
+		setHeaders(res) {
+			res.setHeader("Cache-Control", "no-store");
+		}
 	});
 
 	app.get("/", async (_request, reply) => {
@@ -188,14 +208,9 @@ async function registerRoutes({
 		} catch (error) {
 			const routeError = error as Error;
 			return reply
-				.code(
-					error instanceof TypeError || error instanceof RangeError
-						? 400
-						: 500
-				)
+				.code(error instanceof ValidationError ? error.statusCode : 500)
 				.send({
-					error:
-						routeError.message || "Failed to save sandbox config."
+					error: routeError.message || "Failed to save sandbox config."
 				});
 		}
 	});
@@ -230,11 +245,7 @@ async function registerRoutes({
 		} catch (error) {
 			const routeError = error as Error;
 			return reply
-				.code(
-					error instanceof TypeError || error instanceof RangeError
-						? 400
-						: 500
-				)
+				.code(error instanceof ValidationError ? error.statusCode : 500)
 				.send({
 					error: routeError.message || "Failed to save module config."
 				});
@@ -253,6 +264,17 @@ async function registerRoutes({
 		// Fire-and-forget — result is pushed to clients via Socket.IO when ready.
 		void triggerAnalysis();
 		return reply.code(202).send({ status: "pending" });
+	});
+
+	app.post("/__harness/restart", async (_request, reply) => {
+		const reloadVersion = Date.now().toString(36);
+		await restartHelper();
+		io.emit("harness:reload", {
+			event: "manual-restart",
+			scope: "stage",
+			version: reloadVersion
+		});
+		return reply.send({ ok: true });
 	});
 }
 

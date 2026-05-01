@@ -3,12 +3,24 @@
     <h1 class="harness-product-name">MagicMirror Module Sandbox</h1>
   </div>
   <nav class="harness-menu" aria-label="Sandbox tools">
-    <a id="menu-runtime" class="harness-menu-link" href="#runtime" data-domain="runtime" data-active="false">Runtime</a>
-    <a id="menu-config" class="harness-menu-link" href="#config" data-domain="config" data-active="false">Config</a>
-    <a id="menu-notifications" class="harness-menu-link" href="#notifications" data-domain="notifications" data-active="false">Notifications</a>
-    <a id="menu-debug" class="harness-menu-link" href="#debug" data-domain="debug" data-active="false">Debug</a>
-    <a id="menu-quality" class="harness-menu-link" href="#quality" data-domain="quality" data-active="false">Quality</a>
-    <a id="menu-about" class="harness-menu-link" href="#about" data-domain="about" data-active="false">About</a>
+    <a id="menu-runtime" class="harness-menu-link" href="#runtime" data-domain="runtime" data-active="false"><i class="fa-solid fa-microchip" aria-hidden="true"></i> Runtime</a>
+    <a id="menu-config" class="harness-menu-link" href="#config" data-domain="config" data-active="false"><i class="fa-solid fa-gear" aria-hidden="true"></i> Config</a>
+    <a id="menu-notifications" class="harness-menu-link" href="#notifications" data-domain="notifications" data-active="false"><i class="fa-solid fa-bell" aria-hidden="true"></i> Notifications</a>
+    <a id="menu-debug" class="harness-menu-link" href="#debug" data-domain="debug" data-active="false"><i class="fa-solid fa-bug" aria-hidden="true"></i> Debug</a>
+    <a id="menu-quality" class="harness-menu-link" href="#quality" data-domain="quality" data-active="false"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Quality</a>
+    <a id="menu-about" class="harness-menu-link" href="#about" data-domain="about" data-active="false"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> About</a>
+    <span class="harness-menu-divider" aria-hidden="true"></span><button id="harness-restart-btn" class="harness-restart-btn" type="button" aria-label="Restart sandbox"><i class="fa-solid fa-rotate-right harness-restart-icon" aria-hidden="true"></i><span class="harness-restart-label">Restart</span></button>
   </nav>
-  <div class="harness-mounted-module"><span class="harness-mounted-module-label">Mounted module</span><code><%= it.runtimeState.moduleName %></code></div>
+  <div class="harness-mounted-module"><span class="harness-mounted-module-label"><i class="fa-solid fa-cube" aria-hidden="true"></i> Mounted module</span><code><%= it.runtimeState.moduleName %></code></div>
+  <div class="harness-theme-picker" id="harness-theme-picker">
+    <button class="harness-theme-btn" id="harness-theme-btn" type="button" aria-label="Switch theme" aria-expanded="false" aria-haspopup="listbox">
+      <i class="fa-solid fa-fw fa-brush" aria-hidden="true"></i>
+    </button>
+    <ul class="harness-theme-menu" role="listbox" aria-label="Theme">
+      <li class="harness-theme-item" role="option" data-theme-value="carbon-slate"><span class="harness-theme-item-label"><span class="harness-theme-preview" aria-hidden="true"><span style="background:#4ecdc4"></span><span style="background:#38a89d"></span><span style="background:#f0a030"></span></span>Carbon Slate</span><i class="fa-solid fa-check harness-theme-check" aria-hidden="true"></i></li>
+      <li class="harness-theme-item" role="option" data-theme-value="obsidian-amber"><span class="harness-theme-item-label"><span class="harness-theme-preview" aria-hidden="true"><span style="background:#d4a843"></span><span style="background:#a8832e"></span><span style="background:#6ba8c8"></span></span>Obsidian Amber</span><i class="fa-solid fa-check harness-theme-check" aria-hidden="true"></i></li>
+      <li class="harness-theme-item" role="option" data-theme-value="violet-circuit"><span class="harness-theme-item-label"><span class="harness-theme-preview" aria-hidden="true"><span style="background:#a78bfa"></span><span style="background:#7c5fc2"></span><span style="background:#fbbf24"></span></span>Violet Circuit</span><i class="fa-solid fa-check harness-theme-check" aria-hidden="true"></i></li>
+      <li class="harness-theme-item" role="option" data-theme-value="phosphor-green"><span class="harness-theme-item-label"><span class="harness-theme-preview" aria-hidden="true"><span style="background:#39d353"></span><span style="background:#25a13a"></span><span style="background:#e09030"></span></span>Phosphor Green</span><i class="fa-solid fa-check harness-theme-check" aria-hidden="true"></i></li>
+    </ul>
+  </div>
 </header>

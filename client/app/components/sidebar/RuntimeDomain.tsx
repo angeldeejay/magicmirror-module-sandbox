@@ -48,6 +48,7 @@ export function RuntimeDomain({ harness }: RuntimeDomainProps) {
 					data-tab="lifecycle"
 					data-active="false"
 				>
+					<i class="fa-solid fa-rotate" aria-hidden="true" />
 					Lifecycle
 				</button>
 			</div>

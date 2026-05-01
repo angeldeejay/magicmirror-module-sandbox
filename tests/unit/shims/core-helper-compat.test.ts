@@ -77,17 +77,43 @@ test("logger compat re-exports the synced core logger with helper log capture in
 		injectShimResolution();
 		clearCachedCompatModules();
 
-		const Log = nodeRequire("logger") as {
-			debug: (...args: unknown[]) => void;
+		const LOG_METHODS = [
+			"debug",
+			"log",
+			"info",
+			"warn",
+			"error",
+			"group",
+			"groupCollapsed",
+			"groupEnd",
+			"time",
+			"timeEnd",
+			"timeStamp"
+		] as const;
+		const Log = nodeRequire("logger") as Record<string, unknown> & {
+			debug: ((...args: unknown[]) => void) & {
+				__moduleSandboxWrappedMethod?: boolean;
+			};
 			setLogLevel: (levels: string[]) => void;
 		};
 		const pathLogger = nodeRequire(
 			path.join(moduleSandboxGlobal.root_path!, "js", "logger.js")
 		);
 
-		assert.equal(typeof Log.debug, "function");
+		// All expected log methods must exist
+		for (const method of LOG_METHODS) {
+			assert.equal(typeof Log[method], "function", `Log.${method} is not a function`);
+		}
 		assert.equal(typeof Log.setLogLevel, "function");
 		assert.equal(Log, pathLogger);
+
+		// Wrapped methods must be flagged
+		Log.setLogLevel(["DEBUG", "INFO", "LOG", "WARN", "ERROR"]);
+		assert.equal(
+			Log.debug.__moduleSandboxWrappedMethod,
+			true,
+			"debug not flagged as __moduleSandboxWrappedMethod"
+		);
 
 		Log.setLogLevel(["DEBUG", "INFO", "LOG", "WARN", "ERROR"]);
 		Log.debug("sandbox debug message", {
@@ -223,6 +249,11 @@ test("node_helper compat re-exports the synced core helper and preserves sandbox
 		});
 
 		assert.equal(NodeHelper, pathNodeHelper);
+		assert.equal(
+			(NodeHelper as unknown as Record<string, unknown>).__moduleSandboxSocketPatched,
+			true,
+			"__moduleSandboxSocketPatched flag missing from NodeHelper prototype"
+		);
 		assert.equal(typeof NodeHelper.checkFetchStatus, "function");
 		assert.equal(typeof NodeHelper.checkFetchError, "function");
 		assert.deepEqual(namespaceCalls, [

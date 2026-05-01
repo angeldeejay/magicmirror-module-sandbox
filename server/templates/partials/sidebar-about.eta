@@ -4,7 +4,7 @@
   <p>Thin runtime harness for one MagicMirror module.</p>
   <span class="status-pill">Supported surface is intentionally narrow but MagicMirror-faithful.</span>
   <span class="status-pill">Official MagicMirror references worth keeping close while building modules.</span>
-  <div class="sandbox-section-title">MagicMirror references</div>
+  <div class="sandbox-section-title"><i class="fa-solid fa-book-open" aria-hidden="true"></i> MagicMirror references</div>
   <ul class="sandbox-hint-list">
     <li><a href="https://docs.magicmirror.builders/" target="_blank" rel="noreferrer noopener">MagicMirror documentation</a></li>
     <li><a href="https://docs.magicmirror.builders/module-development/introduction.html" target="_blank" rel="noreferrer noopener">Module development introduction</a></li>

@@ -1,10 +1,14 @@
 /**
- * Unit coverage for the file watcher startup and debounced reload-event dispatch.
+ * Unit coverage for the module watcher and sandbox watcher (Correction 4).
  *
- * Internal pure functions (isSandboxPersistedConfigFile, shouldRestartBackend,
- * isHarnessClientSourceFile, isHarnessNodeCompatSourceFile, getReloadScope) are
- * not exported — all assertions are made through the observable side-effects of
- * the "all" event handler captured via the chokidar mock.
+ * Two independent watchers with separate responsibilities:
+ *   - startModuleWatcher: always-on, scope "stage", restartHelper on all
+ *     non-style/non-translation module changes.
+ *   - startSandboxWatcher: watch-mode only, scope "shell", triggers rebuilds,
+ *     restartHelper only on sandbox config file changes.
+ *
+ * Internal pure functions are not exported — all assertions are made through
+ * observable side-effects captured via the chokidar mock.
  */
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -15,38 +19,38 @@ import { harnessRoot, repoRoot } from "../../../server/paths.ts";
 // chokidar mock — intercepts watcher creation and exposes the "all" handler
 // ---------------------------------------------------------------------------
 
-/** Captured "all" handler registered by startWatcher */
-let capturedAllHandler: ((event: string, filePath: string) => void) | null =
-	null;
+/** Captured "all" handlers per chokidar.watch() call order */
+const capturedHandlers: Array<
+	((event: string, filePath: string) => void) | null
+> = [];
 
 /** Stub watcher returned by chokidar.watch */
-const mockWatcher = {
-	/**
-	 * Captures the "all" event handler so tests can invoke it directly.
-	 *
-	 * @param {string} event
-	 * @param {Function} handler
-	 * @returns {typeof mockWatcher}
-	 */
-	on(event: string, handler: (event: string, filePath: string) => void) {
-		if (event === "all") {
-			capturedAllHandler = handler;
+function makeMockWatcher() {
+	const watcher = {
+		/**
+		 * Captures the "all" event handler so tests can invoke it directly.
+		 */
+		on(event: string, handler: (event: string, filePath: string) => void) {
+			if (event === "all") {
+				capturedHandlers.push(handler);
+			}
+			return watcher;
 		}
-		return mockWatcher;
-	}
-};
+	};
+	return watcher;
+}
+
+let mockWatchers: ReturnType<typeof makeMockWatcher>[] = [];
 
 vi.mock("chokidar", () => ({
 	default: {
 		/**
-		 * Returns the stub watcher and records invocation details.
-		 *
-		 * @param {string[]} _paths
-		 * @param {object} _options
-		 * @returns {typeof mockWatcher}
+		 * Returns a new stub watcher on each call.
 		 */
 		watch(_paths: string[], _options: object) {
-			return mockWatcher;
+			const w = makeMockWatcher();
+			mockWatchers.push(w);
+			return w;
 		}
 	}
 }));
@@ -68,34 +72,60 @@ vi.mock("node:fs", async (importOriginal) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Builds a minimal harness-config stub for startWatcher.
- *
- * @param {Partial<{ moduleEntry: string; moduleName: string }>} [overrides]
- * @returns {{ moduleEntry: string; moduleName: string }}
+ * Returns the most recently captured "all" handler (last watcher created).
  */
-function makeHarnessConfig(
-	overrides: Partial<{ moduleEntry: string; moduleName: string }> = {}
+function lastHandler(): (event: string, filePath: string) => void {
+	const h = capturedHandlers.at(-1);
+	assert.ok(h, "chokidar 'all' handler was not registered");
+	return h;
+}
+
+/**
+ * Returns the handler captured at position i (0-indexed creation order).
+ */
+function handlerAt(
+	i: number
+): (event: string, filePath: string) => void {
+	const h = capturedHandlers[i];
+	assert.ok(h, `chokidar 'all' handler at index ${i} was not registered`);
+	return h;
+}
+
+/**
+ * Fires a handler and advances fake timers past the 150 ms debounce.
+ */
+async function triggerEvent(
+	handler: (event: string, filePath: string) => void,
+	event: string,
+	filePath: string
+) {
+	handler(event, filePath);
+	await vi.advanceTimersByTimeAsync(200);
+}
+
+/**
+ * Builds the minimal options for startModuleWatcher.
+ */
+function makeModuleWatcherOptions(
+	overrides: Record<string, unknown> = {}
 ) {
 	return {
-		moduleEntry: "MMM-TestModule.js",
-		moduleName: "MMM-TestModule",
+		io: { emit: vi.fn() },
+		restartHelper: vi.fn(async () => {}),
 		...overrides
 	};
 }
 
 /**
- * Builds a complete options bag for startWatcher with sensible defaults for
- * all injectable callbacks.
- *
- * @param {object} [overrides]
- * @returns {object}
+ * Builds the minimal options for startSandboxWatcher.
  */
-function makeWatcherOptions(overrides: Record<string, unknown> = {}) {
+function makeSandboxWatcherOptions(
+	overrides: Record<string, unknown> = {}
+) {
 	return {
 		enabled: true,
 		io: { emit: vi.fn() },
 		restartHelper: vi.fn(async () => {}),
-		getHarnessConfig: () => makeHarnessConfig(),
 		getModuleConfigPath: () =>
 			path.join(repoRoot, "config", "module.config.json"),
 		getRuntimeConfigPath: () =>
@@ -106,31 +136,15 @@ function makeWatcherOptions(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-/**
- * Fires the captured "all" handler and advances fake timers past the 150 ms
- * debounce, returning after the async callback has settled.
- *
- * @param {string} event
- * @param {string} filePath
- * @returns {Promise<void>}
- */
-async function triggerWatchEvent(event: string, filePath: string) {
-	assert.ok(capturedAllHandler, "chokidar 'all' handler was not registered");
-	capturedAllHandler(event, filePath);
-	await vi.advanceTimersByTimeAsync(200);
-}
-
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
 beforeEach(async () => {
-	capturedAllHandler = null;
+	capturedHandlers.length = 0;
+	mockWatchers.length = 0;
 	vi.useFakeTimers();
 	vi.spyOn(console, "log").mockImplementation(() => {});
-	// Re-apply the default existsSync stub so that any per-test override made
-	// via mockReturnValue (e.g. the "existsSync returns false" test) does not
-	// bleed into subsequent tests after clearAllMocks resets implementations.
 	const fs = await import("node:fs");
 	vi.mocked(fs.existsSync).mockImplementation(() => true);
 });
@@ -141,76 +155,107 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests — startWatcher enabled/disabled
+// startModuleWatcher — enabled / watcher creation
 // ---------------------------------------------------------------------------
 
-test("startWatcher returns null immediately when enabled is false", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const result = startWatcher({
-		...makeWatcherOptions(),
-		enabled: false
-	} as any);
-	assert.equal(result, null);
+test("startModuleWatcher returns a watcher object (always-on, no enabled flag)", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const result = startModuleWatcher(makeModuleWatcherOptions() as any);
+	assert.ok(result !== null, "startModuleWatcher must return a watcher");
 });
 
-test("startWatcher returns a watcher object when enabled is true", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const result = startWatcher(makeWatcherOptions() as any);
-	assert.equal(result, mockWatcher);
-});
-
-test("startWatcher registers an 'all' event handler on the watcher", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	startWatcher(makeWatcherOptions() as any);
+test("startModuleWatcher registers an 'all' event handler on the watcher", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	startModuleWatcher(makeModuleWatcherOptions() as any);
 	assert.ok(
-		capturedAllHandler !== null,
+		capturedHandlers.length > 0,
 		"expected chokidar 'all' handler to be registered"
 	);
 });
 
 // ---------------------------------------------------------------------------
-// Tests — io.emit is always called
+// startModuleWatcher — scope is always "stage"
 // ---------------------------------------------------------------------------
 
-test("io.emit('harness:reload') is called with event, file, scope, and version on any change", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startModuleWatcher: io.emit scope is always 'stage' for any module file change", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const io = { emit: vi.fn() };
-	startWatcher({ ...makeWatcherOptions(), io } as any);
+	startModuleWatcher({ ...makeModuleWatcherOptions(), io } as any);
 
-	const filePath = path.join(repoRoot, "MMM-TestModule.js");
-	await triggerWatchEvent("change", filePath);
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.js")
+	);
+
+	const [, payload] = io.emit.mock.calls[0];
+	assert.equal(payload.scope, "stage");
+});
+
+test("startModuleWatcher: io.emit scope is 'stage' for node_helper.js", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const io = { emit: vi.fn() };
+	startModuleWatcher({ ...makeModuleWatcherOptions(), io } as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "node_helper.js")
+	);
+
+	const [, payload] = io.emit.mock.calls[0];
+	assert.equal(payload.scope, "stage");
+});
+
+test("startModuleWatcher: io.emit scope is 'stage' for a CSS file", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const io = { emit: vi.fn() };
+	startModuleWatcher({ ...makeModuleWatcherOptions(), io } as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.css")
+	);
+
+	const [, payload] = io.emit.mock.calls[0];
+	assert.equal(payload.scope, "stage");
+});
+
+test("startModuleWatcher: io.emit payload carries event name, file, scope, and version", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const io = { emit: vi.fn() };
+	startModuleWatcher({ ...makeModuleWatcherOptions(), io } as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"add",
+		path.join(repoRoot, "MMM-TestModule.js")
+	);
 
 	assert.equal(io.emit.mock.calls.length, 1);
 	const [eventName, payload] = io.emit.mock.calls[0];
 	assert.equal(eventName, "harness:reload");
-	assert.ok(typeof payload.event === "string", "payload.event must be set");
-	assert.ok(typeof payload.file === "string", "payload.file must be set");
-	assert.ok(typeof payload.scope === "string", "payload.scope must be set");
-	assert.ok(typeof payload.version === "string", "payload.version must be set");
-});
-
-test("io.emit payload carries the original event name from the watcher", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const io = { emit: vi.fn() };
-	startWatcher({ ...makeWatcherOptions(), io } as any);
-
-	const filePath = path.join(repoRoot, "MMM-TestModule.js");
-	await triggerWatchEvent("add", filePath);
-
-	const [, payload] = io.emit.mock.calls[0];
 	assert.equal(payload.event, "add");
+	assert.ok(typeof payload.file === "string");
+	assert.equal(payload.scope, "stage");
+	assert.ok(typeof payload.version === "string");
 });
 
 // ---------------------------------------------------------------------------
-// Tests — restartHelper decision logic (shouldRestartBackend)
+// startModuleWatcher — restartHelper logic
 // ---------------------------------------------------------------------------
 
-test("restartHelper is called when node_helper.js changes", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startModuleWatcher: restartHelper IS called for node_helper.js", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const restartHelper = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions(), restartHelper } as any);
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		restartHelper
+	} as any);
 
-	await triggerWatchEvent(
+	await triggerEvent(
+		lastHandler(),
 		"change",
 		path.join(repoRoot, "node_helper.js")
 	);
@@ -218,120 +263,147 @@ test("restartHelper is called when node_helper.js changes", async () => {
 	assert.equal(restartHelper.mock.calls.length, 1);
 });
 
-test("restartHelper is called when harness.config.js changes", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startModuleWatcher: restartHelper IS called for plain module JS files", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const restartHelper = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions(), restartHelper } as any);
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		restartHelper
+	} as any);
 
-	await triggerWatchEvent(
-		"change",
-		path.join(repoRoot, "config", "harness.config.js")
-	);
-
-	assert.equal(restartHelper.mock.calls.length, 1);
-});
-
-test("restartHelper is called when a persisted module config file changes", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const restartHelper = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions(), restartHelper } as any);
-
-	await triggerWatchEvent(
-		"change",
-		path.join(repoRoot, "config", "module.config.json")
-	);
-
-	assert.equal(restartHelper.mock.calls.length, 1);
-});
-
-test("restartHelper is called when a persisted runtime config file changes", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const restartHelper = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions(), restartHelper } as any);
-
-	await triggerWatchEvent(
-		"change",
-		path.join(repoRoot, "config", "runtime.config.json")
-	);
-
-	assert.equal(restartHelper.mock.calls.length, 1);
-});
-
-test("restartHelper is NOT called when a plain module JS file changes", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const restartHelper = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions(), restartHelper } as any);
-
-	// A root-level JS file that is not node_helper, cache-manager, or harness.config
-	await triggerWatchEvent(
+	// Any JS file in the module triggers restartHelper (stateful node_helper requirement)
+	await triggerEvent(
+		lastHandler(),
 		"change",
 		path.join(repoRoot, "MMM-TestModule.js")
+	);
+
+	assert.equal(restartHelper.mock.calls.length, 1);
+});
+
+test("startModuleWatcher: restartHelper is NOT called for CSS files", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const restartHelper = vi.fn(async () => {});
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		restartHelper
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.css")
+	);
+
+	assert.equal(restartHelper.mock.calls.length, 0);
+});
+
+test("startModuleWatcher: restartHelper is NOT called for SCSS files", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const restartHelper = vi.fn(async () => {});
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		restartHelper
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.scss")
+	);
+
+	assert.equal(restartHelper.mock.calls.length, 0);
+});
+
+test("startModuleWatcher: restartHelper is NOT called for translation files", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const restartHelper = vi.fn(async () => {});
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		restartHelper
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "translations", "en.json")
 	);
 
 	assert.equal(restartHelper.mock.calls.length, 0);
 });
 
 // ---------------------------------------------------------------------------
-// Tests — getReloadScope
+// startModuleWatcher — debounce coalescing
 // ---------------------------------------------------------------------------
 
-test("scope is 'stage' for the module entry file", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startModuleWatcher: rapid successive events are coalesced into one handler invocation", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const io = { emit: vi.fn() };
-	startWatcher({
-		...makeWatcherOptions({
-			io,
-			getHarnessConfig: () =>
-				makeHarnessConfig({ moduleEntry: "MMM-TestModule.js" })
-		})
+	startModuleWatcher({ ...makeModuleWatcherOptions(), io } as any);
+
+	const handler = lastHandler();
+	const filePath = path.join(repoRoot, "node_helper.js");
+	handler("change", filePath);
+	handler("change", filePath);
+	handler("change", filePath);
+	await vi.advanceTimersByTimeAsync(200);
+
+	assert.equal(io.emit.mock.calls.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// startSandboxWatcher — enabled / disabled
+// ---------------------------------------------------------------------------
+
+test("startSandboxWatcher returns null when enabled is false", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const result = startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		enabled: false
 	} as any);
+	assert.equal(result, null);
+});
 
-	await triggerWatchEvent(
+test("startSandboxWatcher returns a watcher object when enabled is true", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const result = startSandboxWatcher(makeSandboxWatcherOptions() as any);
+	assert.ok(result !== null, "startSandboxWatcher must return a watcher");
+});
+
+test("startSandboxWatcher registers an 'all' event handler", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	startSandboxWatcher(makeSandboxWatcherOptions() as any);
+	assert.ok(capturedHandlers.length > 0);
+});
+
+// ---------------------------------------------------------------------------
+// startSandboxWatcher — scope is always "shell"
+// ---------------------------------------------------------------------------
+
+test("startSandboxWatcher: io.emit scope is always 'shell' for harness client changes", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const io = { emit: vi.fn() };
+	startSandboxWatcher({ ...makeSandboxWatcherOptions(), io } as any);
+
+	await triggerEvent(
+		lastHandler(),
 		"change",
-		path.join(repoRoot, "MMM-TestModule.js")
+		path.join(harnessRoot, "client", "app.ts")
 	);
 
 	const [, payload] = io.emit.mock.calls[0];
-	assert.equal(payload.scope, "stage");
+	assert.equal(payload.scope, "shell");
 });
 
-test("scope is 'stage' for node_helper.js", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: io.emit scope is 'shell' for config file changes", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const io = { emit: vi.fn() };
-	startWatcher({ ...makeWatcherOptions({ io }) } as any);
+	startSandboxWatcher({ ...makeSandboxWatcherOptions(), io } as any);
 
-	await triggerWatchEvent(
-		"change",
-		path.join(repoRoot, "node_helper.js")
-	);
-
-	const [, payload] = io.emit.mock.calls[0];
-	assert.equal(payload.scope, "stage");
-});
-
-test("scope is 'stage' for a persisted config file", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const io = { emit: vi.fn() };
-	startWatcher({ ...makeWatcherOptions({ io }) } as any);
-
-	await triggerWatchEvent(
+	await triggerEvent(
+		lastHandler(),
 		"change",
 		path.join(repoRoot, "config", "module.config.json")
-	);
-
-	const [, payload] = io.emit.mock.calls[0];
-	assert.equal(payload.scope, "stage");
-});
-
-test("scope is 'shell' for a file not matching any stage path", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const io = { emit: vi.fn() };
-	startWatcher({ ...makeWatcherOptions({ io }) } as any);
-
-	// A file outside all known stage paths
-	await triggerWatchEvent(
-		"change",
-		path.join(repoRoot, "some-unknown-file.css")
 	);
 
 	const [, payload] = io.emit.mock.calls[0];
@@ -339,153 +411,256 @@ test("scope is 'shell' for a file not matching any stage path", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests — rebuildClientAssets
+// startSandboxWatcher — restartHelper logic
 // ---------------------------------------------------------------------------
 
-test("rebuildClientAssets is called for a harness client .ts source file", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
-	const rebuildClientAssets = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildClientAssets }) } as any);
+test("startSandboxWatcher: restartHelper is called when harness.config.js changes", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const restartHelper = vi.fn(async () => {});
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		restartHelper
+	} as any);
 
-	const clientTsFile = path.join(harnessRoot, "client", "app.ts");
-	await triggerWatchEvent("change", clientTsFile);
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "config", "harness.config.js")
+	);
+
+	assert.equal(restartHelper.mock.calls.length, 1);
+});
+
+test("startSandboxWatcher: restartHelper is called when a persisted module config file changes", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const restartHelper = vi.fn(async () => {});
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		restartHelper
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "config", "module.config.json")
+	);
+
+	assert.equal(restartHelper.mock.calls.length, 1);
+});
+
+test("startSandboxWatcher: restartHelper is called when a persisted runtime config file changes", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const restartHelper = vi.fn(async () => {});
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		restartHelper
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "config", "runtime.config.json")
+	);
+
+	assert.equal(restartHelper.mock.calls.length, 1);
+});
+
+test("startSandboxWatcher: restartHelper is NOT called for a harness client .ts file", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const restartHelper = vi.fn(async () => {});
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		restartHelper
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "client", "app.ts")
+	);
+
+	assert.equal(restartHelper.mock.calls.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// startSandboxWatcher — rebuildClientAssets
+// ---------------------------------------------------------------------------
+
+test("startSandboxWatcher: rebuildClientAssets is called for a harness client .ts file", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
+	const rebuildClientAssets = vi.fn(async () => {});
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildClientAssets
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "client", "app.ts")
+	);
 
 	assert.equal(rebuildClientAssets.mock.calls.length, 1);
 });
 
-test("rebuildClientAssets is called for a harness client .tsx source file", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildClientAssets is called for a harness client .tsx file", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const rebuildClientAssets = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildClientAssets }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildClientAssets
+	} as any);
 
-	const clientTsxFile = path.join(
-		harnessRoot,
-		"client",
-		"components",
-		"Widget.tsx"
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "client", "components", "Widget.tsx")
 	);
-	await triggerWatchEvent("change", clientTsxFile);
 
 	assert.equal(rebuildClientAssets.mock.calls.length, 1);
 });
 
-test("rebuildClientAssets is called for a harness client .scss source file", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildClientAssets is called for a harness client .scss file", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const rebuildClientAssets = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildClientAssets }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildClientAssets
+	} as any);
 
-	const clientScssFile = path.join(
-		harnessRoot,
-		"client",
-		"styles-source",
-		"theme.scss"
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "client", "styles-source", "theme.scss")
 	);
-	await triggerWatchEvent("change", clientScssFile);
 
 	assert.equal(rebuildClientAssets.mock.calls.length, 1);
 });
 
-test("rebuildClientAssets is NOT called for a file inside the generated/ subdirectory", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildClientAssets is NOT called for generated/ files", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const rebuildClientAssets = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildClientAssets }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildClientAssets
+	} as any);
 
-	const generatedFile = path.join(
-		harnessRoot,
-		"client",
-		"generated",
-		"runtime",
-		"stage-bridge.ts"
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "client", "generated", "runtime", "stage-bridge.ts")
 	);
-	await triggerWatchEvent("change", generatedFile);
 
 	assert.equal(rebuildClientAssets.mock.calls.length, 0);
 });
 
-test("rebuildClientAssets is NOT called on unlink events", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildClientAssets is NOT called on unlink events", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const rebuildClientAssets = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildClientAssets }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildClientAssets
+	} as any);
 
-	const clientTsFile = path.join(harnessRoot, "client", "app.ts");
-	await triggerWatchEvent("unlink", clientTsFile);
+	await triggerEvent(
+		lastHandler(),
+		"unlink",
+		path.join(harnessRoot, "client", "app.ts")
+	);
 
 	assert.equal(rebuildClientAssets.mock.calls.length, 0);
 });
 
-test("rebuildClientAssets is NOT called when existsSync returns false", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildClientAssets is NOT called when existsSync returns false", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const fs = await import("node:fs");
 	vi.mocked(fs.existsSync).mockReturnValue(false);
 
 	const rebuildClientAssets = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildClientAssets }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildClientAssets
+	} as any);
 
-	const clientTsFile = path.join(harnessRoot, "client", "app.ts");
-	await triggerWatchEvent("change", clientTsFile);
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "client", "app.ts")
+	);
 
 	assert.equal(rebuildClientAssets.mock.calls.length, 0);
 });
 
 // ---------------------------------------------------------------------------
-// Tests — rebuildNodeCompat
+// startSandboxWatcher — rebuildNodeCompat
 // ---------------------------------------------------------------------------
 
-test("rebuildNodeCompat is called for a harness shim .ts file", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildNodeCompat is called for a harness shim .ts file", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const rebuildNodeCompat = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildNodeCompat }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildNodeCompat
+	} as any);
 
-	const shimFile = path.join(harnessRoot, "shims", "node-compat.ts");
-	await triggerWatchEvent("change", shimFile);
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "shims", "node-compat.ts")
+	);
 
 	assert.equal(rebuildNodeCompat.mock.calls.length, 1);
 });
 
-test("rebuildNodeCompat is NOT called for a shim file inside generated/", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildNodeCompat is NOT called for generated/ shim files", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const rebuildNodeCompat = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildNodeCompat }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildNodeCompat
+	} as any);
 
-	const generatedShim = path.join(
-		harnessRoot,
-		"shims",
-		"generated",
-		"node-compat.ts"
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(harnessRoot, "shims", "generated", "node-compat.ts")
 	);
-	await triggerWatchEvent("change", generatedShim);
 
 	assert.equal(rebuildNodeCompat.mock.calls.length, 0);
 });
 
-test("rebuildNodeCompat is NOT called on unlink events", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rebuildNodeCompat is NOT called on unlink events", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const rebuildNodeCompat = vi.fn(async () => {});
-	startWatcher({ ...makeWatcherOptions({ rebuildNodeCompat }) } as any);
+	startSandboxWatcher({
+		...makeSandboxWatcherOptions(),
+		rebuildNodeCompat
+	} as any);
 
-	const shimFile = path.join(harnessRoot, "shims", "node-compat.ts");
-	await triggerWatchEvent("unlink", shimFile);
+	await triggerEvent(
+		lastHandler(),
+		"unlink",
+		path.join(harnessRoot, "shims", "node-compat.ts")
+	);
 
 	assert.equal(rebuildNodeCompat.mock.calls.length, 0);
 });
 
 // ---------------------------------------------------------------------------
-// Tests — debounce coalescing
+// startSandboxWatcher — debounce coalescing
 // ---------------------------------------------------------------------------
 
-test("rapid successive change events are coalesced into a single handler invocation", async () => {
-	const { startWatcher } = await import("../../../server/watch.ts");
+test("startSandboxWatcher: rapid successive events are coalesced into one handler invocation", async () => {
+	const { startSandboxWatcher } = await import("../../../server/watch.ts");
 	const io = { emit: vi.fn() };
-	startWatcher({ ...makeWatcherOptions({ io }) } as any);
+	startSandboxWatcher({ ...makeSandboxWatcherOptions(), io } as any);
 
-	const filePath = path.join(repoRoot, "node_helper.js");
-	assert.ok(capturedAllHandler, "handler must be registered");
-	// Fire three events quickly before the 150 ms debounce expires
-	capturedAllHandler("change", filePath);
-	capturedAllHandler("change", filePath);
-	capturedAllHandler("change", filePath);
+	const handler = lastHandler();
+	const filePath = path.join(harnessRoot, "client", "app.ts");
+	handler("change", filePath);
+	handler("change", filePath);
+	handler("change", filePath);
 	await vi.advanceTimersByTimeAsync(200);
 
-	// Only one io.emit should fire despite three rapid events
 	assert.equal(io.emit.mock.calls.length, 1);
 });
