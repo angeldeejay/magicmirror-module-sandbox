@@ -344,11 +344,17 @@ test("createHtmlPage uses provided mmVersion when set", () => {
 });
 
 test("appendAssetVersion appends version query param to plain URL", () => {
-	assert.strictEqual(appendAssetVersion("/foo/bar.js", "abc123"), "/foo/bar.js?v=abc123");
+	assert.strictEqual(
+		appendAssetVersion("/foo/bar.js", "abc123"),
+		"/foo/bar.js?v=abc123"
+	);
 });
 
 test("appendAssetVersion appends version with & when URL already has query string", () => {
-	assert.strictEqual(appendAssetVersion("/foo/bar.js?x=1", "abc123"), "/foo/bar.js?x=1&v=abc123");
+	assert.strictEqual(
+		appendAssetVersion("/foo/bar.js?x=1", "abc123"),
+		"/foo/bar.js?x=1&v=abc123"
+	);
 });
 
 test("appendAssetVersion returns url unchanged when assetVersion is empty", () => {
@@ -356,11 +362,17 @@ test("appendAssetVersion returns url unchanged when assetVersion is empty", () =
 });
 
 test("appendAssetVersion returns url unchanged when url is absolute https", () => {
-	assert.strictEqual(appendAssetVersion("https://cdn.example.com/foo.js", "abc123"), "https://cdn.example.com/foo.js");
+	assert.strictEqual(
+		appendAssetVersion("https://cdn.example.com/foo.js", "abc123"),
+		"https://cdn.example.com/foo.js"
+	);
 });
 
 test("appendAssetVersion returns url unchanged when url is protocol-relative", () => {
-	assert.strictEqual(appendAssetVersion("//cdn.example.com/foo.js", "abc123"), "//cdn.example.com/foo.js");
+	assert.strictEqual(
+		appendAssetVersion("//cdn.example.com/foo.js", "abc123"),
+		"//cdn.example.com/foo.js"
+	);
 });
 
 test("appendAssetVersion returns url unchanged when url is empty string", () => {

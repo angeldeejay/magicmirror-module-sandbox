@@ -102,7 +102,11 @@ test("logger compat re-exports the synced core logger with helper log capture in
 
 		// All expected log methods must exist
 		for (const method of LOG_METHODS) {
-			assert.equal(typeof Log[method], "function", `Log.${method} is not a function`);
+			assert.equal(
+				typeof Log[method],
+				"function",
+				`Log.${method} is not a function`
+			);
 		}
 		assert.equal(typeof Log.setLogLevel, "function");
 		assert.equal(Log, pathLogger);
@@ -250,7 +254,8 @@ test("node_helper compat re-exports the synced core helper and preserves sandbox
 
 		assert.equal(NodeHelper, pathNodeHelper);
 		assert.equal(
-			(NodeHelper as unknown as Record<string, unknown>).__moduleSandboxSocketPatched,
+			(NodeHelper as unknown as Record<string, unknown>)
+				.__moduleSandboxSocketPatched,
 			true,
 			"__moduleSandboxSocketPatched flag missing from NodeHelper prototype"
 		);

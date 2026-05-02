@@ -217,14 +217,16 @@
 			return cachedSource;
 		}
 
-		const sourcePromise = fetch(instance.file(template)).then((response) => {
-			if (!response.ok) {
-				throw new Error(
-					`Failed to preload template "${template}" for ${instance.name}: ${response.status} ${response.statusText}`
-				);
+		const sourcePromise = fetch(instance.file(template)).then(
+			(response) => {
+				if (!response.ok) {
+					throw new Error(
+						`Failed to preload template "${template}" for ${instance.name}: ${response.status} ${response.statusText}`
+					);
+				}
+				return response.text();
 			}
-			return response.text();
-		});
+		);
 		core.templateSourceCache.set(cacheKey, sourcePromise);
 		return sourcePromise;
 	};
@@ -266,30 +268,41 @@
 	 * @param {Set<string>} [seen]
 	 * @returns {Promise<void>}
 	 */
-	core.preloadTemplateDependencyTree = async function preloadTemplateDependencyTree(
-		instance,
-		template,
-		seen = new Set()
-	) {
-		const normalizedTemplate = String(template || "");
-		if (normalizedTemplate === "" || seen.has(normalizedTemplate)) {
-			return;
-		}
-		seen.add(normalizedTemplate);
+	core.preloadTemplateDependencyTree =
+		async function preloadTemplateDependencyTree(
+			instance,
+			template,
+			seen = new Set()
+		) {
+			const normalizedTemplate = String(template || "");
+			if (normalizedTemplate === "" || seen.has(normalizedTemplate)) {
+				return;
+			}
+			seen.add(normalizedTemplate);
 
-		const source = await core.readTemplateSource(instance, normalizedTemplate);
-		core.seedTemplateLoaderCache(instance, normalizedTemplate, source);
-		const dependencies = core
-			.extractTemplateDependencies(source)
-			.map((dependency) =>
-				core.resolveTemplateDependencyPath(normalizedTemplate, dependency)
+			const source = await core.readTemplateSource(
+				instance,
+				normalizedTemplate
 			);
-		await Promise.all(
-			dependencies.map((dependency) =>
-				core.preloadTemplateDependencyTree(instance, dependency, seen)
-			)
-		);
-	};
+			core.seedTemplateLoaderCache(instance, normalizedTemplate, source);
+			const dependencies = core
+				.extractTemplateDependencies(source)
+				.map((dependency) =>
+					core.resolveTemplateDependencyPath(
+						normalizedTemplate,
+						dependency
+					)
+				);
+			await Promise.all(
+				dependencies.map((dependency) =>
+					core.preloadTemplateDependencyTree(
+						instance,
+						dependency,
+						seen
+					)
+				)
+			);
+		};
 
 	/**
 	 * Check whether one template has already been compiled into the loader cache.
@@ -298,7 +311,10 @@
 	 * @param {string} template
 	 * @returns {boolean}
 	 */
-	core.hasPreloadedTemplate = function hasPreloadedTemplate(instance, template) {
+	core.hasPreloadedTemplate = function hasPreloadedTemplate(
+		instance,
+		template
+	) {
 		const environment = instance.nunjucksEnvironment();
 		const loader = Array.isArray(environment.loaders)
 			? environment.loaders[0]
@@ -368,10 +384,9 @@
 		const placeholder = document.createComment("sandbox-super-template");
 		wrapper.appendChild(placeholder);
 		const domReadyPromise = new Promise<HTMLElement>((resolve) => {
-			instance.nunjucksEnvironment().render(
-				template,
-				templateData,
-				(err, asyncRendered) => {
+			instance
+				.nunjucksEnvironment()
+				.render(template, templateData, (err, asyncRendered) => {
 					if (err) {
 						globalScope.Log.error(err);
 					}
@@ -385,8 +400,7 @@
 						wrapper.append(...resolvedNodes);
 					}
 					resolve(wrapper);
-				}
-			);
+				});
 		});
 
 		return core.attachDeferredDomReady(wrapper, domReadyPromise);
@@ -399,7 +413,10 @@
 	 * @returns {boolean}
 	 */
 	core.isTemplateFile = function isTemplateFile(template) {
-		return typeof template === "string" && (/^.*((\.html)|(\.njk))$/).test(template);
+		return (
+			typeof template === "string" &&
+			/^.*((\.html)|(\.njk))$/.test(template)
+		);
 	};
 
 	/**
@@ -742,9 +759,12 @@
 
 						this._nunjucksEnvironment =
 							new globalScope.nunjucks.Environment(
-								new globalScope.nunjucks.WebLoader(this.file(""), {
-									async: true
-								}),
+								new globalScope.nunjucks.WebLoader(
+									this.file(""),
+									{
+										async: true
+									}
+								),
 								{
 									trimBlocks: true,
 									lstripBlocks: true

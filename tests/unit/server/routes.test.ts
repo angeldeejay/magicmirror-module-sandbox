@@ -79,7 +79,10 @@ function makeRouteOptions(
 	const flat = {
 		getAvailableLanguages: vi.fn(() => [{ code: "en", label: "English" }]),
 		getHarnessConfig: vi.fn(() => makeHarnessConfig()),
-		getModuleConfig: vi.fn(() => ({ position: "middle_center", config: {} })),
+		getModuleConfig: vi.fn(() => ({
+			position: "middle_center",
+			config: {}
+		})),
 		getModuleConfigPath: vi.fn(() => "/repo/config/module.config.json"),
 		getRuntimeConfig: vi.fn(() => ({ language: "en", locale: "en-US" })),
 		getRuntimeConfigPath: vi.fn(() => "/repo/config/runtime.config.json"),
@@ -105,14 +108,29 @@ function makeRouteOptions(
 	return {
 		app,
 		configService: {
-			getAvailableLanguages: flat.getAvailableLanguages as () => Array<Record<string, unknown>>,
-			getHarnessConfig: flat.getHarnessConfig as () => Record<string, unknown>,
-			getModuleConfig: flat.getModuleConfig as () => Record<string, unknown>,
+			getAvailableLanguages: flat.getAvailableLanguages as () => Array<
+				Record<string, unknown>
+			>,
+			getHarnessConfig: flat.getHarnessConfig as () => Record<
+				string,
+				unknown
+			>,
+			getModuleConfig: flat.getModuleConfig as () => Record<
+				string,
+				unknown
+			>,
 			getModuleConfigPath: flat.getModuleConfigPath as () => string,
-			getRuntimeConfig: flat.getRuntimeConfig as () => Record<string, unknown>,
+			getRuntimeConfig: flat.getRuntimeConfig as () => Record<
+				string,
+				unknown
+			>,
 			getRuntimeConfigPath: flat.getRuntimeConfigPath as () => string,
-			saveModuleConfig: flat.saveModuleConfig as (n: Record<string, unknown>) => Record<string, unknown>,
-			saveRuntimeConfig: flat.saveRuntimeConfig as (n: Record<string, unknown>) => Record<string, unknown>,
+			saveModuleConfig: flat.saveModuleConfig as (
+				n: Record<string, unknown>
+			) => Record<string, unknown>,
+			saveRuntimeConfig: flat.saveRuntimeConfig as (
+				n: Record<string, unknown>
+			) => Record<string, unknown>,
 			getContract: flat.getContract as () => Record<string, unknown>
 		},
 		assetService: {
@@ -120,7 +138,8 @@ function makeRouteOptions(
 			resolveAnimateCss: flat.resolveAnimateCss as () => string,
 			resolveCronerPath: flat.resolveCronerPath as () => string,
 			resolveMomentPath: flat.resolveMomentPath as () => string,
-			resolveMomentTimezonePath: flat.resolveMomentTimezonePath as () => string,
+			resolveMomentTimezonePath:
+				flat.resolveMomentTimezonePath as () => string,
 			resolveFontAwesomeCss: flat.resolveFontAwesomeCss as () => string,
 			createHtmlPage: flat.createHtmlPage as (o: object) => string,
 			createStagePage: flat.createStagePage as (o: object) => string
@@ -129,7 +148,9 @@ function makeRouteOptions(
 			io: flat.io as import("socket.io").Server,
 			restartHelper: flat.restartHelper as () => Promise<void>,
 			watchEnabled: flat.watchEnabled,
-			getHelperLogEntries: flat.getHelperLogEntries as () => Array<Record<string, unknown>>
+			getHelperLogEntries: flat.getHelperLogEntries as () => Array<
+				Record<string, unknown>
+			>
 		},
 		analysisService: {
 			getAnalysisResult: flat.getAnalysisResult as () => null,
@@ -205,7 +226,10 @@ test("GET /__harness/config returns a JSON object with all required config field
 		getAvailableLanguages: vi.fn(() => [{ code: "en", label: "English" }]),
 		getHarnessConfig: vi.fn(() => makeHarnessConfig()),
 		getRuntimeConfig: vi.fn(() => ({ language: "en", locale: "en-US" })),
-		getModuleConfig: vi.fn(() => ({ position: "middle_center", config: {} })),
+		getModuleConfig: vi.fn(() => ({
+			position: "middle_center",
+			config: {}
+		})),
 		getContract: vi.fn(() => ({
 			supportedFrontendSurface: ["sendNotification"]
 		}))
@@ -239,10 +263,7 @@ test("GET /__harness/config returns a JSON object with all required config field
 		typeof body.moduleConfig === "object",
 		"moduleConfig must be an object"
 	);
-	assert.ok(
-		typeof body.contract === "object",
-		"contract must be an object"
-	);
+	assert.ok(typeof body.contract === "object", "contract must be an object");
 });
 
 // ---------------------------------------------------------------------------
@@ -533,7 +554,10 @@ test("GET /font-awesome.css responds with text/css content-type", async () => {
 test("POST /__harness/restart returns 200 with ok:true", async () => {
 	const app = await buildApp();
 
-	const response = await app.inject({ method: "POST", url: "/__harness/restart" });
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/restart"
+	});
 
 	assert.equal(response.statusCode, 200);
 	assert.deepEqual(response.json(), { ok: true });

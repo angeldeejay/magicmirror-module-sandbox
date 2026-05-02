@@ -66,7 +66,9 @@
 			lastIndex = LINK_RE.lastIndex;
 		}
 		if (lastIndex < text.length) {
-			container.appendChild(document.createTextNode(text.slice(lastIndex)));
+			container.appendChild(
+				document.createTextNode(text.slice(lastIndex))
+			);
 		}
 	}
 
@@ -112,11 +114,30 @@
 	/**
 	 * Read the current state of the three severity filter checkboxes.
 	 */
-	function readFilters(): { errors: boolean; warnings: boolean; info: boolean } {
+	function readFilters(): {
+		errors: boolean;
+		warnings: boolean;
+		info: boolean;
+	} {
 		return {
-			errors: (getById<HTMLInputElement>("quality-filter-errors") as HTMLInputElement | null)?.checked ?? true,
-			warnings: (getById<HTMLInputElement>("quality-filter-warnings") as HTMLInputElement | null)?.checked ?? true,
-			info: (getById<HTMLInputElement>("quality-filter-info") as HTMLInputElement | null)?.checked ?? true
+			errors:
+				(
+					getById<HTMLInputElement>(
+						"quality-filter-errors"
+					) as HTMLInputElement | null
+				)?.checked ?? true,
+			warnings:
+				(
+					getById<HTMLInputElement>(
+						"quality-filter-warnings"
+					) as HTMLInputElement | null
+				)?.checked ?? true,
+			info:
+				(
+					getById<HTMLInputElement>(
+						"quality-filter-info"
+					) as HTMLInputElement | null
+				)?.checked ?? true
 		};
 	}
 
@@ -131,7 +152,9 @@
 		}
 
 		const { errors, warnings, info } = readFilters();
-		const rows = panel.querySelectorAll<HTMLElement>(".sandbox-quality-finding");
+		const rows = panel.querySelectorAll<HTMLElement>(
+			".sandbox-quality-finding"
+		);
 		let visibleCount = 0;
 
 		for (const row of rows) {
@@ -145,7 +168,9 @@
 		}
 
 		// Empty-state message when no findings are visible.
-		let emptyEl = panel.querySelector<HTMLElement>(".sandbox-quality-empty");
+		let emptyEl = panel.querySelector<HTMLElement>(
+			".sandbox-quality-empty"
+		);
 		if (visibleCount === 0 && rows.length > 0) {
 			if (!emptyEl) {
 				emptyEl = document.createElement("p");
@@ -215,13 +240,25 @@
 			errorEl.dataset.visible = "false";
 		}
 
-		const SEVERITY_ORDER: Record<AnalysisSeverity, number> = { error: 0, warning: 1, info: 2 };
+		const SEVERITY_ORDER: Record<AnalysisSeverity, number> = {
+			error: 0,
+			warning: 1,
+			info: 2
+		};
 		const findings = (Array.isArray(result.findings) ? result.findings : [])
 			.slice()
-			.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+			.sort(
+				(a, b) =>
+					SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
+			);
 
 		// Update filter counts.
-		const counts = result.findingCounts || { total: 0, errors: 0, warnings: 0, info: 0 };
+		const counts = result.findingCounts || {
+			total: 0,
+			errors: 0,
+			warnings: 0,
+			info: 0
+		};
 		if (filterErrorsCount) {
 			filterErrorsCount.textContent = String(counts.errors);
 		}
@@ -262,7 +299,11 @@
 		}
 
 		// Reset badge counts.
-		for (const id of ["quality-filter-errors-count", "quality-filter-warnings-count", "quality-filter-info-count"]) {
+		for (const id of [
+			"quality-filter-errors-count",
+			"quality-filter-warnings-count",
+			"quality-filter-info-count"
+		]) {
 			const el = getById(id);
 			if (el) {
 				el.textContent = "0";
@@ -344,7 +385,11 @@
 	 */
 	core.initializeQualityPanel = function initializeQualityPanel(): void {
 		// Wire filter checkboxes.
-		for (const id of ["quality-filter-errors", "quality-filter-warnings", "quality-filter-info"]) {
+		for (const id of [
+			"quality-filter-errors",
+			"quality-filter-warnings",
+			"quality-filter-info"
+		]) {
 			const checkbox = getById<HTMLInputElement>(id);
 			if (checkbox) {
 				checkbox.addEventListener("change", applyFilters);
@@ -354,7 +399,9 @@
 		// Wire analyze button.
 		const analyzeBtn = getById<HTMLButtonElement>("quality-analyze-btn");
 		if (analyzeBtn) {
-			analyzeBtn.addEventListener("click", () => { void triggerAnalysis(); });
+			analyzeBtn.addEventListener("click", () => {
+				void triggerAnalysis();
+			});
 		}
 
 		// Fetch the initial result immediately.
@@ -364,7 +411,8 @@
 		globalScope.addEventListener(
 			"module-sandbox:quality-result",
 			(event) => {
-				const result = (event as CustomEvent<ModuleAnalysisResult>).detail;
+				const result = (event as CustomEvent<ModuleAnalysisResult>)
+					.detail;
 				if (result) {
 					applyResult(result);
 				}

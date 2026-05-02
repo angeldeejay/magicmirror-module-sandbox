@@ -393,7 +393,10 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 		label: "Domain navigation order",
 		description:
 			"Topbar link order and sidebar panel order match the canonical domain sequence.",
-		transitions: ["navigation:topbar-rendered", "navigation:sidebar-rendered"],
+		transitions: [
+			"navigation:topbar-rendered",
+			"navigation:sidebar-rendered"
+		],
 		outcomes: [
 			"topbar links in canonical order",
 			"sidebar panels in canonical order",
@@ -404,7 +407,8 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 		id: "ui-domain-nav-runtime",
 		suite: "ui",
 		label: "Runtime domain navigation",
-		description: "Clicking Runtime in topbar activates only the Runtime panel.",
+		description:
+			"Clicking Runtime in topbar activates only the Runtime panel.",
 		transitions: ["navigation:runtime-opened"],
 		outcomes: ["runtime panel active", "other panels inactive"]
 	},
@@ -412,7 +416,8 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 		id: "ui-domain-nav-config",
 		suite: "ui",
 		label: "Config domain navigation",
-		description: "Clicking Config in topbar activates only the Config panel.",
+		description:
+			"Clicking Config in topbar activates only the Config panel.",
 		transitions: ["navigation:config-opened"],
 		outcomes: ["config panel active", "other panels inactive"]
 	},
@@ -437,7 +442,8 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 		id: "ui-domain-nav-quality",
 		suite: "ui",
 		label: "Quality domain navigation",
-		description: "Clicking Quality in topbar activates only the Quality panel.",
+		description:
+			"Clicking Quality in topbar activates only the Quality panel.",
 		transitions: ["navigation:quality-opened"],
 		outcomes: ["quality panel active", "other panels inactive"]
 	},

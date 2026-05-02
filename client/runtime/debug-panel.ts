@@ -1093,7 +1093,8 @@
 			core.stageReady = true;
 			if (moduleConfigRefreshStylesButton && !waitingForStyleRefresh) {
 				moduleConfigRefreshStylesButton.disabled = false;
-				moduleConfigRefreshStylesButton.innerHTML = refreshStylesButtonHTML;
+				moduleConfigRefreshStylesButton.innerHTML =
+					refreshStylesButtonHTML;
 			}
 			if (!waitingForViewportReload || !moduleConfigSaveButton) {
 				return;
@@ -1109,7 +1110,8 @@
 			waitingForStyleRefresh = false;
 			if (moduleConfigRefreshStylesButton) {
 				moduleConfigRefreshStylesButton.disabled = false;
-				moduleConfigRefreshStylesButton.innerHTML = refreshStylesButtonHTML;
+				moduleConfigRefreshStylesButton.innerHTML =
+					refreshStylesButtonHTML;
 			}
 			setModuleConfigStatus("Mounted module styles refreshed.");
 		});
@@ -1121,7 +1123,8 @@
 				waitingForStyleRefresh = false;
 				if (moduleConfigRefreshStylesButton) {
 					moduleConfigRefreshStylesButton.disabled = false;
-					moduleConfigRefreshStylesButton.innerHTML = refreshStylesButtonHTML;
+					moduleConfigRefreshStylesButton.innerHTML =
+						refreshStylesButtonHTML;
 				}
 				setModuleConfigStatus(
 					detail &&

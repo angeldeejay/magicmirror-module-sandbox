@@ -28,7 +28,7 @@ body:not(.harness-stage-page) {
 	padding: 0 16px;
 	border-bottom: 1px solid var(--hns-border);
 	background: var(--hns-bg-surface);
-	font-family: "Roboto", Arial, sans-serif;
+	font-family: "Open Sans", Arial, sans-serif;
 }
 
 .harness-product {
@@ -76,7 +76,9 @@ body:not(.harness-stage-page) {
 	font-family: inherit;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: color 0.15s, border-color 0.15s;
+	transition:
+		color 0.15s,
+		border-color 0.15s;
 }
 
 .harness-restart-btn:hover {
@@ -94,7 +96,6 @@ body:not(.harness-stage-page) {
 	line-height: 1;
 	display: inline-block;
 }
-
 
 .harness-mounted-module {
 	display: inline-flex;
@@ -162,7 +163,7 @@ body:not(.harness-stage-page) {
 	border-right: 1px solid var(--hns-border);
 	opacity: 0;
 	visibility: hidden;
-	font-family: "Roboto", Arial, sans-serif;
+	font-family: "Open Sans", Arial, sans-serif;
 	transition: none;
 }
 
@@ -278,7 +279,7 @@ body:not(.harness-stage-page) {
 	border-top: 1px solid var(--hns-border-subtle);
 	background: var(--hns-bg-surface);
 	color: var(--hns-text-footer);
-	font-family: "Roboto", Arial, sans-serif;
+	font-family: "Open Sans", Arial, sans-serif;
 	font-size: 11px;
 }
 
@@ -567,19 +568,27 @@ body:not(.harness-stage-page) {
 }
 
 @keyframes harness-backdrop-spin {
-	from { transform: rotate(0deg); }
-	to   { transform: rotate(360deg); }
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 @keyframes harness-backdrop-spin-back {
-	from { transform: rotate(0deg); }
-	to   { transform: rotate(-360deg); }
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(-360deg);
+	}
 }
 
 .harness-backdrop-label {
 	font-size: 14px;
 	color: var(--hns-text-primary);
-	font-family: "Roboto", Arial, sans-serif;
+	font-family: "Open Sans", Arial, sans-serif;
 }
 
 .harness-theme-picker {
@@ -600,7 +609,10 @@ body:not(.harness-stage-page) {
 	border-radius: 6px;
 	font-size: 14px;
 	cursor: pointer;
-	transition: color 0.15s, border-color 0.15s, background 0.15s;
+	transition:
+		color 0.15s,
+		border-color 0.15s,
+		background 0.15s;
 }
 
 .harness-theme-btn:hover {
@@ -647,7 +659,9 @@ body:not(.harness-stage-page) {
 	cursor: pointer;
 	user-select: none;
 	white-space: nowrap;
-	transition: background 0.1s, color 0.1s;
+	transition:
+		background 0.1s,
+		color 0.1s;
 }
 
 .harness-theme-item:hover {

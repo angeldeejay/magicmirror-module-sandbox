@@ -118,9 +118,20 @@ test("undici bundle: shims/generated/node_modules/undici/index.js exists after b
 });
 
 test("undici bundle: exports fetch and request functions", () => {
-	const undici = nodeRequire(EXPECTED_UNDICI_BUNDLE) as Record<string, unknown>;
-	assert.equal(typeof undici.fetch, "function", "undici.fetch is not a function");
-	assert.equal(typeof undici.request, "function", "undici.request is not a function");
+	const undici = nodeRequire(EXPECTED_UNDICI_BUNDLE) as Record<
+		string,
+		unknown
+	>;
+	assert.equal(
+		typeof undici.fetch,
+		"function",
+		"undici.fetch is not a function"
+	);
+	assert.equal(
+		typeof undici.request,
+		"function",
+		"undici.request is not a function"
+	);
 });
 
 test("undici bundle: resolves from shims/generated/node_modules when required from magicmirror-core context", () => {

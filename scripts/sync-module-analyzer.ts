@@ -26,7 +26,9 @@ const currentFilePath = fromOS(
 	typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url)
 );
 const currentDirPath =
-	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
+	typeof __dirname === "string"
+		? fromOS(__dirname)
+		: path.dirname(currentFilePath);
 const root = path.resolve(currentDirPath, "..");
 const vendorDir = path.join(root, "server", "vendor", "check-modules");
 
@@ -37,11 +39,17 @@ async function syncFile(fileName: string): Promise<void> {
 	const url = `${UPSTREAM_BASE}/${fileName}`;
 	const response = await fetch(url);
 	if (!response.ok) {
-		throw new Error(`Failed to fetch ${fileName}: ${response.status} ${response.statusText}`);
+		throw new Error(
+			`Failed to fetch ${fileName}: ${response.status} ${response.statusText}`
+		);
 	}
 	const source = await response.text();
 	const header = `// VENDORED from MagicMirrorOrg/MagicMirror-3rd-Party-Modules — do not edit directly.\n// Update by running: npm run sync:module-analyzer\n// Source: ${url}\n\n`;
-	fs.writeFileSync(path.join(vendorDir, fileName), `${header}${source}`, "utf8");
+	fs.writeFileSync(
+		path.join(vendorDir, fileName),
+		`${header}${source}`,
+		"utf8"
+	);
 	console.log(`[sync:module-analyzer] Written ${fileName}`);
 }
 
@@ -53,7 +61,9 @@ async function syncAll(): Promise<void> {
 	for (const fileName of VENDORED_FILES) {
 		await syncFile(fileName);
 	}
-	console.log(`[sync:module-analyzer] Done — ${VENDORED_FILES.length} files synced`);
+	console.log(
+		`[sync:module-analyzer] Done — ${VENDORED_FILES.length} files synced`
+	);
 }
 
 syncAll().catch((err: unknown) => {

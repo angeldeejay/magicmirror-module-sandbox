@@ -133,27 +133,27 @@ async function registerRoutes({
 		});
 	});
 
-	app.get("/moment.js", async (_request, reply) => {
+	app.get("/moment.js", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
 		reply.type("application/javascript; charset=utf-8");
 		return reply.send(fs.createReadStream(resolveMomentPath()));
 	});
 
-	app.get("/animate.css", async (_request, reply) => {
+	app.get("/animate.css", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
 		reply.type("text/css; charset=utf-8");
 		return reply.send(fs.createReadStream(resolveAnimateCss()));
 	});
 
-	app.get("/croner.js", async (_request, reply) => {
+	app.get("/croner.js", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
 		reply.type("application/javascript; charset=utf-8");
 		return reply.send(fs.createReadStream(resolveCronerPath()));
 	});
 
-	app.get("/moment-timezone.js", async (_request, reply) => {
+	app.get("/moment-timezone.js", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
 		reply.type("application/javascript; charset=utf-8");
 		return reply.send(fs.createReadStream(resolveMomentTimezonePath()));
 	});
 
-	app.get("/font-awesome.css", async (_request, reply) => {
+	app.get("/font-awesome.css", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
 		reply.type("text/css; charset=utf-8");
 		return reply.send(fs.createReadStream(resolveFontAwesomeCss()));
 	});

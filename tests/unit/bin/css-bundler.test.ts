@@ -33,7 +33,9 @@ vi.mock("node:fs", async (importOriginal) => {
 			if (fsContents.has(key)) {
 				return fsContents.get(key) as string;
 			}
-			throw new Error(`[css-bundler test] no stub for readFileSync("${key}")`);
+			throw new Error(
+				`[css-bundler test] no stub for readFileSync("${key}")`
+			);
 		})
 	};
 });
@@ -57,7 +59,9 @@ beforeEach(() => {
  * css-bundler.ts passes to fs calls.
  */
 function absPath(...parts: string[]): string {
-	return path.resolve(path.join(projectRoot, "tests", "_css_stubs", ...parts));
+	return path.resolve(
+		path.join(projectRoot, "tests", "_css_stubs", ...parts)
+	);
 }
 
 /** Registers a stub CSS file. */
@@ -72,9 +76,8 @@ function putFile(file: string, content: string): string {
 // ---------------------------------------------------------------------------
 
 test("rewriteCssAssetUrls rewrites url() references inside a full stylesheet block", async () => {
-	const { rewriteCssAssetUrls } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { rewriteCssAssetUrls } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const result = rewriteCssAssetUrls({
 		cssSource: "body { background: url(image.png); }",
 		packageRoot: projectRoot,
@@ -85,9 +88,8 @@ test("rewriteCssAssetUrls rewrites url() references inside a full stylesheet blo
 });
 
 test("rewriteCssAssetUrls rewrites url() in a declaration list (no braces, no @-rule)", async () => {
-	const { rewriteCssAssetUrls } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { rewriteCssAssetUrls } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const result = rewriteCssAssetUrls({
 		cssSource: "background: url(icon.png)",
 		packageRoot: projectRoot,
@@ -98,9 +100,8 @@ test("rewriteCssAssetUrls rewrites url() in a declaration list (no braces, no @-
 });
 
 test("rewriteCssAssetUrls returns CSS unchanged when there are no url() nodes", async () => {
-	const { rewriteCssAssetUrls } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { rewriteCssAssetUrls } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const result = rewriteCssAssetUrls({
 		cssSource: "body { color: red; font-size: 14px; }",
 		packageRoot: projectRoot,
@@ -112,9 +113,8 @@ test("rewriteCssAssetUrls returns CSS unchanged when there are no url() nodes", 
 });
 
 test("rewriteCssAssetUrls parses @-rule stylesheets as full context (not declarationList)", async () => {
-	const { rewriteCssAssetUrls } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { rewriteCssAssetUrls } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const result = rewriteCssAssetUrls({
 		cssSource: "@media screen { body { background: url(bg.png); } }",
 		packageRoot: projectRoot,
@@ -129,9 +129,8 @@ test("rewriteCssAssetUrls parses @-rule stylesheets as full context (not declara
 // ---------------------------------------------------------------------------
 
 test("inlineAndRewriteStylesheet returns empty string when entry path is already in visitedStylesheets", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("main.css");
 	putFile(entry, "body { color: red; }");
 
@@ -148,9 +147,8 @@ test("inlineAndRewriteStylesheet returns empty string when entry path is already
 });
 
 test("inlineAndRewriteStylesheet resolves circular imports without infinite recursion", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const aEntry = absPath("a.css");
 	const bEntry = absPath("b.css");
 	putFile(aEntry, `@import "b.css";\n.a { color: red; }`);
@@ -171,9 +169,8 @@ test("inlineAndRewriteStylesheet resolves circular imports without infinite recu
 // ---------------------------------------------------------------------------
 
 test("inlineAndRewriteStylesheet returns local CSS when there are no @import rules", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("simple.css");
 	putFile(entry, "body { margin: 0; padding: 0; }");
 
@@ -191,9 +188,8 @@ test("inlineAndRewriteStylesheet returns local CSS when there are no @import rul
 // ---------------------------------------------------------------------------
 
 test("inlineAndRewriteStylesheet inlines a @import string dependency before local rules", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("main.css");
 	const dep = absPath("base.css");
 	putFile(entry, `@import "base.css";\nbody { color: red; }`);
@@ -213,9 +209,8 @@ test("inlineAndRewriteStylesheet inlines a @import string dependency before loca
 });
 
 test("inlineAndRewriteStylesheet inlines a @import url() dependency", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("main.css");
 	const dep = absPath("vars.css");
 	putFile(entry, `@import url("vars.css");\nbody { font-size: 16px; }`);
@@ -235,9 +230,8 @@ test("inlineAndRewriteStylesheet inlines a @import url() dependency", async () =
 // ---------------------------------------------------------------------------
 
 test("inlineAndRewriteStylesheet throws when an imported stylesheet path does not exist", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("main.css");
 	putFile(entry, `@import "missing.css";\nbody { color: red; }`);
 	existsImpl = (p) => !p.includes("missing");
@@ -258,9 +252,8 @@ test("inlineAndRewriteStylesheet throws when an imported stylesheet path does no
 // ---------------------------------------------------------------------------
 
 test("inlineAndRewriteStylesheet remaps ../node_modules/ imports to packageRoot/node_modules/ when initial path is missing", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("main.css");
 	const remappedPath = path.join(
 		projectRoot,
@@ -269,7 +262,10 @@ test("inlineAndRewriteStylesheet remaps ../node_modules/ imports to packageRoot/
 		"dist",
 		"style.css"
 	);
-	putFile(entry, `@import "../node_modules/some-pkg/dist/style.css";\nbody { color: red; }`);
+	putFile(
+		entry,
+		`@import "../node_modules/some-pkg/dist/style.css";\nbody { color: red; }`
+	);
 	putFile(remappedPath, ".pkg { display: flex; }");
 
 	existsImpl = (p) => {
@@ -295,9 +291,8 @@ test("inlineAndRewriteStylesheet remaps ../node_modules/ imports to packageRoot/
 // ---------------------------------------------------------------------------
 
 test("inlineAndRewriteStylesheet throws for @import with no URL or string target", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("bad-import.css");
 	// An @import with a plain identifier — not a URL or String node in the AST
 	putFile(entry, "@import foo;\nbody { color: red; }");
@@ -314,9 +309,8 @@ test("inlineAndRewriteStylesheet throws for @import with no URL or string target
 });
 
 test("inlineAndRewriteStylesheet throws for @import with media query qualifiers", async () => {
-	const { inlineAndRewriteStylesheet } = await import(
-		"../../../bin/helpers/css-bundler.ts"
-	);
+	const { inlineAndRewriteStylesheet } =
+		await import("../../../bin/helpers/css-bundler.ts");
 	const entry = absPath("qualified-import.css");
 	// Qualified @import — url() target + media query "screen"
 	putFile(entry, `@import url("theme.css") screen;\nbody { color: red; }`);

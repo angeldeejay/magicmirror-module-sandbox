@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.1
+
+- Added **`@fastify/rate-limit`** as a global plugin and applied per-route `config.rateLimit` on the five static vendor asset routes (`/moment.js`, `/animate.css`, `/croner.js`, `/moment-timezone.js`, `/font-awesome.css`) to satisfy CodeQL `js/missing-rate-limiting` (CWE-307/400/770) alerts.
+- Switched the **harness UI font** from `"Roboto"` (inherited from MagicMirror) to **Open Sans** via `@fontsource/open-sans`. Latin and latin-ext subsets (weights 300/400/600/700, normal style) are now copied to `client/webfonts/` at build time and served at `/webfonts/`. This makes the operator shell visually independent from the module under test.
+- Removed **generated build artifacts** (`client/webfonts/`, `client/styles/font-awesome.css`, `client/styles/magicmirror-fonts.css`, `client/styles/magicmirror-stage.css`) from git tracking. These files are now gitignored and regenerated on every build, reducing repository binary bloat.
+- Trimmed the **npm package** `files` list: only `bin/install-guard.js` is now shipped from `bin/`; the four TypeScript source files (`magicmirror-module-sandbox.ts`, `preview.ts`, `sync-magicmirror-assets.ts`, `helpers/css-bundler.ts`) that were previously included unnecessarily are excluded.
+- Added **Dependabot configuration** (`.github/dependabot.yml`) with weekly npm and GitHub Actions update checks, grouped by ecosystem (fastify, testing, typescript, vite, magicmirror).
+- Added **`npm audit --omit=dev --audit-level=high`** step to both `ci.yml` and `publish.yml` so high/critical vulnerabilities in production dependencies block CI and releases. Dev-only dependency chains are excluded to avoid false positives.
+- Added **`SECURITY.md`** with a vulnerability reporting policy via GitHub Security Advisories.
+- Added **`.github/CODEOWNERS`** to auto-assign `@angeldeejay` as reviewer on all pull requests including Dependabot updates.
+
 ## v1.1.0
 
 - Added **Quality sidebar domain** with real-time module analysis against MagicMirror 3rd-party criteria. Findings are grouped by severity (errors, warnings, recommendations) with per-severity filter checkboxes and an on-demand **Analyze module** button. Results update automatically in watch mode. Backed by a new `VendorModuleAnalyzer` in `server/module-analysis.ts`, an always-on analysis watcher in `server/analysis-watcher.ts`, and the `quality-panel.ts` browser runtime.

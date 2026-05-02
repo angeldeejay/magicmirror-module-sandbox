@@ -43,9 +43,8 @@ vi.mock("node:fs", async (importOriginal) => {
 	return {
 		...actual,
 		existsSync: vi.fn(() => true),
-		readFileSync: vi.fn(
-			(...args: Parameters<typeof actual.readFileSync>) =>
-				actual.readFileSync(...args)
+		readFileSync: vi.fn((...args: Parameters<typeof actual.readFileSync>) =>
+			actual.readFileSync(...args)
 		)
 	};
 });
@@ -147,9 +146,9 @@ test("module watcher skips files matched by .gitignore patterns", async () => {
 		if (String(p).replace(/\\/g, "/") === gitignorePath) {
 			return "dist/\n";
 		}
-		return (
-			require("node:fs") as typeof import("node:fs")
-		).readFileSync(p) as any;
+		return (require("node:fs") as typeof import("node:fs")).readFileSync(
+			p
+		) as any;
 	});
 
 	const { io } = await makeModuleWatcher();
@@ -167,9 +166,9 @@ test("module watcher does NOT skip files outside repoRoot even if gitignore is s
 		if (String(p).replace(/\\/g, "/") === gitignorePath) {
 			return "**/*.js\n"; // ignores all JS files
 		}
-		return (
-			require("node:fs") as typeof import("node:fs")
-		).readFileSync(p) as any;
+		return (require("node:fs") as typeof import("node:fs")).readFileSync(
+			p
+		) as any;
 	});
 
 	const { io } = await makeModuleWatcher();
@@ -187,9 +186,9 @@ test("module watcher always watches config.sandbox.json even when gitignore excl
 		if (String(p).replace(/\\/g, "/") === gitignorePath) {
 			return "config.sandbox.json\n"; // tries to ignore it
 		}
-		return (
-			require("node:fs") as typeof import("node:fs")
-		).readFileSync(p) as any;
+		return (require("node:fs") as typeof import("node:fs")).readFileSync(
+			p
+		) as any;
 	});
 
 	const { io } = await makeModuleWatcher();
@@ -206,9 +205,9 @@ test("module watcher treats matcher as null when readFileSync throws for .gitign
 		if (String(p).replace(/\\/g, "/") === gitignorePath) {
 			throw new Error("permission denied");
 		}
-		return (
-			require("node:fs") as typeof import("node:fs")
-		).readFileSync(p) as any;
+		return (require("node:fs") as typeof import("node:fs")).readFileSync(
+			p
+		) as any;
 	});
 
 	const { io } = await makeModuleWatcher();
@@ -229,8 +228,10 @@ test("sandbox watcher calls restartHelper for module.config.<hash>.json", async 
 		enabled: true,
 		io,
 		restartHelper,
-		getModuleConfigPath: () => path.join(repoRoot, "config", "module.config.json"),
-		getRuntimeConfigPath: () => path.join(repoRoot, "config", "runtime.config.json")
+		getModuleConfigPath: () =>
+			path.join(repoRoot, "config", "module.config.json"),
+		getRuntimeConfigPath: () =>
+			path.join(repoRoot, "config", "runtime.config.json")
 	} as any);
 
 	capturedHandler!(
@@ -249,8 +250,10 @@ test("sandbox watcher calls restartHelper for runtime.config.<hash>.json", async
 		enabled: true,
 		io,
 		restartHelper,
-		getModuleConfigPath: () => path.join(repoRoot, "config", "module.config.json"),
-		getRuntimeConfigPath: () => path.join(repoRoot, "config", "runtime.config.json")
+		getModuleConfigPath: () =>
+			path.join(repoRoot, "config", "module.config.json"),
+		getRuntimeConfigPath: () =>
+			path.join(repoRoot, "config", "runtime.config.json")
 	} as any);
 
 	capturedHandler!(
@@ -273,11 +276,16 @@ test("sandbox watcher calls restartHelper for harness.config.ts", async () => {
 		enabled: true,
 		io,
 		restartHelper,
-		getModuleConfigPath: () => path.join(repoRoot, "config", "module.config.json"),
-		getRuntimeConfigPath: () => path.join(repoRoot, "config", "runtime.config.json")
+		getModuleConfigPath: () =>
+			path.join(repoRoot, "config", "module.config.json"),
+		getRuntimeConfigPath: () =>
+			path.join(repoRoot, "config", "runtime.config.json")
 	} as any);
 
-	capturedHandler!("change", path.join(repoRoot, "config", "harness.config.ts"));
+	capturedHandler!(
+		"change",
+		path.join(repoRoot, "config", "harness.config.ts")
+	);
 	await vi.advanceTimersByTimeAsync(200);
 	assert.equal(restartHelper.mock.calls.length, 1);
 });
@@ -294,8 +302,10 @@ test("sandbox watcher does NOT call rebuildClientAssets for files in client/styl
 		enabled: true,
 		io,
 		restartHelper: vi.fn(async () => {}),
-		getModuleConfigPath: () => path.join(repoRoot, "config", "module.config.json"),
-		getRuntimeConfigPath: () => path.join(repoRoot, "config", "runtime.config.json"),
+		getModuleConfigPath: () =>
+			path.join(repoRoot, "config", "module.config.json"),
+		getRuntimeConfigPath: () =>
+			path.join(repoRoot, "config", "runtime.config.json"),
 		rebuildClientAssets
 	} as any);
 
@@ -315,8 +325,10 @@ test("sandbox watcher does NOT call rebuildClientAssets for files in client/font
 		enabled: true,
 		io,
 		restartHelper: vi.fn(async () => {}),
-		getModuleConfigPath: () => path.join(repoRoot, "config", "module.config.json"),
-		getRuntimeConfigPath: () => path.join(repoRoot, "config", "runtime.config.json"),
+		getModuleConfigPath: () =>
+			path.join(repoRoot, "config", "module.config.json"),
+		getRuntimeConfigPath: () =>
+			path.join(repoRoot, "config", "runtime.config.json"),
 		rebuildClientAssets
 	} as any);
 
@@ -340,8 +352,10 @@ test("sandbox watcher does NOT call rebuildNodeCompat for .js files in shims/", 
 		enabled: true,
 		io,
 		restartHelper: vi.fn(async () => {}),
-		getModuleConfigPath: () => path.join(repoRoot, "config", "module.config.json"),
-		getRuntimeConfigPath: () => path.join(repoRoot, "config", "runtime.config.json"),
+		getModuleConfigPath: () =>
+			path.join(repoRoot, "config", "module.config.json"),
+		getRuntimeConfigPath: () =>
+			path.join(repoRoot, "config", "runtime.config.json"),
 		rebuildNodeCompat
 	} as any);
 
@@ -407,5 +421,8 @@ test("isSandboxWatcherIgnored returns false for regular harness source files", (
 		isSandboxWatcherIgnored("/project/client/app/components/Sidebar.tsx"),
 		false
 	);
-	assert.equal(isSandboxWatcherIgnored("/project/shims/node-compat.ts"), false);
+	assert.equal(
+		isSandboxWatcherIgnored("/project/shims/node-compat.ts"),
+		false
+	);
 });

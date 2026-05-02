@@ -278,7 +278,10 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 						class="sandbox-button sandbox-button--full"
 						type="button"
 					>
-						<i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true" />
+						<i
+							class="fa-solid fa-wand-magic-sparkles"
+							aria-hidden="true"
+						/>
 						Format config
 					</button>
 				</div>
@@ -296,7 +299,10 @@ export function ConfigDomain({ harness }: ConfigDomainProps) {
 					disabled
 					style={{ flex: 1 }}
 				>
-					<i class="fa-solid fa-arrow-rotate-left" aria-hidden="true" />
+					<i
+						class="fa-solid fa-arrow-rotate-left"
+						aria-hidden="true"
+					/>
 					Revert draft
 				</button>
 				<button

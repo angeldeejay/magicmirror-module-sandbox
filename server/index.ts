@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import fastifyMiddie from "@fastify/middie";
+import fastifyRateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { Server } from "socket.io";
 import {
@@ -295,6 +296,10 @@ async function startServer(): Promise<void> {
 		logger: false
 	});
 	await app.register(fastifyMiddie);
+	await app.register(fastifyRateLimit, {
+		max: 500,
+		timeWindow: "1 minute"
+	});
 	const io = new Server(app.server, {
 		serveClient: true
 	});
