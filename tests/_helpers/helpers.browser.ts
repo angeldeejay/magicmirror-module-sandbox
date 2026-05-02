@@ -30,6 +30,17 @@ export async function gotoSandbox() {
 }
 
 /**
+ * Reset fixture state and reload only the stage iframe without re-navigating the shell.
+ * Faster than gotoSandbox — use for subsequent resets within the same test file.
+ * Falls back to gotoSandbox automatically if the shell is not yet loaded.
+ *
+ * @returns {Promise<void>}
+ */
+export async function resetSandbox() {
+	await commands.sandboxReset();
+}
+
+/**
  * Activate one of the top-level sidebar domains.
  *
  * @param {string} domain

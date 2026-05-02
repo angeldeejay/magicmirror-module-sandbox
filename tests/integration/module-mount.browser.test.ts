@@ -141,7 +141,12 @@ journeyTest(
 			.poll(() => readStageProbeColor())
 			.toBe("rgb(48, 170, 122)");
 		await expect
-			.poll(() => stageAttribute("#test-module-helper-ping", "data-bound-in-get-dom"))
+			.poll(() =>
+				stageAttribute(
+					"#test-module-helper-ping",
+					"data-bound-in-get-dom"
+				)
+			)
 			.toBe("true");
 		await stageClick("#test-module-helper-ping");
 		await expect
@@ -165,7 +170,9 @@ journeyTest(
 		expect(
 			moduleRuntimeDetails.superAdapterSnapshot.immediateTextContent
 		).toContain("Hola Sandbox Developer desde el modulo de prueba.");
-		expect(moduleRuntimeDetails.superAdapterSnapshot.isThenable).toBe(false);
+		expect(moduleRuntimeDetails.superAdapterSnapshot.isThenable).toBe(
+			false
+		);
 		expect(moduleRuntimeDetails.superAdapterSnapshot.hasImmediateRoot).toBe(
 			true
 		);

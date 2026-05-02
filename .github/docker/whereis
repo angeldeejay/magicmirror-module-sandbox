@@ -1,0 +1,21 @@
+#!/bin/sh
+# whereis proxy for the act runner container.
+#
+# `whereis` searches hardcoded paths (/usr/bin, /bin, etc.) and ignores PATH,
+# so it would report /usr/bin/apt-get even though the shim intercepts that
+# command via PATH. Callers that use `whereis` to locate apt/apt-get and then
+# invoke the result directly would bypass the shim entirely.
+#
+# Intercepting those queries returns the shim path instead.
+# All other queries forward to the real binary.
+
+REAL=/usr/bin/whereis
+
+case "$1" in
+    apt|apt-get)
+        echo "$1: /usr/local/sbin/act-shims/$1"
+        ;;
+    *)
+        exec "$REAL" "$@"
+        ;;
+esac

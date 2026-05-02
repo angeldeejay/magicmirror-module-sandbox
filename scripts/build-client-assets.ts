@@ -112,10 +112,9 @@ function syncCoreBrowserVendorAssets(): void {
 		"js",
 		"vendor.js"
 	);
-	const magicMirrorVendorMap = nodeRequire(magicMirrorVendorMapPath) as Record<
-		string,
-		string
-	>;
+	const magicMirrorVendorMap = nodeRequire(
+		magicMirrorVendorMapPath
+	) as Record<string, string>;
 	for (const assetName of coreBrowserVendorAssets) {
 		const sourceRelativePath = magicMirrorVendorMap[assetName];
 		if (typeof sourceRelativePath !== "string" || !sourceRelativePath) {
@@ -149,7 +148,41 @@ function syncFontAwesomeWebfonts(): void {
 	ensureDirectory(destDir);
 	for (const file of fs.readdirSync(sourceDir)) {
 		if (file.endsWith(".woff2")) {
-			fs.copyFileSync(path.join(sourceDir, file), path.join(destDir, file));
+			fs.copyFileSync(
+				path.join(sourceDir, file),
+				path.join(destDir, file)
+			);
+		}
+	}
+}
+
+/**
+ * Syncs Open Sans webfonts (latin + latin-ext, normal only) from node_modules
+ * into client/webfonts/ so the harness UI font is available at runtime.
+ */
+function syncOpenSansWebfonts(): void {
+	const sourceDir = path.join(
+		root,
+		"node_modules",
+		"@fontsource",
+		"open-sans",
+		"files"
+	);
+	const destDir = path.join(clientRoot, "webfonts");
+	ensureDirectory(destDir);
+	const subsets = ["latin", "latin-ext"];
+	const weights = ["300", "400", "600", "700"];
+	for (const file of fs.readdirSync(sourceDir)) {
+		if (
+			file.endsWith(".woff2") &&
+			subsets.some((s) => file.includes(`-${s}-`)) &&
+			weights.some((w) => file.includes(`-${w}-`)) &&
+			file.includes("-normal.")
+		) {
+			fs.copyFileSync(
+				path.join(sourceDir, file),
+				path.join(destDir, file)
+			);
 		}
 	}
 }
@@ -177,6 +210,7 @@ function syncFontAwesomeCss(): void {
  */
 function buildStyles(): void {
 	syncFontAwesomeWebfonts();
+	syncOpenSansWebfonts();
 	syncFontAwesomeCss();
 	const result = sass.compile(stylesInputPath, {
 		style: "compressed",

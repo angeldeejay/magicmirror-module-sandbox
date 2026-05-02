@@ -71,7 +71,7 @@
 		}
 
 		return core.appendAssetVersion(
-			`${harness.modulePath}/${normalizedFile}`
+			`/${String(harness.modulePath || "").replace(/^\/+/, "")}${normalizedFile}`
 		);
 	};
 
@@ -97,7 +97,9 @@
 			return "/font-awesome.css";
 		}
 
-		return core.appendAssetVersion(`${harness.modulePath}/${file}`);
+		return core.appendAssetVersion(
+			`/${String(harness.modulePath || "").replace(/^\/+/, "")}${file}`
+		);
 	};
 
 	/**

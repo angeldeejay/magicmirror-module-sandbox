@@ -1,0 +1,105 @@
+#!/bin/sh
+# apt-get proxy for the act runner container.
+#
+# Playwright's `--with-deps chromium` issues exactly two commands:
+#   apt-get update
+#   apt-get install -y --no-install-recommends <tools+chromium packages>
+#
+# `update` is a no-op when running under act/GitHub Actions (detected via the
+# $ACT and $GITHUB_ACTIONS environment variables that act always injects).
+# Direct invocations from an interactive shell pass through so humans can still
+# refresh the package lists.
+#
+# `install` filters the requested package list against the set pre-installed
+# in Layer 2. Packages already present are dropped silently. If any remain,
+# the real binary is called with only those packages (original flags intact).
+# If the filtered list is empty, the call is a no-op.
+#
+# The known set is the union of the `tools` and `chromium` dep lists for
+# ubuntu22.04 and ubuntu24.04 from playwright-core/lib/server/registry/nativeDeps.js.
+# Update this list when upgrading the Playwright version in Dockerfile.act.
+
+REAL=/usr/bin/apt-get
+
+# One package per line; grep -x matches whole lines only.
+PLAYWRIGHT_PKGS="xvfb
+fonts-noto-color-emoji
+fonts-unifont
+libfontconfig1
+libfreetype6
+xfonts-cyrillic
+xfonts-scalable
+fonts-liberation
+fonts-ipafont-gothic
+fonts-wqy-zenhei
+fonts-tlwg-loma-otf
+fonts-freefont-ttf
+libasound2
+libatk-bridge2.0-0
+libatk1.0-0
+libatspi2.0-0
+libcairo2
+libcups2
+libdbus-1-3
+libdrm2
+libgbm1
+libglib2.0-0
+libnspr4
+libnss3
+libpango-1.0-0
+libwayland-client0
+libx11-6
+libxcb1
+libxcomposite1
+libxdamage1
+libxext6
+libxfixes3
+libxkbcommon0
+libxrandr2
+libasound2t64
+libatk-bridge2.0-0t64
+libatk1.0-0t64
+libatspi2.0-0t64
+libcups2t64
+libglib2.0-0t64"
+
+case "$1" in
+    update)
+        if [ -n "$GITHUB_ACTIONS" ] || [ -n "$ACT" ]; then
+            echo "[act-shim] apt-get update: skipped (running under act/GitHub Actions)"
+            exit 0
+        else
+            exec "$REAL" "$@"
+        fi
+        ;;
+    install)
+        flags=""
+        remaining=""
+        for arg in "$@"; do
+            case "$arg" in
+                install) continue ;;
+                --*|-*)
+                    flags="$flags $arg"
+                    ;;
+                *)
+                    if printf '%s' "$PLAYWRIGHT_PKGS" | grep -qx "$arg"; then
+                        echo "[act-shim] apt-get install: skipping pre-installed package: $arg"
+                    else
+                        remaining="$remaining $arg"
+                    fi
+                    ;;
+            esac
+        done
+        if [ -z "$remaining" ]; then
+            echo "[act-shim] apt-get install: all packages pre-installed, nothing to do"
+            exit 0
+        else
+            echo "[act-shim] apt-get install: forwarding non-pre-installed packages:$remaining"
+            # shellcheck disable=SC2086
+            exec "$REAL" install $flags $remaining
+        fi
+        ;;
+    *)
+        exec "$REAL" "$@"
+        ;;
+esac

@@ -92,7 +92,9 @@ journeyTest(
 		await expect.poll(() => pageCount("#module-config-format")).toBe(1);
 		await expect.poll(() => pageCount("#module-config-reset")).toBe(1);
 		await expect.poll(() => pageCount("#module-config-save")).toBe(1);
-		await expect.poll(() => pageVisible("#module-config-format")).toBe(true);
+		await expect
+			.poll(() => pageVisible("#module-config-format"))
+			.toBe(true);
 		await expect
 			.poll(() =>
 				pageEvaluate(() => {
@@ -153,7 +155,9 @@ journeyTest(
 			.not.toContain("disabled:");
 
 		await openSidebarTab("config", "general");
-		await expect.poll(() => pageVisible("#module-config-format")).toBe(false);
+		await expect
+			.poll(() => pageVisible("#module-config-format"))
+			.toBe(false);
 		await pageFill("#config-classes", "ui-config-draft");
 		await expect
 			.poll(() =>

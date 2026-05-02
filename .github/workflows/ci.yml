@@ -16,6 +16,7 @@ jobs:
         runs-on: ubuntu-latest
         env:
             FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+            PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
         steps:
             - name: Checkout
               uses: actions/checkout@v6
@@ -29,6 +30,10 @@ jobs:
 
             - name: Install dependencies
               run: npm ci
+
+            - name: Audit dependencies
+              if: ${{ !env.ACT }}
+              run: npm audit --omit=dev --audit-level=high
 
             - name: Install Playwright Chromium
               run: npx playwright install --with-deps chromium
@@ -52,7 +57,7 @@ jobs:
               run: npm run coverage:job-summary
 
             - name: Publish coverage artifacts branch
-              if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && hashFiles('coverage/coverage-summary.json') != '' }}
+              if: ${{ !env.ACT && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && hashFiles('coverage/coverage-summary.json') != '' }}
               uses: JamesIves/github-pages-deploy-action@v4
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}

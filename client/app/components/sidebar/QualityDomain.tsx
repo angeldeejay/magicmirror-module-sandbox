@@ -61,7 +61,9 @@ export function QualityDomain() {
 						class="sandbox-quality-filter__checkbox"
 						checked
 					/>
-					<span class="sandbox-quality-filter__label">Recommendations</span>
+					<span class="sandbox-quality-filter__label">
+						Recommendations
+					</span>
 					<span
 						id="quality-filter-info-count"
 						class="sandbox-quality-filter__count"
@@ -72,10 +74,7 @@ export function QualityDomain() {
 			</div>
 
 			{/* Unified findings list */}
-			<div
-				id="quality-panel-all"
-				class="sandbox-quality-panel"
-			></div>
+			<div id="quality-panel-all" class="sandbox-quality-panel"></div>
 
 			{/* Loading / error / footer states — runtime toggles visibility */}
 			<div
@@ -106,7 +105,10 @@ export function QualityDomain() {
 					class="sandbox-button sandbox-button--full"
 					type="button"
 				>
-					<i class="fa-solid fa-magnifying-glass" aria-hidden="true" />
+					<i
+						class="fa-solid fa-magnifying-glass"
+						aria-hidden="true"
+					/>
 					Analyze module
 				</button>
 			</div>

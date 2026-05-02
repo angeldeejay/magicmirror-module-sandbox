@@ -354,6 +354,8 @@
 		callback,
 		options: { animateOut?: string } = {}
 	) {
+		module.hidden = true;
+		core.setLifecycleState({ hidden: true });
 		core.transitionModuleVisibility(module, true, speed, callback, {
 			animateOut:
 				typeof options.animateOut === "string" &&
@@ -363,7 +365,8 @@
 						  module.data &&
 						  typeof module.data.animateOut === "string"
 						? module.data.animateOut
-						: ""
+						: "",
+			updateLifecycle: false
 		});
 	};
 
@@ -382,17 +385,30 @@
 		callback,
 		options: { animateIn?: string } = {}
 	) {
-		core.transitionModuleVisibility(module, false, speed, callback, {
-			animateIn:
-				typeof options.animateIn === "string" &&
-				options.animateIn.trim()
-					? options.animateIn.trim()
-					: module &&
-						  module.data &&
-						  typeof module.data.animateIn === "string"
-						? module.data.animateIn
-						: ""
-		});
+		core.transitionModuleVisibility(
+			module,
+			false,
+			speed,
+			() => {
+				module.hidden = false;
+				core.setLifecycleState({ hidden: false });
+				if (typeof callback === "function") {
+					callback();
+				}
+			},
+			{
+				animateIn:
+					typeof options.animateIn === "string" &&
+					options.animateIn.trim()
+						? options.animateIn.trim()
+						: module &&
+							  module.data &&
+							  typeof module.data.animateIn === "string"
+							? module.data.animateIn
+							: "",
+				updateLifecycle: false
+			}
+		);
 	};
 
 	/**
@@ -431,6 +447,94 @@
 		return true;
 	};
 
+	core.setSelectionMethodsForModules = function setSelectionMethodsForModules(
+		modules
+	) {
+		const modulesByClass = (className, include) => {
+			let searchClasses =
+				typeof className === "string"
+					? className.split(" ")
+					: className;
+			const newModules = modules.filter((module) => {
+				const classes = (
+					module.data && module.data.classes
+						? module.data.classes
+						: ""
+				)
+					.toLowerCase()
+					.split(" ");
+				for (const searchClass of searchClasses) {
+					if (classes.indexOf(searchClass.toLowerCase()) !== -1) {
+						return include;
+					}
+				}
+				return !include;
+			});
+			core.setSelectionMethodsForModules(newModules);
+			return newModules;
+		};
+
+		if (typeof modules.withClass === "undefined") {
+			Object.defineProperty(modules, "withClass", {
+				value: (className) => {
+					const result = modulesByClass(className, true);
+					if (result.length === 0 && globalScope.Log?.warn) {
+						globalScope.Log.warn(
+							`[Sandbox] MM.getModules().withClass("${className}") returned an empty collection. ` +
+								`The sandbox is a single-module environment — sibling-module coordination is out of scope. ` +
+								`Your module is correctly attempting this operation; it just cannot be simulated here.`
+						);
+					}
+					return result;
+				},
+				enumerable: false
+			});
+		}
+		if (typeof modules.exceptWithClass === "undefined") {
+			Object.defineProperty(modules, "exceptWithClass", {
+				value: (className) => {
+					const result = modulesByClass(className, false);
+					if (result.length === 0 && globalScope.Log?.warn) {
+						globalScope.Log.warn(
+							`[Sandbox] MM.getModules().exceptWithClass("${className}") returned an empty collection. ` +
+								`The sandbox is a single-module environment — sibling-module coordination is out of scope. ` +
+								`Your module is correctly attempting this operation; it just cannot be simulated here.`
+						);
+					}
+					return result;
+				},
+				enumerable: false
+			});
+		}
+		if (typeof modules.exceptModule === "undefined") {
+			Object.defineProperty(modules, "exceptModule", {
+				value: (module) => {
+					const newModules = modules.filter(
+						(mod) => mod.identifier !== module.identifier
+					);
+					core.setSelectionMethodsForModules(newModules);
+					if (newModules.length === 0 && globalScope.Log?.warn) {
+						globalScope.Log.warn(
+							`[Sandbox] MM.getModules().exceptModule() returned an empty collection. ` +
+								`The sandbox is a single-module environment — sibling-module coordination is out of scope. ` +
+								`Your module is correctly attempting this operation; it just cannot be simulated here.`
+						);
+					}
+					return newModules;
+				},
+				enumerable: false
+			});
+		}
+		if (typeof modules.enumerate === "undefined") {
+			Object.defineProperty(modules, "enumerate", {
+				value: (callback) => {
+					modules.map((module) => callback(module));
+				},
+				enumerable: false
+			});
+		}
+	};
+
 	/**
 	 * Expose the narrow MM surface needed by the supported lifecycle helpers.
 	 *
@@ -459,10 +563,8 @@
 					notifyDomUpdated: core.lifecycleState.domCreated
 				});
 			},
-			/**
-			 * Hides module.
-			 */
 			hideModule(module, speed, callback, options) {
+				module.hidden = true;
 				return core.hideModule(module, speed, callback, options);
 			},
 			/**
@@ -471,11 +573,10 @@
 			showModule(module, speed, callback, options) {
 				return core.showModule(module, speed, callback, options);
 			},
-			/**
-			 * Gets modules.
-			 */
 			getModules() {
-				return Array.from(core.moduleInstances.values());
+				const modules = Array.from(core.moduleInstances.values());
+				core.setSelectionMethodsForModules(modules);
+				return modules;
 			},
 			getAvailableModulePositions: core.availableModulePositions.slice()
 		};

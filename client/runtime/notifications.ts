@@ -137,7 +137,7 @@
 
 			instance.notificationReceived(
 				notification,
-				safePayload,
+				payload,
 				sender || null
 			);
 			recipients.push(instance.identifier || instance.name || "unknown");

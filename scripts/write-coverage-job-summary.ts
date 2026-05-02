@@ -130,7 +130,9 @@ function readJourneySuites(): JourneySuiteSummary[] {
 				`summary.${suite}.json`
 			);
 			const summary = readJsonFile<JourneyCoverageSummary>(filePath);
-			return summary?.suites.find((entry) => entry.suite === suite) ?? null;
+			return (
+				summary?.suites.find((entry) => entry.suite === suite) ?? null
+			);
 		})
 		.filter((entry): entry is JourneySuiteSummary => entry !== null);
 }
@@ -235,7 +237,8 @@ function buildV8Section(): string[] {
  * Builds the markdown block for journey coverage.
  */
 function buildJourneySection(): string[] {
-	const suites: (JourneySuiteSummary | OverallSummary)[] = readJourneySuites();
+	const suites: (JourneySuiteSummary | OverallSummary)[] =
+		readJourneySuites();
 	if (suites.length === 0) {
 		return [
 			"### Journey coverage",
@@ -264,7 +267,10 @@ function buildJourneySection(): string[] {
 					rowPercentage += suite[label].percent;
 					rowTotal += suite[label].total;
 					rowCovered += suite[label].covered;
-					return formatCoverageRatio(suite[label].covered, suite[label].total);
+					return formatCoverageRatio(
+						suite[label].covered,
+						suite[label].total
+					);
 				}),
 				formatPercent(rowPercentage / labels.length),
 				formatCoverageRatio(rowCovered, rowTotal),

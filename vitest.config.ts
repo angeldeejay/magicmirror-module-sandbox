@@ -149,6 +149,14 @@ export default defineConfig(async () => {
 						...browserWorkerConfig,
 						testTimeout: 120_000,
 						hookTimeout: 120_000,
+						globalSetup: [
+							path.join(
+								repoRoot,
+								"tests",
+								"_setup",
+								"vitest-setup.integration.ts"
+							)
+						],
 						browser: {
 							enabled: true,
 							headless: browserInspectionOptions.headless,
@@ -187,6 +195,14 @@ export default defineConfig(async () => {
 						...browserWorkerConfig,
 						testTimeout: 120_000,
 						hookTimeout: 120_000,
+						globalSetup: [
+							path.join(
+								repoRoot,
+								"tests",
+								"_setup",
+								"vitest-setup.ui.ts"
+							)
+						],
 						browser: {
 							enabled: true,
 							headless: browserInspectionOptions.headless,

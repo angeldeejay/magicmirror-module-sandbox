@@ -220,6 +220,9 @@
 		switch (message.type) {
 			case "stage-ready":
 				core.stageReady = true;
+				core.bootComplete = Boolean(
+					message.detail && message.detail.bootComplete
+				);
 				core.hideBackdrop();
 				replaceMirroredEntries(
 					"notificationLog",
@@ -304,6 +307,7 @@
 	globalScope.addEventListener("DOMContentLoaded", () => {
 		const frame = core.getStageFrame();
 		core.stageReady = false;
+		core.bootComplete = false;
 
 		if (frame && globalScope.io) {
 			const rootSocket = globalScope.io({
@@ -345,6 +349,7 @@
 		if (frame) {
 			frame.addEventListener("load", () => {
 				core.stageReady = false;
+				core.bootComplete = false;
 				globalScope.setTimeout(() => {
 					core.requestStageSnapshot();
 				}, 0);
@@ -358,9 +363,15 @@
 
 		const restartBtn = document.getElementById("harness-restart-btn");
 		if (restartBtn instanceof HTMLButtonElement) {
-			const restartLabel = restartBtn.querySelector(".harness-restart-label");
-			const restartIcon = restartBtn.querySelector(".harness-restart-icon");
-			const originalLabel = restartLabel ? restartLabel.textContent : "Restart";
+			const restartLabel = restartBtn.querySelector(
+				".harness-restart-label"
+			);
+			const restartIcon = restartBtn.querySelector(
+				".harness-restart-icon"
+			);
+			const originalLabel = restartLabel
+				? restartLabel.textContent
+				: "Restart";
 
 			restartBtn.addEventListener("click", () => {
 				if (restartBtn.disabled) {
@@ -411,12 +422,15 @@
 			const items = picker.querySelectorAll("[data-theme-value]");
 
 			function syncActive() {
-				const current = document.documentElement.dataset.theme || THEMES[0];
+				const current =
+					document.documentElement.dataset.theme || THEMES[0];
 				items.forEach((item) => {
 					if (item instanceof HTMLElement) {
 						item.setAttribute(
 							"aria-selected",
-							item.dataset.themeValue === current ? "true" : "false"
+							item.dataset.themeValue === current
+								? "true"
+								: "false"
 						);
 					}
 				});

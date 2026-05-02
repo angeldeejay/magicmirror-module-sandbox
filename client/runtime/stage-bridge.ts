@@ -31,10 +31,14 @@
 	/**
 	 * Publish one full snapshot to the shell after boot or reload.
 	 *
+	 * @param {boolean} [bootComplete] - true only when the full boot() promise
+	 *   has settled (resolved or rejected).  false when called in response to
+	 *   request-stage-snapshot, which may fire before boot finishes.
 	 * @returns {void}
 	 */
-	core.publishStageReady = function publishStageReady() {
+	core.publishStageReady = function publishStageReady(bootComplete = false) {
 		postToShell("stage-ready", {
+			bootComplete: Boolean(bootComplete),
 			notificationLog: Array.isArray(core.notificationLog)
 				? core.notificationLog.slice()
 				: [],
@@ -110,7 +114,9 @@
 
 		switch (message.type) {
 			case "request-stage-snapshot":
-				core.publishStageReady();
+				// Pass current boot state so a snapshot request that arrives after
+				// boot has already completed does not overwrite bootComplete back to false.
+				core.publishStageReady(Boolean(core.lifecycleState?.domCreated));
 				return;
 			case "emit-notification":
 				if (

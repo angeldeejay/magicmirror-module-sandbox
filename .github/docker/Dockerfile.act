@@ -1,0 +1,76 @@
+# Dockerfile.act
+#
+# Custom act runner image that pre-bakes Playwright + Chromium and pre-warms
+# the npm package cache so CI steps run without network downloads.
+#
+# Build and push (from repo root):
+#   docker build -f .github/docker/Dockerfile.act -t ghcr.io/angeldeejay/ubuntu-latest-playwright:latest .
+#   docker push ghcr.io/angeldeejay/ubuntu-latest-playwright:latest
+#
+# Use with act (published image):
+#   act push --job validate -P ubuntu-latest=ghcr.io/angeldeejay/ubuntu-latest-playwright:latest
+#
+# MAINTENANCE: PLAYWRIGHT_VERSION must match the version that `npm ci`
+# resolves for the `playwright` devDependency (check node_modules/playwright/
+# package.json). When the project upgrades playwright, rebuild this image.
+
+FROM ghcr.io/catthehacker/ubuntu:act-latest
+
+LABEL org.opencontainers.image.source=https://github.com/angeldeejay/magicmirror-module-sandbox
+
+ARG NODE_VERSION=24
+ARG PLAYWRIGHT_VERSION=1.59.1
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+
+# ── Layer 1: Node.js (pre-warmed tool cache) ─────────────────────────────────
+# Installed directly to /opt/hostedtoolcache/node/ matching the path that
+# actions/setup-node@v6 checks. When the exact version + .complete marker are
+# present, setup-node skips the download and extract step entirely.
+# Symlinks expose node/npm/npx as system commands for subsequent RUN steps.
+# Isolated so a Node major-version bump only rebuilds from here.
+RUN set -eux; \
+    ARCH=$(dpkg --print-architecture | sed 's/amd64/x64/'); \
+    NODE_FULL=$(curl -fsSL "https://nodejs.org/dist/latest-v${NODE_VERSION}.x/SHASUMS256.txt" \
+        | awk 'NR==1{print $2}' | sed 's/node-v//;s/-.*//' ); \
+    TOOLCACHE="/opt/hostedtoolcache/node/${NODE_FULL}/${ARCH}"; \
+    mkdir -p "${TOOLCACHE}"; \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_FULL}/node-v${NODE_FULL}-linux-${ARCH}.tar.xz" \
+        | tar -xJ -C "${TOOLCACHE}" --strip-components=1; \
+    touch "${TOOLCACHE}.complete"; \
+    ln -sf "${TOOLCACHE}/bin/node" /usr/local/bin/node; \
+    ln -sf "${TOOLCACHE}/bin/npm"  /usr/local/bin/npm; \
+    ln -sf "${TOOLCACHE}/bin/npx"  /usr/local/bin/npx; \
+    npm install -g yarn
+
+# ── Layer 2: Playwright + Chromium ───────────────────────────────────────────
+# Isolated so a Playwright version bump only rebuilds from here, not Node.
+# PLAYWRIGHT_BROWSERS_PATH directs the browser binary to /opt/playwright so
+# the path is stable across npm ci runs inside the container.
+# When CI runs `npx playwright install --with-deps chromium`, the exact
+# revision is already present and the download is skipped.
+RUN npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Layer 3: npm package cache ───────────────────────────────────────────────
+# Copy only the manifest files — this layer is invalidated only when
+# dependencies change, not on every source edit.
+# --ignore-scripts skips prepare/postinstall (both require a full build env).
+# Downloaded tarballs land in ~/.npm; npm ci in CI resolves from local cache
+# instead of the network.
+COPY package.json package-lock.json /tmp/sandbox/
+RUN cd /tmp/sandbox \
+    && npm ci --ignore-scripts \
+    && rm -rf /tmp/sandbox
+
+# ── Layer 4: apt proxy shims ─────────────────────────────────────────────────
+# Playwright's --with-deps calls `apt-get update` + `apt-get install` during
+# CI even when the browser is already cached. Since all OS-level deps are
+# pre-installed in Layer 2, these calls are intercepted and turned into no-ops.
+# which/whereis shims redirect apt/apt-get lookups to the shim paths so callers
+# that resolve the binary via those tools cannot bypass the shims via full path.
+COPY .github/docker/apt .github/docker/apt-get .github/docker/which .github/docker/whereis /usr/local/sbin/act-shims/
+RUN chmod a+x /usr/local/sbin/act-shims/apt /usr/local/sbin/act-shims/apt-get \
+              /usr/local/sbin/act-shims/which /usr/local/sbin/act-shims/whereis
+ENV PATH="/usr/local/sbin/act-shims:${PATH}"

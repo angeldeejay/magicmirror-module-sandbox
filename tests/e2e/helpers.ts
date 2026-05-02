@@ -2,6 +2,7 @@
  * Suite-local helpers for packaged-install smoke tests.
  */
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -182,6 +183,40 @@ function createTempModuleRepo(prefix) {
 	writeFixtureStylesheet(path.join(tempRoot, "MMM-TestModule.css"));
 	resetPersistedStateForModuleRoot(tempRoot);
 	return tempRoot;
+}
+
+/**
+ * Ask the OS for a free loopback port by binding to port 0.
+ *
+ * There is an inherent TOCTOU window between when this function closes the
+ * probe socket and when the sandbox process binds the returned port.  For
+ * e2e tests this window is acceptable — the alternative (a hardcoded port)
+ * causes far more frequent conflicts on shared CI machines.
+ *
+ * @returns {Promise<number>}
+ */
+function allocateLoopbackPort(): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const server = net.createServer();
+		server.unref();
+		server.on("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			const address = server.address();
+			if (!address || typeof address === "string") {
+				server.close(() =>
+					reject(new Error("Failed to allocate loopback port."))
+				);
+				return;
+			}
+			server.close((error) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+				resolve(address.port);
+			});
+		});
+	});
 }
 
 /**
@@ -606,6 +641,7 @@ async function withPackedSandbox(prefix, callback) {
 }
 
 export {
+	allocateLoopbackPort,
 	buildCurrentRepo,
 	cleanupPackedSandboxTarball,
 	getInstalledSandboxBinPath,

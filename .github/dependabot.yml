@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      fastify:
+        patterns:
+          - "fastify"
+          - "@fastify/*"
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "playwright"
+          - "@playwright/*"
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+      magicmirror:
+        patterns:
+          - "magicmirror"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday

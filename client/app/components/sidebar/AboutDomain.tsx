@@ -29,8 +29,8 @@ export function AboutDomain() {
 				building modules.
 			</span>
 			<div class="sandbox-section-title">
-				<i class="fa-solid fa-book-open" aria-hidden="true" />
-				{" "}MagicMirror references
+				<i class="fa-solid fa-book-open" aria-hidden="true" />{" "}
+				MagicMirror references
 			</div>
 			<ul class="sandbox-hint-list">
 				<li>

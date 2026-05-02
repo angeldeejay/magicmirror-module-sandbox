@@ -69,11 +69,37 @@ node --run format
 - Keep the shell UI on the Vite + Preact boundary and validate new shared browser/server contracts with Zod when a typed boundary is introduced.
 - Preserve the explicit split between user autodiscovery and maintainer `--preview`; if neither resolves a real mounted module, fail clearly instead of inventing a fallback identity.
 
-## Active handoff
+## Browser runtime contract — non-negotiable
 
-`HANDOFF.md` exists at the repo root. Read it before making any architectural decisions.
-It contains: established definitions for defensive protection vs divergence, the MM core coupling layer analysis, known technical debt, and planned corrections not yet implemented.
-Delete the reference here and the file itself once all planned corrections are implemented and validated.
+The sandbox browser runtime (`client/runtime/`) must behave exactly like the MagicMirror core:
+
+- **Primary sources**: `node_modules/magicmirror/js/module.js`, `main.js`, and `logger.js`.
+- **Invariant**: if a behavior causes a module to fail in real MagicMirror, it MUST fail identically in the sandbox. The sandbox must never mask a real bug by being more permissive than the core.
+- **No defensive divergence**: do not add "defensive" behavior that makes sandbox more tolerant than core. A module that crashes in core must crash in sandbox. A module that works in core must work in sandbox.
+- **Known permanent limitation**: `config` global exposes only `language`, `locale`, and `basePath`. Full MM config properties are unavailable without a real MM server. All other behaviors must match core exactly.
+
+See `ARCHITECTURE.md` "Browser runtime contract" section for the full rationale.
+
+### Core-fidelity hardening tests
+
+`tests/integration/core-fidelity.browser.test.ts` locks in the corrected behaviors from v1.2.0. Each test is annotated with the exact source file and line from the MagicMirror core.
+
+**Rule: do NOT alter assertions in `core-fidelity.browser.test.ts` to make a failing test pass.**
+
+If a test fails, fix the sandbox implementation (`client/runtime/`) to match the core. Weakening or removing an assertion is never the right fix. If you believe an assertion is genuinely wrong, add a comment explaining why and open a discussion — do not silently change it.
+
+The behaviors covered are:
+
+| ID  | Behavior                                                                                                            | Source                |
+| --- | ------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| D1  | base `getDom()` returns `Promise<HTMLElement>`                                                                      | `module.js:82-107`    |
+| D3  | `suspend()` fires inside `hide()` animation callback                                                                | `module.js:367-413`   |
+| D4  | `resume()` fires inside `show()` animation callback                                                                 | `module.js:367-413`   |
+| D5  | `module.hidden=true` set immediately on hide; `false` only inside show callback                                     | `main.js:721,729-731` |
+| D6  | header rendered via `innerHTML` (HTML markup allowed)                                                               | `main.js:253`         |
+| D7  | `notificationReceived` receives original payload reference, not a clone                                             | `main.js:98-101`      |
+| D8  | `Log` exposes all methods from `logger.js`                                                                          | `logger.js`           |
+| D9  | `MM.getModules()` result carries `withClass`/`exceptWithClass`/`exceptModule`/`enumerate` as non-enumerable methods | `main.js:501-585`     |
 
 ## Pending direction
 

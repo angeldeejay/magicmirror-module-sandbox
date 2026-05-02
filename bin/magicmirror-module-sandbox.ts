@@ -13,12 +13,12 @@ import { applyMaintainerPreviewEnv } from "./preview.ts";
 const fromOS = (p: string) => p.replace(/\\/g, "/");
 
 const currentFilePath = fromOS(
-	typeof __filename === "string"
-		? __filename
-		: fileURLToPath(import.meta.url)
+	typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url)
 );
 const currentDirPath =
-	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
+	typeof __dirname === "string"
+		? fromOS(__dirname)
+		: path.dirname(currentFilePath);
 const packageRoot =
 	path.basename(currentDirPath) === "bin" &&
 	path.basename(path.dirname(currentDirPath)) === "dist"

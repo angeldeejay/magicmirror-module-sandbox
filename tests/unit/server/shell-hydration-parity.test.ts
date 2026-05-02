@@ -110,7 +110,8 @@ function normalizeAttributeValue(name: string, value: string): string {
 			.map((declaration) => declaration.trim())
 			.filter(Boolean)
 			.map((declaration) => {
-				const [propertyName, ...propertyValueParts] = declaration.split(":");
+				const [propertyName, ...propertyValueParts] =
+					declaration.split(":");
 				return `${propertyName.trim()}:${propertyValueParts.join(":").trim()}`;
 			})
 			.join(";");
@@ -129,7 +130,10 @@ function projectNode(node: unknown): DomProjection | null {
 		const attributes = Object.fromEntries(
 			Object.entries(node.attributes)
 				.map(([name, value]) => {
-					return [name, normalizeAttributeValue(name, value)] as const;
+					return [
+						name,
+						normalizeAttributeValue(name, value)
+					] as const;
 				})
 				.sort(([left], [right]) => left.localeCompare(right))
 		);
@@ -160,7 +164,10 @@ function projectNode(node: unknown): DomProjection | null {
 /**
  * Projects one selector from a rendered HTML fragment.
  */
-function getProjectedSelector(html: string, selector: string): ProjectedElement {
+function getProjectedSelector(
+	html: string,
+	selector: string
+): ProjectedElement {
 	const element = parse(html).querySelector(selector);
 
 	assert.ok(element, `Expected selector "${selector}" to exist.`);
@@ -291,8 +298,12 @@ test("Topbar menu items follow the canonical domain order", () => {
 test("Sidebar domain sections follow the canonical domain order", () => {
 	const sidebarHtml = renderToString(h(Sidebar, { harness }));
 	const sidebarRoot = parse(sidebarHtml);
-	const sections = sidebarRoot.querySelectorAll("[data-domain]:not([data-tab]):not([data-tab-panel])");
-	const actualOrder = [...new Set(sections.map((el) => el.getAttribute("data-domain")))];
+	const sections = sidebarRoot.querySelectorAll(
+		"[data-domain]:not([data-tab]):not([data-tab-panel])"
+	);
+	const actualOrder = [
+		...new Set(sections.map((el) => el.getAttribute("data-domain")))
+	];
 	assert.deepEqual(actualOrder, [...CANONICAL_DOMAIN_ORDER]);
 });
 
@@ -302,20 +313,32 @@ test("Topbar domain order matches sidebar domain order", () => {
 	const topbarLinks = parse(topbarHtml)
 		.querySelectorAll("[data-domain]")
 		.map((el) => el.getAttribute("data-domain"));
-	const sidebarSections = parse(sidebarHtml)
-		.querySelectorAll("[data-domain]:not([data-tab]):not([data-tab-panel])");
-	const sidebarOrder = [...new Set(sidebarSections.map((el) => el.getAttribute("data-domain")))];
-	assert.deepEqual(topbarLinks, sidebarOrder, "Topbar and sidebar domain order must match exactly");
+	const sidebarSections = parse(sidebarHtml).querySelectorAll(
+		"[data-domain]:not([data-tab]):not([data-tab-panel])"
+	);
+	const sidebarOrder = [
+		...new Set(sidebarSections.map((el) => el.getAttribute("data-domain")))
+	];
+	assert.deepEqual(
+		topbarLinks,
+		sidebarOrder,
+		"Topbar and sidebar domain order must match exactly"
+	);
 });
 
 test("Topbar and RuntimeDomain fall back to empty/default harness values", () => {
 	const minimalHarness: HarnessState = {};
-	const topbarRoot = parse(renderToString(h(Topbar, { harness: minimalHarness })));
+	const topbarRoot = parse(
+		renderToString(h(Topbar, { harness: minimalHarness }))
+	);
 	const runtimeRoot = parse(
 		renderToString(h(RuntimeDomain, { harness: minimalHarness }))
 	);
 
-	assert.equal(topbarRoot.querySelector(".harness-mounted-module code")?.text, "");
+	assert.equal(
+		topbarRoot.querySelector(".harness-mounted-module code")?.text,
+		""
+	);
 	assert.equal(
 		runtimeRoot.querySelector(".sandbox-hint-list li code")?.text,
 		"http://127.0.0.1:3010"
@@ -346,15 +369,26 @@ test("ConfigDomain tolerates missing options and reflects disabled/boolean modul
 		)
 	);
 
-	assert.equal(configRoot.querySelectorAll("#config-language option").length, 0);
-	assert.equal(configRoot.querySelectorAll("#config-position option").length, 0);
-	assert.equal(configRoot.querySelector("#config-header")?.getAttribute("disabled"), "");
+	assert.equal(
+		configRoot.querySelectorAll("#config-language option").length,
+		0
+	);
+	assert.equal(
+		configRoot.querySelectorAll("#config-position option").length,
+		0
+	);
+	assert.equal(
+		configRoot.querySelector("#config-header")?.getAttribute("disabled"),
+		""
+	);
 	assert.equal(
 		configRoot.querySelector("#config-header")?.getAttribute("value"),
 		""
 	);
 	assert.equal(
-		configRoot.querySelector("#config-hidden-on-startup")?.getAttribute("checked"),
+		configRoot
+			.querySelector("#config-hidden-on-startup")
+			?.getAttribute("checked"),
 		""
 	);
 	assert.equal(
@@ -362,15 +396,21 @@ test("ConfigDomain tolerates missing options and reflects disabled/boolean modul
 		""
 	);
 	assert.equal(
-		configRoot.querySelector("module-config-editor")?.getAttribute("module-name"),
+		configRoot
+			.querySelector("module-config-editor")
+			?.getAttribute("module-name"),
 		"MMM-DisabledState"
 	);
 	assert.equal(
-		configRoot.querySelector("module-config-editor")?.getAttribute("language"),
+		configRoot
+			.querySelector("module-config-editor")
+			?.getAttribute("language"),
 		""
 	);
 	assert.equal(
-		configRoot.querySelector("module-config-editor")?.getAttribute("locale"),
+		configRoot
+			.querySelector("module-config-editor")
+			?.getAttribute("locale"),
 		""
 	);
 });

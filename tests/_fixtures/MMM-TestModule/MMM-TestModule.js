@@ -69,14 +69,22 @@ Module.register("MMM-TestModule", {
 		};
 	},
 
-	getDom() {
-		const wrapper = this._super();
+	async getDom() {
+		// The base getDom() (module.js:82-107) always returns Promise<HTMLElement>.
+		// A module that calls this._super() in getDom MUST await the result.
+		// Treating _super() as synchronous works in old sandbox versions but FAILS
+		// in real MagicMirror — which is exactly the class of bug this fixture
+		// is designed to catch. Do NOT revert to synchronous _super() usage.
+		const wrapper = await this._super();
 		const root = wrapper.querySelector("#test-module-root");
 		const dynamicSlot = wrapper.querySelector("#test-module-dynamic-slot");
 		const helperButton = wrapper.querySelector("#test-module-helper-ping");
 		this.superAdapterSnapshot = {
 			immediateChildElementCount: wrapper.children.length,
 			immediateTextContent: wrapper.textContent,
+			// wrapper is the resolved HTMLElement — isThenable MUST be false.
+			// If this becomes true the base getDom is returning a Promise that
+			// was not awaited, meaning _super() broke the contract again.
 			isThenable: typeof wrapper.then === "function",
 			hasImmediateRoot: Boolean(root),
 			hasImmediateDynamicSlot: Boolean(dynamicSlot),

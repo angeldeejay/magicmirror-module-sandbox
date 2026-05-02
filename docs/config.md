@@ -15,7 +15,7 @@ the mounted module:
 - **Sandbox language** changes the runtime language exposed through
   `config.language` and `Translator`.
 - **Position** sets the MagicMirror position used by the mounted module wrapper.
-- **Header** follows MagicMirror's default header semantics: `false` hides it, an empty string falls back to the module name, and any non-empty string is rendered exactly as entered.
+- **Header** follows MagicMirror's default header semantics: `false` hides it, any non-empty string is rendered as HTML (matching core behavior), and an empty string hides it.
 - **Classes** adds wrapper CSS classes to the mounted module container.
 - **Animate in** sets the entry animation used when the module becomes visible.
 - **Animate out** sets the exit animation used when the module becomes hidden.
@@ -50,9 +50,73 @@ Both panels share the same footer actions:
 - **Save and reload** writes the current config envelope plus the current
   sandbox language selection through the backend.
 
-## Save behavior
+## Config sources and precedence
 
-By default the mounted-module config lives in a sandbox-owned temp file shaped like:
+The sandbox reads the module envelope from three sources in descending priority:
+
+### 1. `config.sandbox.json` — committed or gitignored file in the module root
+
+Place a `config.sandbox.json` at the root of the mounted module to share a
+repeatable config with your team or pin it to version control:
+
+```json
+{
+	"position": "top_left",
+	"header": "My Module",
+	"classes": "bright",
+	"animateIn": "fadeIn",
+	"animateOut": "fadeOut",
+	"hiddenOnStartup": false,
+	"disabled": false,
+	"configDeepMerge": false,
+	"config": {
+		"apiKey": "…",
+		"updateInterval": 60000
+	}
+}
+```
+
+All keys are optional; the sandbox fills in defaults for anything omitted.
+When this file exists it is the **only** active config source — the sandbox
+does not merge it with anything else.
+
+Once the **Save and reload** button is used in the UI, the sandbox always
+writes back to `config.sandbox.json` (creating it if it did not already exist).
+You can commit or gitignore this file freely; the sandbox watches it regardless
+of `.gitignore`.
+
+### 2. `package.json → sandbox.moduleConfig` — inline seed (read-only)
+
+Add a `sandbox` section to the mounted module's `package.json` to ship a
+default config alongside the module without an extra file. This is a read-only
+seed: the sandbox promotes it to `config.sandbox.json` the first time the UI
+saves any change.
+
+```json
+{
+	"name": "MMM-MyModule",
+	"sandbox": {
+		"moduleConfig": {
+			"position": "middle_center",
+			"config": {
+				"updateInterval": 30000
+			}
+		},
+		"startup": ["dev-server"]
+	}
+}
+```
+
+`sandbox.startup` is an optional array of npm script names (defined in the
+module's own `package.json`) that the sandbox runs as background processes
+alongside the sandbox server. Use it to start companion dev servers, mock APIs,
+or other module-specific prerequisites. Scripts are launched from the module
+root and torn down when the sandbox exits.
+
+### 3. Sandbox temp file — UI-only fallback
+
+When neither `config.sandbox.json` nor `sandbox.moduleConfig` exist, the
+persisted config lives in a sandbox-owned temp file:
 
 ```text
 <system-temp>/magicmirror-module-sandbox/module.config.<hash>.json

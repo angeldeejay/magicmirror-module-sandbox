@@ -39,9 +39,9 @@ and how to use it, while this file explains how it is put together.
 - `client/runtime/translations.ts` handles translation loading
 - `client/runtime/debug-panel.ts` wires the sidebar notification + lifecycle
   console
-- `client/runtime/module.ts` installs the narrow MagicMirror-like globals and
-  boots the module, including the current browser-side template compatibility
-  layer for `getDom()` + `_super()` overrides
+- `client/runtime/module.ts` installs the MagicMirror-like globals and boots the
+  module; `getDom()` is a verbatim port of the core base implementation and
+  always returns `Promise<HTMLElement>` — no deferred-wrapper or preload layer
 - `client/runtime.ts` is just the final bootstrap glue
 - `client/scss/` holds the sandbox stylesheet sources and compiles to
   `client/styles/harness.css`
@@ -187,6 +187,25 @@ That publish build also minifies the distributed browser JavaScript under
 Inside this repository, `npm start` and `npm run watch` still run against the
 source tree for maintainer workflows. The CLI falls back to `dist/` only when
 the package is installed without source files.
+
+## Browser runtime contract
+
+The sandbox browser runtime (`client/runtime/`) is a faithful port of
+`node_modules/magicmirror/js/module.js` and `main.js`. Every behavioral
+decision is anchored to the upstream source. Known deviations from a full
+MagicMirror deployment that cannot be resolved without a real MM server:
+
+- `config` global exposes only `language`, `locale`, and `basePath`. Full MM
+  config properties (`timeFormat`, `units`, `timezone`, `location`, etc.) are
+  not available because the sandbox has no MM config endpoint.
+
+All other behaviors — `getDom()` return type, `_super()` semantics, hide/show
+lifecycle ordering, header rendering, notification payload routing, and the
+`MM.getModules()` filter API — match the core exactly.
+
+The non-negotiable invariant: if a behavior causes a module to fail in real
+MagicMirror, it must fail identically in the sandbox. The sandbox must never
+mask a real bug by being more permissive than the core.
 
 ## Asset sync
 

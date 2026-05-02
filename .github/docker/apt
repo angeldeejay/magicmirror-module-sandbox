@@ -1,0 +1,92 @@
+#!/bin/sh
+# apt proxy for the act runner container.
+#
+# Mirrors the apt-get proxy logic for the `apt` frontend. Playwright may
+# invoke either binary depending on distro detection.
+#
+# See docker/apt-get for the full rationale and the known-package list.
+# Keep both files in sync when upgrading Playwright.
+
+REAL=/usr/bin/apt
+
+PLAYWRIGHT_PKGS="xvfb
+fonts-noto-color-emoji
+fonts-unifont
+libfontconfig1
+libfreetype6
+xfonts-cyrillic
+xfonts-scalable
+fonts-liberation
+fonts-ipafont-gothic
+fonts-wqy-zenhei
+fonts-tlwg-loma-otf
+fonts-freefont-ttf
+libasound2
+libatk-bridge2.0-0
+libatk1.0-0
+libatspi2.0-0
+libcairo2
+libcups2
+libdbus-1-3
+libdrm2
+libgbm1
+libglib2.0-0
+libnspr4
+libnss3
+libpango-1.0-0
+libwayland-client0
+libx11-6
+libxcb1
+libxcomposite1
+libxdamage1
+libxext6
+libxfixes3
+libxkbcommon0
+libxrandr2
+libasound2t64
+libatk-bridge2.0-0t64
+libatk1.0-0t64
+libatspi2.0-0t64
+libcups2t64
+libglib2.0-0t64"
+
+case "$1" in
+    update)
+        if [ -n "$GITHUB_ACTIONS" ] || [ -n "$ACT" ]; then
+            echo "[act-shim] apt update: skipped (running under act/GitHub Actions)"
+            exit 0
+        else
+            exec "$REAL" "$@"
+        fi
+        ;;
+    install)
+        flags=""
+        remaining=""
+        for arg in "$@"; do
+            case "$arg" in
+                install) continue ;;
+                --*|-*)
+                    flags="$flags $arg"
+                    ;;
+                *)
+                    if printf '%s' "$PLAYWRIGHT_PKGS" | grep -qx "$arg"; then
+                        echo "[act-shim] apt install: skipping pre-installed package: $arg"
+                    else
+                        remaining="$remaining $arg"
+                    fi
+                    ;;
+            esac
+        done
+        if [ -z "$remaining" ]; then
+            echo "[act-shim] apt install: all packages pre-installed, nothing to do"
+            exit 0
+        else
+            echo "[act-shim] apt install: forwarding non-pre-installed packages:$remaining"
+            # shellcheck disable=SC2086
+            exec "$REAL" install $flags $remaining
+        fi
+        ;;
+    *)
+        exec "$REAL" "$@"
+        ;;
+esac

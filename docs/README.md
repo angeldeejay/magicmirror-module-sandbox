@@ -28,8 +28,8 @@ slice.
 
 ## A few helpful notes
 
-- Mounted-module config persistence stays in the backend and writes sandbox-owned temp files like `module.config.<hash>.json`.
-- Runtime language/locale persistence stays beside it in temp as `runtime.config.<hash>.json`.
+- Mounted-module config is resolved from three sources in priority order: `config.sandbox.json` in the module root (highest), `package.json → sandbox.moduleConfig` (read-only seed, promoted to `config.sandbox.json` on first save), or a sandbox-owned temp file as fallback. See [Config](config.md) for details.
+- Runtime language/locale persistence stays in a sandbox-owned temp file beside the module config.
 - Each module repo keeps its own saved config by default; switching projects does not silently reuse another module's persisted editor state.
 - `node_helper.js` is optional. Frontend-only modules still mount as long as the frontend entry can be detected.
 - Watch mode emits reload events with fresh versioned stage URLs so stage-local changes refresh the iframe without keeping stale browser-cached assets.

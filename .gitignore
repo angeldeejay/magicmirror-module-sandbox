@@ -4,6 +4,10 @@ node_modules/
 # Build and coverage output
 dist/
 client/generated/
+client/webfonts/
+client/styles/font-awesome.css
+client/styles/magicmirror-fonts.css
+client/styles/magicmirror-stage.css
 shims/generated/
 coverage/
 .runtime-cache/
@@ -24,6 +28,10 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# CodeQL
+codeql-db/
+codeql*
 
 # OS-specific files
 .DS_Store

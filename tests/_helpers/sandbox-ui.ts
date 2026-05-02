@@ -89,43 +89,80 @@ async function getStageFrame(page) {
 }
 
 /**
- * Wait for the next viewport-ready event after an action that reloads the stage.
+ * Arm a flag in the browser for the next stage-ready event.
+ *
+ * Must be awaited BEFORE the action that triggers the event so the listener
+ * is registered before the CDP round-trip for the click returns.  Follow with
+ * {@link waitForArmedStageReady} after the triggering action.
  *
  * @param {import("@playwright/test").Page} page
  * @returns {Promise<void>}
  */
-function waitForNextStageReady(page) {
-	return page.evaluate(() => {
-		return new Promise((resolve) => {
-			globalThis.addEventListener(
-				"module-sandbox:stage-ready",
-				() => resolve(),
-				{
-					once: true
-				}
-			);
-		});
+async function armStageReady(page) {
+	await page.evaluate(() => {
+		(window as any).__SANDBOX_STAGE_READY_SEEN__ = false;
+		globalThis.addEventListener(
+			"module-sandbox:stage-ready",
+			() => {
+				(window as any).__SANDBOX_STAGE_READY_SEEN__ = true;
+			},
+			{ once: true }
+		);
 	});
 }
 
 /**
- * Wait for the shell to confirm that mounted module styles were refreshed.
+ * Wait until the previously armed stage-ready flag is set.
  *
  * @param {import("@playwright/test").Page} page
  * @returns {Promise<void>}
  */
-function waitForStylesRefreshed(page) {
-	return page.evaluate(() => {
-		return new Promise((resolve) => {
-			globalThis.addEventListener(
-				"module-sandbox:styles-refreshed",
-				() => resolve(),
-				{
-					once: true
-				}
-			);
-		});
+async function waitForArmedStageReady(page) {
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				Boolean((window as any).__SANDBOX_STAGE_READY_SEEN__)
+			)
+		)
+		.toBe(true);
+}
+
+/**
+ * Arm a flag in the browser for the next styles-refreshed event.
+ *
+ * Must be awaited BEFORE the action that triggers the event.  Follow with
+ * {@link waitForArmedStylesRefreshed} after the triggering action.
+ *
+ * @param {import("@playwright/test").Page} page
+ * @returns {Promise<void>}
+ */
+async function armStylesRefreshed(page) {
+	await page.evaluate(() => {
+		(window as any).__SANDBOX_STYLES_REFRESHED_SEEN__ = false;
+		globalThis.addEventListener(
+			"module-sandbox:styles-refreshed",
+			() => {
+				(window as any).__SANDBOX_STYLES_REFRESHED_SEEN__ = true;
+			},
+			{ once: true }
+		);
 	});
+}
+
+/**
+ * Wait until the previously armed styles-refreshed flag is set.
+ *
+ * @param {import("@playwright/test").Page} page
+ * @returns {Promise<void>}
+ */
+async function waitForArmedStylesRefreshed(page) {
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				Boolean((window as any).__SANDBOX_STYLES_REFRESHED_SEEN__)
+			)
+		)
+		.toBe(true);
 }
 
 export default {
@@ -133,6 +170,8 @@ export default {
 	openDomain,
 	openSidebarTab,
 	getStageFrame,
-	waitForNextStageReady,
-	waitForStylesRefreshed
+	armStageReady,
+	waitForArmedStageReady,
+	armStylesRefreshed,
+	waitForArmedStylesRefreshed
 };

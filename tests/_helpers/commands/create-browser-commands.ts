@@ -27,6 +27,11 @@ const projectRoot = path.join(
 const stageReadyEventName = "module-sandbox:stage-ready";
 const stageFrameSelector = "#module-stage-frame";
 const sandboxPages = new Map();
+// Cache: Page → live Frame handle.
+// Eliminates waitForSelector + waitForFunction + contentFrame() loop on
+// repeated mid-test calls to waitForStageFrame (stageClick, stageText, …).
+// Invalidated before page.goto() and before any action that triggers a stage reload.
+const stageFrameCache = new WeakMap<object, any>();
 type ModuleConfigEditor = HTMLElement & { json_value: unknown };
 
 /**
@@ -108,19 +113,41 @@ export function createSandboxBrowserCommands(suiteName) {
 	}
 
 	/**
-	 * Wait for the next shell-side stage-ready event emitted after a reload.
+	 * Arm a one-shot flag in the browser for the next stage-ready event.
+	 *
+	 * Must be awaited BEFORE any action that triggers the event so the listener
+	 * is registered before the CDP round-trip for the click returns.
 	 *
 	 * @param {any} page
 	 * @returns {Promise<void>}
 	 */
-	async function waitForNextStageReady(page) {
+	async function armStageReadyFlag(page) {
+		// Invalidate the frame cache — a stage reload is about to happen.
+		stageFrameCache.delete(page);
 		await page.evaluate((eventName) => {
-			return new Promise<void>((resolve) => {
-				globalThis.addEventListener(eventName, () => resolve(), {
-					once: true
-				});
-			});
+			(window as any).__SANDBOX_STAGE_READY_SEEN__ = false;
+			globalThis.addEventListener(
+				eventName,
+				() => {
+					(window as any).__SANDBOX_STAGE_READY_SEEN__ = true;
+				},
+				{ once: true }
+			);
 		}, stageReadyEventName);
+	}
+
+	/**
+	 * Wait until the previously armed stage-ready flag is set.
+	 *
+	 * @param {any} page
+	 * @returns {Promise<void>}
+	 */
+	async function waitForArmedStageReady(page) {
+		await page.waitForFunction(
+			() => Boolean((window as any).__SANDBOX_STAGE_READY_SEEN__),
+			undefined,
+			{ timeout: 20_000 }
+		);
 	}
 
 	/**
@@ -130,23 +157,130 @@ export function createSandboxBrowserCommands(suiteName) {
 	 * @param {any} page
 	 * @returns {Promise<any>}
 	 */
-	async function waitForStageFrame(page) {
+	async function waitForStageFrame(page): Promise<any> {
+		// Fast path: return the cached Frame handle when the stage is already
+		// confirmed ready and the frame is still attached.
+		// The cache is invalidated before page.goto() and before any action that
+		// triggers a stage reload (armStageReadyFlag).
+		const cached = stageFrameCache.get(page);
+		if (cached) {
+			try {
+				if (!cached.isDetached()) {
+					return cached;
+				}
+			} catch {
+				// Frame API error — fall through to full acquisition.
+			}
+			stageFrameCache.delete(page);
+		}
+
+		// Wait for the stage frame element to be visible first.
+		await page.waitForSelector(stageFrameSelector, { state: "visible" });
+
+		// Wait for boot to complete by polling core.bootComplete on the SHELL page.
+		//
+		// Protocol:
+		//   - iframe calls publishStageReady(bootComplete) after every boot settle.
+		//   - shell-stage.js sets core.bootComplete from the postMessage payload.
+		//   - bootComplete is true only when runtime.ts's boot() promise settles
+		//     (resolved or rejected); false for the early snapshot fired by
+		//     requestStageSnapshot (which can arrive before boot finishes).
+		//   - shell-stage.js resets bootComplete to false on DOMContentLoaded and
+		//     on every iframe "load" event, so a harness:reload cycle also resets it.
+		//
+		// Checking the shell page avoids stale frame-handle issues entirely.
+		try {
+			await page.waitForFunction(
+				() => Boolean((window as any).__MICROCORE__?.bootComplete),
+				undefined,
+				{ timeout: 20_000 }
+			);
+		} catch {
+			const diagState = await page
+				.evaluate(() => {
+					const core = (window as any).__MICROCORE__;
+					return {
+						coreExists: Boolean(core),
+						stageReady: core ? core.stageReady : null,
+						bootComplete: core ? core.bootComplete : null,
+						lifecycleState: core
+							? Object.assign({}, core.lifecycleState)
+							: null
+					};
+				})
+				.catch(() => ({ evalError: true }));
+			throw new Error(
+				`waitForStageFrame: boot timeout after 20 s. Shell state: ${JSON.stringify(diagState)}`
+			);
+		}
+
+		// Acquire a live frame handle now that boot is confirmed complete.
 		const frameElement = await page.waitForSelector(stageFrameSelector, {
 			state: "visible"
 		});
-
 		const timeoutAt = Date.now() + 5_000;
+		let frame = null;
 		while (Date.now() < timeoutAt) {
-			const frame = await frameElement.contentFrame();
-			if (frame) {
-				return frame;
-			}
+			frame = await frameElement.contentFrame();
+			if (frame) break;
 			await sleep(50);
 		}
+		if (!frame) {
+			throw new Error(
+				"Timed out waiting for the mounted-module iframe frame."
+			);
+		}
 
-		throw new Error(
-			"Timed out waiting for the mounted-module iframe frame."
-		);
+		stageFrameCache.set(page, frame);
+		return frame;
+	}
+
+	/**
+	 * Reset fixture state and reload only the stage iframe, reusing the already-open
+	 * shell page. Skips the full page.goto() navigation — ~3–5× faster than gotoSandbox.
+	 *
+	 * Protocol:
+	 *   1. Reset fixture files (same as gotoSandbox).
+	 *   2. Arm the stage-ready listener before triggering any reload.
+	 *   3. POST /__harness/restart → server restarts helper AND emits
+	 *      Socket.IO "harness:reload" → shell calls core.reloadStage() →
+	 *      stage iframe reloads → module boots fresh.
+	 *   4. Wait for stage-ready event and confirm bootComplete.
+	 *
+	 * Falls back to gotoSandbox when the shell is not yet loaded (e.g. first
+	 * call in a test file).
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<void>}
+	 */
+	async function resetSandbox(context) {
+		const runtime = await runtimeController.getLiveRuntimeForContext(context);
+		const page = await getSandboxPage(context);
+
+		// Guard: fall back to full navigation if the shell is not loaded yet.
+		const shellLoaded = await page
+			.evaluate(() => Boolean((window as any).__MICROCORE__))
+			.catch(() => false);
+		if (!shellLoaded) {
+			return gotoSandbox(context);
+		}
+
+		if (runtimeController.usesPerSessionRuntime) {
+			writeFixtureStylesheet(runtime.fixtureStylePath);
+		} else {
+			resetBrowserSuiteFixtureFiles(runtime.suiteName);
+		}
+		resetPersistedStateForModuleRoot(runtime.fixtureRoot);
+
+		// Arm the listener BEFORE POSTing — the Socket.IO reload can arrive
+		// very quickly and we must not miss the stage-ready event.
+		await armStageReadyFlag(page);
+
+		// Restart helper and trigger stage iframe reload via Socket.IO.
+		await fetch(`${runtime.baseUrl}/__harness/restart`, { method: "POST" });
+
+		await waitForArmedStageReady(page);
+		await waitForStageFrame(page);
 	}
 
 	/**
@@ -165,11 +299,13 @@ export function createSandboxBrowserCommands(suiteName) {
 		}
 		resetPersistedStateForModuleRoot(runtime.fixtureRoot);
 		const page = await getSandboxPage(context);
+		// Invalidate the frame cache — navigation replaces the entire document.
+		stageFrameCache.delete(page);
 		if (inspectionOptions.headed) {
 			await page.bringToFront();
 		}
 		await page.goto(runtime.baseUrl, {
-			waitUntil: "networkidle"
+			waitUntil: "domcontentloaded"
 		});
 		await waitForStageFrame(page);
 	}
@@ -203,7 +339,6 @@ export function createSandboxBrowserCommands(suiteName) {
 		await page.locator(`#domain-${domain}[data-active="true"]`).waitFor({
 			state: "visible"
 		});
-		await sleep(50);
 	}
 
 	/**
@@ -224,7 +359,13 @@ export function createSandboxBrowserCommands(suiteName) {
 			state: "visible"
 		});
 		await tabLocator.click();
-		await sleep(50);
+		// Wait for the corresponding tab panel to become active instead of an
+		// arbitrary sleep — this is resilient to animation timing differences.
+		await page
+			.locator(
+				`.sandbox-tabpanel[data-domain="${domain}"][data-tab-panel="${tab}"][data-active="true"]`
+			)
+			.waitFor({ state: "visible" });
 	}
 
 	/**
@@ -443,32 +584,42 @@ export function createSandboxBrowserCommands(suiteName) {
 
 	/**
 	 * Internal helper for click and wait for stage ready.
+	 *
+	 * Arms the listener BEFORE the click to prevent the event from firing
+	 * during the CDP round-trip and being missed.
 	 */
 	async function clickAndWaitForStageReady(context, selector) {
 		const page = await getSandboxPage(context);
-		await Promise.all([waitForNextStageReady(page), page.click(selector)]);
+		await armStageReadyFlag(page);
+		await page.click(selector);
+		await waitForArmedStageReady(page);
 		await waitForStageFrame(page);
 	}
 
 	/**
 	 * Internal helper for click and wait for styles refreshed.
+	 *
+	 * Arms the listener BEFORE the click to prevent the event from firing
+	 * during the CDP round-trip and being missed.
 	 */
 	async function clickAndWaitForStylesRefreshed(context, selector) {
 		const page = await getSandboxPage(context);
-		await Promise.all([
-			page.evaluate(() => {
-				return new Promise<void>((resolve) => {
-					globalThis.addEventListener(
-						"module-sandbox:styles-refreshed",
-						() => resolve(),
-						{
-							once: true
-						}
-					);
-				});
-			}),
-			page.click(selector)
-		]);
+		await page.evaluate(() => {
+			(window as any).__SANDBOX_STYLES_REFRESHED_SEEN__ = false;
+			globalThis.addEventListener(
+				"module-sandbox:styles-refreshed",
+				() => {
+					(window as any).__SANDBOX_STYLES_REFRESHED_SEEN__ = true;
+				},
+				{ once: true }
+			);
+		});
+		await page.click(selector);
+		await page.waitForFunction(
+			() => Boolean((window as any).__SANDBOX_STYLES_REFRESHED_SEEN__),
+			undefined,
+			{ timeout: 15_000 }
+		);
 	}
 
 	/**
@@ -497,15 +648,23 @@ export function createSandboxBrowserCommands(suiteName) {
 	}
 
 	/**
-	 * Writes fixture text file.
+	 * Writes fixture text file, skipping the write when content is unchanged.
+	 *
+	 * Avoiding unnecessary writes prevents the sandbox watcher from emitting
+	 * spurious harness:reload events that would restart the stage mid-test.
 	 */
 	async function writeFixtureTextFile(context, fixtureRelativePath, content) {
 		const runtime = await runtimeController.getRuntimeForContext(context);
-		fs.writeFileSync(
-			path.join(runtime.fixtureRoot, fixtureRelativePath),
-			content,
-			"utf8"
-		);
+		const filePath = path.join(runtime.fixtureRoot, fixtureRelativePath);
+		try {
+			const existing = fs.readFileSync(filePath, "utf8");
+			if (existing === content) {
+				return;
+			}
+		} catch {
+			// File does not exist yet — fall through to write.
+		}
+		fs.writeFileSync(filePath, content, "utf8");
 	}
 
 	/**
@@ -560,6 +719,7 @@ export function createSandboxBrowserCommands(suiteName) {
 		sandboxPageCheck: pageCheck,
 		sandboxPageCount: pageCount,
 		sandboxGoto: gotoSandbox,
+		sandboxReset: resetSandbox,
 		sandboxPageDisabled: pageDisabled,
 		sandboxPageEvaluate: pageEvaluate,
 		sandboxPageFill: pageFill,

@@ -1,0 +1,20 @@
+#!/bin/sh
+# which proxy for the act runner container.
+#
+# `which` already respects PATH (where the shims are prepended), but some
+# scripts capture the output and call the resulting path directly. Intercepting
+# queries for apt/apt-get ensures those callers always get the shim path even
+# when they do: $(which apt-get) <args>
+#
+# All other queries forward to the real binary.
+
+REAL=/usr/bin/which
+
+case "$1" in
+    apt|apt-get)
+        echo "/usr/local/sbin/act-shims/$1"
+        ;;
+    *)
+        exec "$REAL" "$@"
+        ;;
+esac

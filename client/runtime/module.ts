@@ -4,7 +4,6 @@
 (function initModuleSandboxRuntime(globalScope) {
 	const core = globalScope.__MICROCORE__ as SandboxCore;
 	const harness = core.harness as Record<string, any>;
-	core.templateSourceCache = core.templateSourceCache || new Map();
 
 	/**
 	 * Compare two semver-like version strings.
@@ -107,9 +106,6 @@
 			) {
 				continue;
 			}
-			if (name === "getDom") {
-				instance.__sandboxUsesGetDomSuper = true;
-			}
 
 			instance[name] = function wrappedSuperMethod(...args) {
 				const previousSuper = this._super;
@@ -134,272 +130,16 @@
 	};
 
 	/**
-	 * Detect whether the active `_super()` invocation came from `getDom()`.
-	 *
-	 * @param {object} instance
-	 * @returns {boolean}
-	 */
-	core.isGetDomSuperCall = function isGetDomSuperCall(instance) {
-		return (
-			Boolean(instance) &&
-			instance.__sandboxActiveSuperMethodName === "getDom"
-		);
-	};
-
-	/**
-	 * Resolve one template path relative to its parent template.
-	 *
-	 * @param {string} parentTemplate
-	 * @param {string} dependency
-	 * @returns {string}
-	 */
-	core.resolveTemplateDependencyPath = function resolveTemplateDependencyPath(
-		parentTemplate,
-		dependency
-	) {
-		if (
-			typeof dependency !== "string" ||
-			dependency === "" ||
-			(!dependency.startsWith("./") && !dependency.startsWith("../"))
-		) {
-			return dependency;
-		}
-
-		const segments = parentTemplate.split("/");
-		segments.pop();
-		for (const dependencySegment of dependency.split("/")) {
-			if (!dependencySegment || dependencySegment === ".") {
-				continue;
-			}
-			if (dependencySegment === "..") {
-				segments.pop();
-				continue;
-			}
-			segments.push(dependencySegment);
-		}
-		return segments.join("/");
-	};
-
-	/**
-	 * Extract static Nunjucks dependencies from one template source string.
-	 *
-	 * @param {string} source
-	 * @returns {string[]}
-	 */
-	core.extractTemplateDependencies = function extractTemplateDependencies(
-		source
-	) {
-		const dependencies = new Set();
-		for (const pattern of [
-			/{%\s*(?:extends|include|import)\s+["']([^"']+)["']/g,
-			/{%\s*from\s+["']([^"']+)["']\s+import/g
-		]) {
-			for (const match of String(source || "").matchAll(pattern)) {
-				if (match[1]) {
-					dependencies.add(match[1]);
-				}
-			}
-		}
-		return Array.from(dependencies);
-	};
-
-	/**
-	 * Read and cache one template source string for a mounted module.
-	 *
-	 * @param {object} instance
-	 * @param {string} template
-	 * @returns {Promise<string>}
-	 */
-	core.readTemplateSource = function readTemplateSource(instance, template) {
-		const cacheKey = `${instance.path}::${template}`;
-		const cachedSource = core.templateSourceCache.get(cacheKey);
-		if (cachedSource) {
-			return cachedSource;
-		}
-
-		const sourcePromise = fetch(instance.file(template)).then((response) => {
-			if (!response.ok) {
-				throw new Error(
-					`Failed to preload template "${template}" for ${instance.name}: ${response.status} ${response.statusText}`
-				);
-			}
-			return response.text();
-		});
-		core.templateSourceCache.set(cacheKey, sourcePromise);
-		return sourcePromise;
-	};
-
-	/**
-	 * Seed one preloaded template into the live Nunjucks loader cache.
-	 *
-	 * @param {object} instance
-	 * @param {string} template
-	 * @param {string} source
-	 * @returns {void}
-	 */
-	core.seedTemplateLoaderCache = function seedTemplateLoaderCache(
-		instance,
-		template,
-		source
-	) {
-		const environment = instance.nunjucksEnvironment();
-		const loader = Array.isArray(environment.loaders)
-			? environment.loaders[0]
-			: null;
-		if (!loader) {
-			return;
-		}
-		loader.cache = loader.cache || {};
-		loader.cache[template] = new globalScope.nunjucks.Template(
-			source,
-			environment,
-			template,
-			true
-		);
-	};
-
-	/**
-	 * Preload one template and its static dependency tree into the loader cache.
-	 *
-	 * @param {object} instance
-	 * @param {string} template
-	 * @param {Set<string>} [seen]
-	 * @returns {Promise<void>}
-	 */
-	core.preloadTemplateDependencyTree = async function preloadTemplateDependencyTree(
-		instance,
-		template,
-		seen = new Set()
-	) {
-		const normalizedTemplate = String(template || "");
-		if (normalizedTemplate === "" || seen.has(normalizedTemplate)) {
-			return;
-		}
-		seen.add(normalizedTemplate);
-
-		const source = await core.readTemplateSource(instance, normalizedTemplate);
-		core.seedTemplateLoaderCache(instance, normalizedTemplate, source);
-		const dependencies = core
-			.extractTemplateDependencies(source)
-			.map((dependency) =>
-				core.resolveTemplateDependencyPath(normalizedTemplate, dependency)
-			);
-		await Promise.all(
-			dependencies.map((dependency) =>
-				core.preloadTemplateDependencyTree(instance, dependency, seen)
-			)
-		);
-	};
-
-	/**
-	 * Check whether one template has already been compiled into the loader cache.
-	 *
-	 * @param {object} instance
-	 * @param {string} template
-	 * @returns {boolean}
-	 */
-	core.hasPreloadedTemplate = function hasPreloadedTemplate(instance, template) {
-		const environment = instance.nunjucksEnvironment();
-		const loader = Array.isArray(environment.loaders)
-			? environment.loaders[0]
-			: null;
-		return Boolean(loader && loader.cache && loader.cache[template]);
-	};
-
-	/**
-	 * Render one preloaded template synchronously into a wrapper element.
-	 *
-	 * @param {object} instance
-	 * @param {string} template
-	 * @param {object} templateData
-	 * @param {HTMLDivElement} wrapper
-	 * @returns {HTMLDivElement}
-	 */
-	core.renderPreloadedTemplate = function renderPreloadedTemplate(
-		instance,
-		template,
-		templateData,
-		wrapper
-	) {
-		wrapper.innerHTML = instance
-			.nunjucksEnvironment()
-			.render(template, templateData);
-		return wrapper;
-	};
-
-	/**
-	 * Attach one deferred DOM-ready promise to a wrapper returned synchronously.
-	 *
-	 * @param {HTMLElement} wrapper
-	 * @param {Promise<HTMLElement>} domReadyPromise
-	 * @returns {HTMLElement}
-	 */
-	core.attachDeferredDomReady = function attachDeferredDomReady(
-		wrapper,
-		domReadyPromise
-	) {
-		Object.defineProperty(wrapper, "__sandboxDomReady", {
-			configurable: true,
-			value: domReadyPromise
-		});
-		return wrapper;
-	};
-
-	/**
-	 * Resolve one template asynchronously into a wrapper that can still be
-	 * returned synchronously to `getDom()` overrides using `this._super()`.
-	 *
-	 * The adapter preserves wrapper-level mutations done by the overriding
-	 * module before the async template finishes, while letting the runtime await
-	 * the final DOM before render comparison/commit.
-	 *
-	 * @param {object} instance
-	 * @param {string} template
-	 * @param {object} templateData
-	 * @param {HTMLDivElement} wrapper
-	 * @returns {HTMLDivElement}
-	 */
-	core.createDeferredGetDomWrapper = function createDeferredGetDomWrapper(
-		instance,
-		template,
-		templateData,
-		wrapper
-	) {
-		const placeholder = document.createComment("sandbox-super-template");
-		wrapper.appendChild(placeholder);
-		const domReadyPromise = new Promise<HTMLElement>((resolve) => {
-			instance.nunjucksEnvironment().render(
-				template,
-				templateData,
-				(err, asyncRendered) => {
-					if (err) {
-						globalScope.Log.error(err);
-					}
-
-					const fragmentHost = document.createElement("div");
-					fragmentHost.innerHTML = asyncRendered || "";
-					const resolvedNodes = Array.from(fragmentHost.childNodes);
-					if (placeholder.parentNode === wrapper) {
-						placeholder.replaceWith(...resolvedNodes);
-					} else if (!wrapper.childNodes.length) {
-						wrapper.append(...resolvedNodes);
-					}
-					resolve(wrapper);
-				}
-			);
-		});
-
-		return core.attachDeferredDomReady(wrapper, domReadyPromise);
-	};
-
-	/**
 	 * Determine whether a template reference points to a template file.
 	 *
 	 * @param {string} template
 	 * @returns {boolean}
 	 */
 	core.isTemplateFile = function isTemplateFile(template) {
-		return typeof template === "string" && (/^.*((\.html)|(\.njk))$/).test(template);
+		return (
+			typeof template === "string" &&
+			/^.*((\.html)|(\.njk))$/.test(template)
+		);
 	};
 
 	/**
@@ -469,7 +209,7 @@
 		return {
 			name,
 			identifier: harness.moduleIdentifier || `${name}_sandbox`,
-			path: harness.modulePath || `/modules/${name}`,
+			path: harness.modulePath || `modules/${name}/`,
 			file: `${name}.js`,
 			position: moduleConfig.position || "middle_center",
 			header: hasOwnHeader ? moduleConfig.header : undefined,
@@ -500,15 +240,7 @@
 			typeof instance.getHeader === "function"
 				? instance.getHeader
 				: function getHeader() {
-						if (this.data && this.data.header === false) {
-							return "";
-						}
-						if (this.data && typeof this.data.header === "string") {
-							return this.data.header === ""
-								? this.name
-								: this.data.header;
-						}
-						return this.name;
+						return this.data.header;
 					};
 
 		/**
@@ -553,7 +285,7 @@
 		 * Internal helper for file.
 		 */
 		instance.file = function file(filename) {
-			return `${this.data.path}/${filename}`;
+			return ("/" + this.data.path + filename).replace(/\/\//g, "/");
 		};
 
 		/**
@@ -636,26 +368,62 @@
 			return this.socket().sendNotification(notification, payload);
 		};
 
-		/**
-		 * Hides.
-		 */
 		instance.hide = function hide(speed = 0, callback, options) {
-			const shouldSuspend = !this.hidden;
-			if (shouldSuspend) {
-				core.suspendModule(this);
+			let usedCallback =
+				typeof callback === "function" ? callback : function () {};
+			let usedOptions = typeof options === "object" ? options : {};
+			if (typeof callback === "object") {
+				globalScope.Log.error(
+					"Parameter mismatch in module.hide: callback is not an optional parameter!"
+				);
+				usedOptions = callback;
+				usedCallback = function () {};
 			}
-			return globalScope.MM.hideModule(this, speed, callback, options);
+			if (usedOptions.lockString) {
+				this.lockStrings.push(usedOptions.lockString);
+			}
+			const self = this;
+			return globalScope.MM.hideModule(
+				this,
+				speed,
+				() => {
+					core.suspendModule(self);
+					usedCallback();
+				},
+				usedOptions
+			);
 		};
 
-		/**
-		 * Shows.
-		 */
 		instance.show = function show(speed = 0, callback, options) {
-			const shouldResume = this.hidden;
-			if (shouldResume) {
-				core.resumeModule(this);
+			let usedCallback =
+				typeof callback === "function" ? callback : function () {};
+			let usedOptions = typeof options === "object" ? options : {};
+			if (typeof callback === "object") {
+				globalScope.Log.error(
+					"Parameter mismatch in module.show: callback is not an optional parameter!"
+				);
+				usedOptions = callback;
+				usedCallback = function () {};
 			}
-			return globalScope.MM.showModule(this, speed, callback, options);
+			if (usedOptions.lockString) {
+				const index = this.lockStrings.indexOf(usedOptions.lockString);
+				if (index !== -1) {
+					this.lockStrings.splice(index, 1);
+				}
+			}
+			if (this.lockStrings.length !== 0) {
+				return;
+			}
+			const self = this;
+			return globalScope.MM.showModule(
+				this,
+				speed,
+				() => {
+					core.resumeModule(self);
+					usedCallback();
+				},
+				usedOptions
+			);
 		};
 
 		/**
@@ -699,18 +467,30 @@
 			return core.loadTranslations(this);
 		};
 
-		instance.loadTemplates = function loadTemplates() {
-			if (this.__sandboxUsesGetDomSuper !== true) {
-				return Promise.resolve();
-			}
-
-			const template = this.getTemplate();
-			if (!core.isTemplateFile(template)) {
-				return Promise.resolve();
-			}
-
-			return core.preloadTemplateDependencyTree(this, template);
-		};
+		instance.loadTemplates =
+			typeof instance.loadTemplates === "function"
+				? instance.loadTemplates
+				: function loadTemplates() {
+						const template =
+							typeof this.getTemplate === "function"
+								? this.getTemplate()
+								: null;
+						if (!core.isTemplateFile(template)) {
+							return Promise.resolve();
+						}
+						return new Promise((resolve) => {
+							this.nunjucksEnvironment().render(
+								template,
+								{},
+								(err) => {
+									if (err) {
+										globalScope.Log?.error?.(err);
+									}
+									resolve();
+								}
+							);
+						});
+					};
 
 		instance.getTemplate =
 			typeof instance.getTemplate === "function"
@@ -742,9 +522,12 @@
 
 						this._nunjucksEnvironment =
 							new globalScope.nunjucks.Environment(
-								new globalScope.nunjucks.WebLoader(this.file(""), {
-									async: true
-								}),
+								new globalScope.nunjucks.WebLoader(
+									("/" + this.data.path).replace(/\/+$/, ""),
+									{
+										async: true
+									}
+								),
 								{
 									trimBlocks: true,
 									lstripBlocks: true
@@ -766,50 +549,32 @@
 			typeof instance.getDom === "function"
 				? instance.getDom
 				: function getDom() {
-						const div = document.createElement("div");
-						const template = this.getTemplate();
-						const templateData = this.getTemplateData();
+						return new Promise((resolve) => {
+							const div = document.createElement("div");
+							const template = this.getTemplate();
+							const templateData = this.getTemplateData();
 
-						if (core.isTemplateFile(template)) {
-							if (core.isGetDomSuperCall(this)) {
-								if (core.hasPreloadedTemplate(this, template)) {
-									return core.renderPreloadedTemplate(
-										this,
-										template,
-										templateData,
-										div
-									);
-								}
-
-								return core.createDeferredGetDomWrapper(
-									this,
-									template,
-									templateData,
-									div
-								);
-							}
-
-							return new Promise((resolve) => {
+							if (core.isTemplateFile(template)) {
 								this.nunjucksEnvironment().render(
 									template,
 									templateData,
-									(err, asyncRendered) => {
+									(err, res) => {
 										if (err) {
 											globalScope.Log.error(err);
 										}
-
-										div.innerHTML = asyncRendered || "";
+										div.innerHTML = res;
 										resolve(div);
 									}
 								);
-							});
-						}
-
-						div.innerHTML = this.nunjucksEnvironment().renderString(
-							template,
-							templateData
-						);
-						return div;
+							} else {
+								div.innerHTML =
+									this.nunjucksEnvironment().renderString(
+										template,
+										templateData
+									);
+								resolve(div);
+							}
+						});
 					};
 
 		return instance;
@@ -867,23 +632,22 @@
 		const headerValue =
 			typeof instance.getHeader === "function"
 				? instance.getHeader()
-				: instance.name;
-		const showHeader =
-			headerValue !== false &&
-			headerValue !== null &&
-			headerValue !== undefined &&
-			String(headerValue) !== "";
+				: undefined;
+
+		// Match main.js header rendering semantics exactly:
+		//   - headerValue === false  → hide the header (showHeader = false)
+		//   - headerValue is falsy but not false (undefined, "") → show module name
+		//   - headerValue is truthy → show as-is
+		// Source: main.js header rendering: innerHTML = header ? header : module.data.name
+		const showHeader = headerValue !== false;
+		const headerText = showHeader
+			? String(headerValue || instance.name || "")
+			: "";
+
 		let content =
 			typeof instance.getDom === "function"
 				? await Promise.resolve(instance.getDom())
 				: document.createElement("div");
-		const domReadyPromise =
-			content && typeof content === "object"
-				? Reflect.get(content, "__sandboxDomReady")
-				: null;
-		if (domReadyPromise && typeof domReadyPromise.then === "function") {
-			content = await domReadyPromise;
-		}
 
 		if (!(content instanceof HTMLElement)) {
 			const wrapper = document.createElement("div");
@@ -894,7 +658,7 @@
 		}
 
 		return {
-			header: showHeader ? String(headerValue) : "",
+			header: headerText,
 			showHeader,
 			content
 		};
@@ -922,8 +686,7 @@
 		comparisonNode.appendChild(renderOutput.content);
 
 		return (
-			(headerNode ? headerNode.textContent : "") !==
-				renderOutput.header ||
+			(headerNode ? headerNode.innerHTML : "") !== renderOutput.header ||
 			(headerNode ? headerNode.style.display : "none") !==
 				(renderOutput.showHeader ? "block" : "none") ||
 			(contentNode ? contentNode.innerHTML : "") !==
@@ -953,7 +716,7 @@
 			return;
 		}
 
-		headerNode.textContent = renderOutput.header;
+		headerNode.innerHTML = renderOutput.header;
 		headerNode.style.display = renderOutput.showHeader ? "block" : "none";
 
 		contentNode.replaceChildren();
@@ -1044,12 +807,33 @@
 			error(...args) {
 				core.log("error", ...args);
 			},
-			/**
-			 * Internal helper for warn.
-			 */
 			warn(...args) {
 				core.log("warn", ...args);
-			}
+			},
+			debug(...args) {
+				core.log("debug", ...args);
+			},
+			group(...args) {
+				console.group(...args);
+			},
+			groupCollapsed(...args) {
+				console.groupCollapsed(...args);
+			},
+			groupEnd() {
+				console.groupEnd();
+			},
+			time(label) {
+				console.time(label);
+			},
+			timeEnd(label) {
+				console.timeEnd(label);
+			},
+			timeStamp(label) {
+				if (typeof console.timeStamp === "function") {
+					console.timeStamp(label);
+				}
+			},
+			setLogLevel() {}
 		};
 
 		globalScope.Module = {

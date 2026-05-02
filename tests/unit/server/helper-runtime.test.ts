@@ -19,6 +19,33 @@ const repoRoot = path.resolve(
 	".."
 );
 const helperPath = path.join(repoRoot, "node_helper.js");
+const tempHelperDir = path.join(repoRoot, ".runtime-cache");
+
+/**
+ * Write a temporary helper file, returning its path.
+ * Caller is responsible for deleting it in a finally block.
+ */
+function writeTempHelper(source: string): string {
+	fs.mkdirSync(tempHelperDir, { recursive: true });
+	const tempPath = path.join(
+		tempHelperDir,
+		`__test_helper_${Date.now()}_${Math.random().toString(36).slice(2)}.js`
+	);
+	fs.writeFileSync(tempPath, source, "utf8");
+	return tempPath;
+}
+
+/**
+ * Remove a temporary helper file and its require-cache entry.
+ */
+function cleanupTempHelper(tempPath: string): void {
+	try {
+		delete nodeRequire.cache[nodeRequire.resolve(tempPath)];
+	} catch {
+		// Not in cache — that's fine.
+	}
+	fs.rmSync(tempPath, { force: true });
+}
 
 test("restartHelper works when used as an unbound callback", async () => {
 	const helperRuntime = createHelperRuntime({
@@ -76,14 +103,8 @@ test("injectShimResolution prepends the shim directory to NODE_PATH", () => {
 });
 
 test("restartHelper can boot a helper that requires #http_fetcher", async () => {
-	const originalExists = fs.existsSync(helperPath);
-	const originalSource = originalExists
-		? fs.readFileSync(helperPath, "utf8")
-		: null;
-
 	global.__MODULE_SANDBOX_HTTP_FETCHER_TEST__ = null;
-	fs.writeFileSync(
-		helperPath,
+	const tempPath = writeTempHelper(
 		`const path = require("node:path");
 const NodeHelper = require("node_helper");
 const HTTPFetcher = require(path.join(global.root_path, "js", "http_fetcher.js"));
@@ -96,8 +117,7 @@ module.exports = NodeHelper.create({
 			userAgent: serverFunctions.getUserAgent()
 		};
 	}
-});\n`,
-		"utf8"
+});\n`
 	);
 
 	try {
@@ -139,7 +159,8 @@ module.exports = NodeHelper.create({
 			 */
 			getHarnessCacheDir() {
 				return ".runtime-cache/default";
-			}
+			},
+			helperPath: tempPath
 		});
 
 		await helperRuntime.restartHelper();
@@ -154,14 +175,7 @@ module.exports = NodeHelper.create({
 		);
 	} finally {
 		delete global.__MODULE_SANDBOX_HTTP_FETCHER_TEST__;
-		delete nodeRequire.cache[nodeRequire.resolve(helperPath)];
-		if (originalExists && originalSource !== null) {
-			fs.writeFileSync(helperPath, originalSource, "utf8");
-		} else if (fs.existsSync(helperPath)) {
-			fs.rmSync(helperPath, {
-				force: true
-			});
-		}
+		cleanupTempHelper(tempPath);
 	}
 });
 
@@ -190,22 +204,15 @@ test("stopHelper does nothing when helper has no stop method", async () => {
 });
 
 test("restartHelper boots a helper that has no loaded or start method", async () => {
-	const originalExists = fs.existsSync(helperPath);
-	const originalSource = originalExists
-		? fs.readFileSync(helperPath, "utf8")
-		: null;
 	const calls: string[] = [];
-
 	global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__ = calls;
-	fs.writeFileSync(
-		helperPath,
+	const tempPath = writeTempHelper(
 		`module.exports = {
 	setName() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setName"); },
 	setPath() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setPath"); },
 	setExpressApp() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setExpressApp"); },
 	setSocketIO() { global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__.push("setSocketIO"); }
-};\n`,
-		"utf8"
+};\n`
 	);
 
 	try {
@@ -223,7 +230,8 @@ test("restartHelper boots a helper that has no loaded or start method", async ()
 			 */
 			getHarnessCacheDir() {
 				return ".runtime-cache/default";
-			}
+			},
+			helperPath: tempPath
 		});
 
 		await assert.doesNotReject(async () => {
@@ -236,32 +244,20 @@ test("restartHelper boots a helper that has no loaded or start method", async ()
 		assert.ok(!calls.includes("start"));
 	} finally {
 		delete global.__MODULE_SANDBOX_MINIMAL_HELPER_CALLS__;
-		delete nodeRequire.cache[nodeRequire.resolve(helperPath)];
-		if (originalExists && originalSource !== null) {
-			fs.writeFileSync(helperPath, originalSource, "utf8");
-		} else if (fs.existsSync(helperPath)) {
-			fs.rmSync(helperPath, { force: true });
-		}
+		cleanupTempHelper(tempPath);
 	}
 });
 
 test("restartHelper works with a constructor-style (class/function) helper export", async () => {
-	const originalExists = fs.existsSync(helperPath);
-	const originalSource = originalExists
-		? fs.readFileSync(helperPath, "utf8")
-		: null;
 	const calls: string[] = [];
-
 	global.__MODULE_SANDBOX_CTOR_CALLS__ = calls;
-	fs.writeFileSync(
-		helperPath,
+	const tempPath = writeTempHelper(
 		`function HelperClass() {}
 HelperClass.prototype.setName = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setName"); };
 HelperClass.prototype.setPath = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setPath"); };
 HelperClass.prototype.setExpressApp = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setExpressApp"); };
 HelperClass.prototype.setSocketIO = function() { global.__MODULE_SANDBOX_CTOR_CALLS__.push("setSocketIO"); };
-module.exports = HelperClass;\n`,
-		"utf8"
+module.exports = HelperClass;\n`
 	);
 
 	try {
@@ -279,7 +275,8 @@ module.exports = HelperClass;\n`,
 			 */
 			getHarnessCacheDir() {
 				return ".runtime-cache/default";
-			}
+			},
+			helperPath: tempPath
 		});
 
 		await assert.doesNotReject(async () => {
@@ -290,25 +287,14 @@ module.exports = HelperClass;\n`,
 		assert.ok(calls.includes("setSocketIO"));
 	} finally {
 		delete global.__MODULE_SANDBOX_CTOR_CALLS__;
-		delete nodeRequire.cache[nodeRequire.resolve(helperPath)];
-		if (originalExists && originalSource !== null) {
-			fs.writeFileSync(helperPath, originalSource, "utf8");
-		} else if (fs.existsSync(helperPath)) {
-			fs.rmSync(helperPath, { force: true });
-		}
+		cleanupTempHelper(tempPath);
 	}
 });
 
 test("restartHelper boots and reuses helper wiring while stopHelper shuts down the active instance", async () => {
-	const originalExists = fs.existsSync(helperPath);
-	const originalSource = originalExists
-		? fs.readFileSync(helperPath, "utf8")
-		: null;
 	const helperCalls = [];
-
 	global.__MODULE_SANDBOX_HELPER_TEST_CALLS__ = helperCalls;
-	fs.writeFileSync(
-		helperPath,
+	const tempPath = writeTempHelper(
 		`module.exports = {
 	setName(name) {
 		global.__MODULE_SANDBOX_HELPER_TEST_CALLS__.push(["setName", name]);
@@ -328,8 +314,7 @@ test("restartHelper boots and reuses helper wiring while stopHelper shuts down t
 	async stop() {
 		global.__MODULE_SANDBOX_HELPER_TEST_CALLS__.push(["stop"]);
 	}
-};\n`,
-		"utf8"
+};\n`
 	);
 
 	try {
@@ -354,7 +339,8 @@ test("restartHelper boots and reuses helper wiring while stopHelper shuts down t
 			 */
 			getHarnessCacheDir() {
 				return ".runtime-cache/default";
-			}
+			},
+			helperPath: tempPath
 		});
 
 		await helperRuntime.restartHelper();
@@ -375,13 +361,6 @@ test("restartHelper boots and reuses helper wiring while stopHelper shuts down t
 		);
 	} finally {
 		delete global.__MODULE_SANDBOX_HELPER_TEST_CALLS__;
-		delete nodeRequire.cache[nodeRequire.resolve(helperPath)];
-		if (originalExists && originalSource !== null) {
-			fs.writeFileSync(helperPath, originalSource, "utf8");
-		} else if (fs.existsSync(helperPath)) {
-			fs.rmSync(helperPath, {
-				force: true
-			});
-		}
+		cleanupTempHelper(tempPath);
 	}
 });

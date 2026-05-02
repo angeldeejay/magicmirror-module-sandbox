@@ -108,7 +108,7 @@ function buildRuntimeState({
 		moduleName: harnessConfig.moduleName,
 		moduleEntry: harnessConfig.moduleEntry,
 		moduleIdentifier: harnessConfig.moduleIdentifier,
-		modulePath: `/modules/${harnessConfig.moduleName}`,
+		modulePath: `modules/${harnessConfig.moduleName}/`,
 		sandboxUrl,
 		assetVersion,
 		configDeepMerge: Boolean(harnessConfig.configDeepMerge),

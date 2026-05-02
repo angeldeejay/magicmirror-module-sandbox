@@ -33,6 +33,8 @@ type HelperRuntimeOptions = {
 	io: import("socket.io").Server;
 	getHarnessConfig: () => { moduleName: string };
 	getHarnessCacheDir: () => string;
+	/** Override the resolved `node_helper.js` path. Primarily for testing. */
+	helperPath?: string;
 };
 type HelperInstance = {
 	loaded?: () => Promise<void> | void;
@@ -121,7 +123,8 @@ function createHelperRuntime({
 	app,
 	io,
 	getHarnessConfig,
-	getHarnessCacheDir
+	getHarnessCacheDir,
+	helperPath: helperPathOverride
 }: HelperRuntimeOptions) {
 	let helperInstance: HelperInstance | null = null;
 	let moduleStaticAttached = false;
@@ -146,7 +149,8 @@ function createHelperRuntime({
 		clearModuleRequireCache();
 		process.env.MM_SANDBOX_CACHE_DIR = getHarnessCacheDir();
 		const harnessConfig = getHarnessConfig();
-		const helperPath = path.join(repoRoot, "node_helper.js");
+		const helperPath =
+			helperPathOverride ?? path.join(repoRoot, "node_helper.js");
 		if (!fs.existsSync(helperPath)) {
 			helperInstance = null;
 			return;

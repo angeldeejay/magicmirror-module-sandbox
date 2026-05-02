@@ -83,9 +83,7 @@ function lastHandler(): (event: string, filePath: string) => void {
 /**
  * Returns the handler captured at position i (0-indexed creation order).
  */
-function handlerAt(
-	i: number
-): (event: string, filePath: string) => void {
+function handlerAt(i: number): (event: string, filePath: string) => void {
 	const h = capturedHandlers[i];
 	assert.ok(h, `chokidar 'all' handler at index ${i} was not registered`);
 	return h;
@@ -106,9 +104,7 @@ async function triggerEvent(
 /**
  * Builds the minimal options for startModuleWatcher.
  */
-function makeModuleWatcherOptions(
-	overrides: Record<string, unknown> = {}
-) {
+function makeModuleWatcherOptions(overrides: Record<string, unknown> = {}) {
 	return {
 		io: { emit: vi.fn() },
 		restartHelper: vi.fn(async () => {}),
@@ -119,9 +115,7 @@ function makeModuleWatcherOptions(
 /**
  * Builds the minimal options for startSandboxWatcher.
  */
-function makeSandboxWatcherOptions(
-	overrides: Record<string, unknown> = {}
-) {
+function makeSandboxWatcherOptions(overrides: Record<string, unknown> = {}) {
 	return {
 		enabled: true,
 		io: { emit: vi.fn() },
@@ -548,7 +542,13 @@ test("startSandboxWatcher: rebuildClientAssets is NOT called for generated/ file
 	await triggerEvent(
 		lastHandler(),
 		"change",
-		path.join(harnessRoot, "client", "generated", "runtime", "stage-bridge.ts")
+		path.join(
+			harnessRoot,
+			"client",
+			"generated",
+			"runtime",
+			"stage-bridge.ts"
+		)
 	);
 
 	assert.equal(rebuildClientAssets.mock.calls.length, 0);

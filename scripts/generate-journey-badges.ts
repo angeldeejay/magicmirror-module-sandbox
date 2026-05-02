@@ -125,20 +125,22 @@ async function generateJourneyBadges(): Promise<void> {
 		recursive: true
 	});
 
-	for (const suite of trackedSuites) {
-		const suiteSummary = readJourneySummary(suite);
-		for (const metric of trackedMetrics) {
-			const metricSummary = suiteSummary[metric];
-			const badgePath = path.join(
-				badgeOutputDirectory,
-				`${metric}-${suite}.svg`
-			);
-			await downloadBadge(
-				badgePath,
-				buildBadgeUrl(suite, metric, metricSummary.percent)
-			);
-		}
-	}
+	await Promise.all(
+		trackedSuites.flatMap((suite) => {
+			const suiteSummary = readJourneySummary(suite);
+			return trackedMetrics.map((metric) => {
+				const metricSummary = suiteSummary[metric];
+				const badgePath = path.join(
+					badgeOutputDirectory,
+					`${metric}-${suite}.svg`
+				);
+				return downloadBadge(
+					badgePath,
+					buildBadgeUrl(suite, metric, metricSummary.percent)
+				);
+			});
+		})
+	);
 
 	console.log("Journey coverage badges created successfully.");
 }

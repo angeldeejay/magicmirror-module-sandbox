@@ -4,7 +4,7 @@
 /**
  * Stylesheet fixture writers for browser-backed sandbox style scenarios.
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,10 +61,23 @@ export function buildFixtureStylesheet(scenarioName = "default") {
 /**
  * Write one named fixture stylesheet scenario to disk.
  *
+ * Skips the write if the file already contains the expected content.
+ * This prevents unnecessary file-system changes that would trigger the
+ * sandbox server's module watcher and cause spurious harness:reload events.
+ *
  * @param {string} stylePath
  * @param {string} [scenarioName]
  * @returns {void}
  */
 export function writeFixtureStylesheet(stylePath, scenarioName = "default") {
-	writeFileSync(stylePath, buildFixtureStylesheet(scenarioName), "utf8");
+	const newContent = buildFixtureStylesheet(scenarioName);
+	try {
+		const existing = readFileSync(stylePath, "utf8");
+		if (existing === newContent) {
+			return;
+		}
+	} catch {
+		// File does not exist yet — fall through to write.
+	}
+	writeFileSync(stylePath, newContent, "utf8");
 }

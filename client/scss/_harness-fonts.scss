@@ -1,0 +1,7 @@
+/**
+ * Harness UI font — Open Sans, independent of MagicMirror fonts.
+ * @font-face declarations are defined in _open-sans.scss.
+ * Font files are copied from @fontsource/open-sans at build time into
+ * client/webfonts/ and served at /webfonts/.
+ */
+@use "open-sans";

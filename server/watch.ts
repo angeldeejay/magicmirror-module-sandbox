@@ -174,7 +174,11 @@ function isHarnessNodeCompatSourceFile(filePath: string): boolean {
  */
 function isModuleWatcherIgnored(filePath: string): boolean {
 	const f = filePath.replace(/\\/g, "/");
-	return f.includes("/node_modules/") || f.includes("/.git/");
+	return (
+		f.includes("/node_modules/") ||
+		f.includes("/.git/") ||
+		f.includes("/.runtime-cache/")
+	);
 }
 
 /**
