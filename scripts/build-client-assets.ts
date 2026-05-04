@@ -232,6 +232,44 @@ async function buildShell(): Promise<void> {
 }
 
 /**
+ * Copies Ace Editor vendor files (core + JS mode) into generated/vendor/ so
+ * they can be served as static scripts without bundling.
+ */
+function syncAceVendorFiles(): void {
+	const aceRoot = path.join(
+		root,
+		"node_modules",
+		"ace-builds",
+		"src-noconflict"
+	);
+	const destDir = path.join(generatedRoot, "vendor");
+	ensureDirectory(destDir);
+	for (const [src, dest] of [
+		["ace.js", "ace.js"],
+		["mode-javascript.js", "ace-mode-javascript.js"]
+	] as const) {
+		fs.copyFileSync(path.join(aceRoot, src), path.join(destDir, dest));
+	}
+}
+
+/**
+ * Bundles js-beautify + its wrapper into a single browser-ready script that
+ * exposes window.js_beautify. Uses bundle:true only for this file.
+ */
+function buildJsBeautifyBundle(): void {
+	const destDir = path.join(generatedRoot, "vendor");
+	ensureDirectory(destDir);
+	buildSync({
+		entryPoints: [path.join(clientRoot, "vendor", "js-beautify-bundle.ts")],
+		outfile: path.join(destDir, "js-beautify.js"),
+		bundle: true,
+		legalComments: "none",
+		logLevel: "silent",
+		target: "es2021"
+	});
+}
+
+/**
  * Builds runtime.
  */
 function buildRuntime(): void {
@@ -247,6 +285,8 @@ function buildRuntime(): void {
 		target: "es2021"
 	});
 	syncCoreBrowserVendorAssets();
+	syncAceVendorFiles();
+	buildJsBeautifyBundle();
 }
 
 /**

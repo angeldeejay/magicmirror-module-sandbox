@@ -549,8 +549,7 @@ export function createSandboxBrowserCommands(suiteName) {
 	async function readModuleConfigEditorText(context) {
 		const page = await getSandboxPage(context);
 		return page.locator("module-config-editor").evaluate((element) => {
-			const root = element.shadowRoot;
-			return root ? root.textContent : "";
+			return (element as any).getFullDisplayText?.() ?? "";
 		});
 	}
 
@@ -580,6 +579,26 @@ export function createSandboxBrowserCommands(suiteName) {
 				new CustomEvent("json-editor:state", { bubbles: true })
 			);
 		}, nextConfig);
+	}
+
+	/**
+	 * Writes raw text into the mounted-module config editor, preserving comments.
+	 */
+	async function writeModuleConfigRaw(context, rawText) {
+		const page = await getSandboxPage(context);
+		await page.evaluate((text) => {
+			const editor = globalThis.document.getElementById(
+				"module-config-editor"
+			) as (ModuleConfigEditor & { raw_string: string }) | null;
+			if (!editor) {
+				throw new Error("Module config editor was not found.");
+			}
+			editor.raw_string = text;
+			editor.dispatchEvent(new Event("input", { bubbles: true }));
+			editor.dispatchEvent(
+				new CustomEvent("json-editor:state", { bubbles: true })
+			);
+		}, rawText);
 	}
 
 	/**
@@ -744,6 +763,7 @@ export function createSandboxBrowserCommands(suiteName) {
 		sandboxStageVisible: stageVisible,
 		sandboxWriteFixtureTextFile: writeFixtureTextFile,
 		sandboxWriteTextFile: writeTextFile,
-		sandboxWriteModuleConfig: writeModuleConfig
+		sandboxWriteModuleConfig: writeModuleConfig,
+		sandboxWriteModuleConfigRaw: writeModuleConfigRaw
 	};
 }

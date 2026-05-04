@@ -11,7 +11,7 @@
     <a id="menu-about" class="harness-menu-link" href="#about" data-domain="about" data-active="false"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> About</a>
     <span class="harness-menu-divider" aria-hidden="true"></span><button id="harness-restart-btn" class="harness-restart-btn" type="button" aria-label="Restart sandbox"><i class="fa-solid fa-rotate-right harness-restart-icon" aria-hidden="true"></i><span class="harness-restart-label">Restart</span></button>
   </nav>
-  <div class="harness-mounted-module"><span class="harness-mounted-module-label"><i class="fa-solid fa-cube" aria-hidden="true"></i> Mounted module</span><code><%= it.runtimeState.moduleName %></code></div>
+  <div class="harness-mounted-module"><span class="harness-mounted-module-label"><i class="fa-solid fa-cube" aria-hidden="true"></i> Mounted module</span><code><%= it.runtimeState.moduleName %></code><% if (it.runtimeState.moduleVersion) { %><span class="harness-mounted-module-version">v<%= it.runtimeState.moduleVersion %></span><% } %></div>
   <div class="harness-theme-picker" id="harness-theme-picker">
     <button class="harness-theme-btn" id="harness-theme-btn" type="button" aria-label="Switch theme" aria-expanded="false" aria-haspopup="listbox">
       <i class="fa-solid fa-fw fa-brush" aria-hidden="true"></i>

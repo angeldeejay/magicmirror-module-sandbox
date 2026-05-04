@@ -33,6 +33,9 @@ export const harnessStateSchema = z
 		locale: z.string().optional(),
 		sandboxUrl: z.string().optional(),
 		watchEnabled: z.boolean().optional(),
+		sandboxVersion: z.string().optional(),
+		moduleVersion: z.string().optional(),
+		mmVersion: z.string().optional(),
 		availableLanguages: z.array(harnessLanguageOptionSchema).default([]),
 		moduleConfigOptions: harnessModuleConfigOptionsSchema.default({
 			positions: [],

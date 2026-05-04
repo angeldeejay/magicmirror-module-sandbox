@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.3.0
+
+- **Upgraded MagicMirror dependency to v2.36.0** — formalized the pin from `^2.35.0` to `^2.36.0` and propagated the version string across all sandbox surfaces (`config/harness.config.ts`, `server/html.ts`, `client/runtime/module.ts`, test fixtures and assertions). Full contract audit confirmed zero API breaks between v2.35 and v2.36: `module.js`, `node_helper.js`, `logger.js`, `http_fetcher.js`, `server_functions.js`, and `vendor.js` all retain the same public API.
+- **Config editor overhaul** — `client/vendor/module-config-editor.ts` received several changes across this release:
+    - **Three-editor architecture** — rewritten from a single Ace instance to three stacked editors: a read-only prefix pane (the `let config = { … config: {` envelope), a scrollable editable pane for inner config properties, and a read-only suffix pane. Line numbers are continuous across all three. The editable pane enforces `INNER_INDENT` (6 spaces, depth 3) for display; stored values are always dedented to depth 0. `Ctrl+A` + `Delete` clears only the editable pane. A custom Ace theme (`ace-theme-harness.ts`) adapts all token and chrome colors to the active `--hns-*` token set, making the editor theme-aware without JavaScript.
+    - **`header: false` renders as boolean** — `syncHeader` now detects the `"false"` string convention used by MagicMirror's attribute transport and emits a boolean `false` node instead of the string `"false"`.
+    - **JS comment support** — the editable pane accepts `//` and `/* */` comments without invalidating the config. **Format** strips comments via `stripComments()` before running js-beautify; comments are not preserved through a format round-trip by design.
+    - **Readonly pane hardening** — a transparent `::after` overlay blocks pointer events on prefix and suffix panes. `tabIndex=-1` on their internal Ace textareas eliminates the focus tooltip on keyboard navigation.
+    - **Inline error highlighting** — on a parse failure the editable pane marks the error row with a gutter annotation and a subtle red line highlight, both cleared on the next valid keystroke. The validity indicator now shows only **Config valid** or **Config invalid**.
+    - **`applyBeautify` cursor preservation** — after a format round-trip the editor attempts to restore cursor position and selection via a normalized left-context pattern match that survives whitespace changes and quoted-to-unquoted key transforms. Restoration is best-effort.
+- **Journey coverage: stale artifact fix** — the reporter now detects which suites (`ui`, `integration`) are present in the current run by inspecting `testModules` paths and passes them as `explicitSuites` to `buildJourneyCoverageSummary`. Previously, a run where all journey-tagged tests crashed before producing records would exit early without overwriting the summary JSON, leaving a stale 100% score in place for subsequent badge generation.
+- **Documentation** — added `docs/themes.md` (theme switcher user manual); updated `docs/config.md` for the validity badge and error highlighting; corrected panel order in `docs/debug.md`; removed non-existent content from `docs/about.md`; removed changelog-toned language from `docs/runtime.md`.
+
 ## v1.2.0
 
 - **Browser test suite optimizations** — net result vs baseline: integration suite **-41% wall-clock**, **-51% test time**; `core-fidelity` file **-63%** per-file:

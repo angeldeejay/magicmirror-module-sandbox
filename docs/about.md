@@ -9,7 +9,6 @@ The **About** area gives you the quick product story and a few useful links.
 - short product statement
 - MagicMirror reference links
 - product and author credits
-- enough context to distinguish one-off `npx` usage from local package installation
 
 ## When it helps most
 

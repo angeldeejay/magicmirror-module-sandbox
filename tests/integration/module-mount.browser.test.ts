@@ -153,7 +153,7 @@ journeyTest(
 			.poll(() => stageText("#test-module-helper-reply"))
 			.toBe("Helper: fixture ping");
 
-		expect(moduleRuntimeDetails.mmVersion).toBe("2.35.0");
+		expect(moduleRuntimeDetails.mmVersion).toBe("2.36.0");
 		expect(moduleRuntimeDetails.language).toBe("es");
 		expect(moduleRuntimeDetails.locale).toBe("es");
 		expect(moduleRuntimeDetails.wrapperId).toBe("MMM-TestModule_sandbox");

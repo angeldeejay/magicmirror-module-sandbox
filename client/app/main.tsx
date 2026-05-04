@@ -30,4 +30,4 @@ function mount(component: VNode, containerId: string) {
 
 mount(<Topbar harness={harness} />, "harness-topbar-root");
 mount(<Sidebar harness={harness} />, "harness-sidebar-root");
-mount(<Footer />, "harness-footer-root");
+mount(<Footer harness={harness} />, "harness-footer-root");

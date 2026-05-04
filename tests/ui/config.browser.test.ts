@@ -11,9 +11,12 @@ import {
 	pageClick,
 	pageEvaluate,
 	pageFill,
+	pageUncheck,
 	pageValue,
 	pageVisible,
-	readModuleConfigEditorText
+	readModuleConfigEditorText,
+	writeModuleConfig,
+	writeModuleConfigRaw
 } from "../_helpers/helpers.browser.ts";
 import { createJourneyTest } from "../_helpers/journey-coverage.ts";
 
@@ -169,7 +172,7 @@ journeyTest(
 					);
 				})
 			)
-			.toBe("Edited locally");
+			.toBe("Edited");
 		await pageClick("#module-config-reset");
 		await expect.poll(() => pageValue("#config-classes")).toBe("");
 		await expect
@@ -183,5 +186,132 @@ journeyTest(
 				})
 			)
 			.toBe("Saved");
+	}
+);
+
+/**
+ * Validation states: header-false boolean rendering, invalid config, module-tab revert.
+ */
+journeyTest(
+	"ui-config-editor-validation",
+	"config editor renders header:false as boolean, rejects invalid config, and reverts module tab",
+	async () => {
+		await gotoSandbox();
+		await openDomain("config");
+
+		// header: false renders as boolean in the preview wrapper.
+		await openSidebarTab("config", "general");
+		await pageUncheck("#config-header-enabled");
+		await openSidebarTab("config", "module");
+		await expect
+			.poll(() => readModuleConfigEditorText())
+			.toMatch(/header:\s*false(?!["\s]*")/);
+		await expect
+			.poll(() => readModuleConfigEditorText())
+			.not.toContain('header: "false"');
+
+		// Invalid config disables save and shows Invalid state.
+		await writeModuleConfigRaw("{broken json {{");
+		await expect
+			.poll(() =>
+				pageEvaluate(() => {
+					return (
+						globalThis.document.getElementById("module-config-validity")
+							?.textContent ?? ""
+					);
+				})
+			)
+			.toBe("Invalid");
+		await expect
+			.poll(() =>
+				pageEvaluate(() => {
+					const btn = globalThis.document.getElementById(
+						"module-config-save"
+					) as HTMLButtonElement | null;
+					return btn ? btn.disabled : false;
+				})
+			)
+			.toBe(true);
+
+		// Module tab revert restores JSON content and clears dirty state.
+		await writeModuleConfig({ revertTest: true });
+		await expect
+			.poll(() =>
+				pageEvaluate(() => {
+					return (
+						globalThis.document.getElementById(
+							"module-config-dirty-state"
+						)?.textContent ?? ""
+					);
+				})
+			)
+			.toBe("Edited");
+		await pageClick("#module-config-reset");
+		await expect
+			.poll(() =>
+				pageEvaluate(() => {
+					return (
+						globalThis.document.getElementById(
+							"module-config-dirty-state"
+						)?.textContent ?? ""
+					);
+				})
+			)
+			.toBe("Saved");
+		await expect
+			.poll(() =>
+				pageEvaluate(() => {
+					const editor = globalThis.document.getElementById(
+						"module-config-editor"
+					) as (HTMLElement & { raw_string: string }) | null;
+					return editor ? editor.raw_string : "NOT_FOUND";
+				})
+			)
+			.not.toContain("revertTest");
+	}
+);
+
+/**
+ * JS comment support: comments keep validity but are stripped on explicit format.
+ */
+journeyTest(
+	"ui-config-comment-support",
+	"config editor accepts JS comments and strips them on format",
+	async () => {
+		await gotoSandbox();
+		await openDomain("config");
+		await openSidebarTab("config", "module");
+
+		// Comment input stays valid and is visible in editor text.
+		await writeModuleConfigRaw("// my api key\napiKey: \"abc\"");
+		await expect
+			.poll(() =>
+				pageEvaluate(() => {
+					return (
+						globalThis.document.getElementById("module-config-validity")
+							?.textContent ?? ""
+					);
+				})
+			)
+			.toBe("Valid");
+		await expect
+			.poll(() => readModuleConfigEditorText())
+			.toContain("// my api key");
+
+		// Format button reformats with js-beautify — comments are stripped (JSON-backed storage).
+		await pageClick("#module-config-format");
+		await expect
+			.poll(() => readModuleConfigEditorText())
+			.not.toContain("// my api key");
+		await expect
+			.poll(() =>
+				pageEvaluate(() => {
+					return (
+						globalThis.document.getElementById("module-config-validity")
+							?.textContent ?? ""
+					);
+				})
+			)
+			.toBe("Valid");
 	}
 );

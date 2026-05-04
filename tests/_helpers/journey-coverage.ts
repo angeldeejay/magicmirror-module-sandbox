@@ -26,6 +26,8 @@ export type JourneyId =
 	| "ui-bootstrap"
 	| "ui-config-sidebar"
 	| "ui-debug-sidebar"
+	| "ui-config-comment-support"
+	| "ui-config-editor-validation"
 	| "ui-domain-nav-about"
 	| "ui-domain-nav-config"
 	| "ui-domain-nav-debug"
@@ -183,6 +185,38 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 			"module editor valid",
 			"draft state changes visible",
 			"reset restores saved state"
+		]
+	},
+	{
+		id: "ui-config-editor-validation",
+		suite: "ui",
+		label: "Config editor validation",
+		description:
+			"Verify editor validity feedback, header-false boolean rendering, and module-tab revert.",
+		transitions: [
+			"config:header-false-in-preview",
+			"config:invalid-config-shown",
+			"config:module-tab-reverted"
+		],
+		outcomes: [
+			"header false renders as boolean",
+			"invalid config disables save",
+			"module tab revert restores json"
+		]
+	},
+	{
+		id: "ui-config-comment-support",
+		suite: "ui",
+		label: "Config editor comment support",
+		description:
+			"JS comments in the config editor stay valid but are stripped on explicit format (JSON-backed storage).",
+		transitions: [
+			"config:comment-input-valid",
+			"config:format-strips-comments"
+		],
+		outcomes: [
+			"comment text preserved in editor",
+			"format button strips comments"
 		]
 	},
 	{
@@ -590,11 +624,19 @@ export function getJourneyCatalogForSuites(
  * Only passed records count as covered. Failed tests still remain in the raw
  * record list so JSON artifacts can explain what ran without inflating
  * coverage.
+ *
+ * `explicitSuites` pins which suites are in scope even when `records` is
+ * empty — prevents stale artifacts from surviving a run where all journey
+ * tests crashed before producing records.
  */
 export function buildJourneyCoverageSummary(
-	records: readonly JourneyCoverageRecord[]
+	records: readonly JourneyCoverageRecord[],
+	explicitSuites?: readonly JourneySuiteName[]
 ): JourneyCoverageSummary | null {
-	const suites = dedupe(records.map((record) => record.suite));
+	const suites = dedupe([
+		...(explicitSuites ?? []),
+		...records.map((record) => record.suite)
+	]);
 	if (suites.length === 0) {
 		return null;
 	}

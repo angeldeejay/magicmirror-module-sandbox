@@ -362,7 +362,12 @@ function createConfigApi({
 				typeof runtimeConfig.locale === "string"
 					? runtimeConfig.locale
 					: baseHarnessConfig.locale ||
-						deriveLocale(baseHarnessConfig.language)
+						deriveLocale(baseHarnessConfig.language),
+			packageVersion:
+				typeof mountedModuleInfo?.packageVersion === "string" &&
+				mountedModuleInfo.packageVersion.trim()
+					? mountedModuleInfo.packageVersion.trim()
+					: undefined
 		};
 	}
 

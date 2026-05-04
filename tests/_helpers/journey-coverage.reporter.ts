@@ -8,7 +8,8 @@ import type { Reporter, TestCase, TestModule, Vitest } from "vitest/node";
 import {
 	buildJourneyCoverageSummary,
 	type JourneyCoverageMeta,
-	type JourneyCoverageRecord
+	type JourneyCoverageRecord,
+	type JourneySuiteName
 } from "./journey-coverage.ts";
 
 /**
@@ -114,6 +115,16 @@ class JourneyCoverageReporter implements Reporter {
 	async onTestRunEnd(testModules: ReadonlyArray<TestModule>): Promise<void> {
 		const records: JourneyCoverageRecord[] = [];
 
+		// Detect which suites are in scope from module paths so zero-coverage
+		// artifacts are still written when all journey tests crash before
+		// producing records (prevents stale 100% artifacts from surviving).
+		const detectedSuites = new Set<JourneySuiteName>();
+		for (const testModule of testModules) {
+			const id = testModule.relativeModuleId.replace(/\\/g, "/");
+			if (/\/tests\/ui\//.test(id)) detectedSuites.add("ui");
+			if (/\/tests\/integration\//.test(id)) detectedSuites.add("integration");
+		}
+
 		for (const testModule of testModules) {
 			for (const testCase of collectTestCases(testModule)) {
 				const meta = testCase.meta().journeyCoverage as
@@ -135,7 +146,7 @@ class JourneyCoverageReporter implements Reporter {
 			}
 		}
 
-		const summary = buildJourneyCoverageSummary(records);
+		const summary = buildJourneyCoverageSummary(records, [...detectedSuites]);
 		if (!summary || !this.ctx) {
 			return;
 		}

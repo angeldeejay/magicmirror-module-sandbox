@@ -786,7 +786,7 @@
 			locale: harness.locale || harness.language || "en-US",
 			basePath: core.getBasePath()
 		};
-		globalScope.mmVersion = harness.mmVersion || "2.35.0";
+		globalScope.mmVersion = harness.mmVersion || "2.36.0";
 
 		globalScope.Log = {
 			/**

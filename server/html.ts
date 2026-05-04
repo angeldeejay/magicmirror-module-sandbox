@@ -37,6 +37,7 @@ export type HtmlPageOptions = {
 		hiddenOnStartup?: boolean;
 		language: string;
 		locale?: string;
+		packageVersion?: string;
 	};
 	getModuleConfig: () => Record<string, unknown>;
 	getContract: () => Record<string, unknown>;
@@ -47,6 +48,18 @@ const templateEngine = new Eta({
 	cache: false,
 	views: path.join(currentDirPath, "templates")
 });
+
+const SANDBOX_VERSION: string = (() => {
+	try {
+		const pkgPath = path.join(currentDirPath, "..", "package.json");
+		const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+			version?: unknown;
+		};
+		return typeof pkg.version === "string" ? pkg.version : "";
+	} catch {
+		return "";
+	}
+})();
 
 /**
  * Appends asset version.
@@ -112,7 +125,7 @@ function buildRuntimeState({
 		sandboxUrl,
 		assetVersion,
 		configDeepMerge: Boolean(harnessConfig.configDeepMerge),
-		mmVersion: harnessConfig.mmVersion || "2.35.0",
+		mmVersion: harnessConfig.mmVersion || "2.36.0",
 		header: harnessConfig.header,
 		hiddenOnStartup: Boolean(harnessConfig.hiddenOnStartup),
 		language: harnessConfig.language,
@@ -121,7 +134,13 @@ function buildRuntimeState({
 		moduleConfig,
 		moduleConfigOptions: getModuleConfigUiMetadata(),
 		contract: getContract(),
-		helperLogEntries: getHelperLogEntries()
+		helperLogEntries: getHelperLogEntries(),
+		sandboxVersion: SANDBOX_VERSION,
+		moduleVersion:
+			typeof harnessConfig.packageVersion === "string" &&
+			harnessConfig.packageVersion.trim()
+				? harnessConfig.packageVersion.trim()
+				: ""
 	};
 
 	return {
@@ -159,6 +178,10 @@ function createHtmlPage({
 		"/__harness/generated/runtime/debug-panel-renderers.js",
 		"/__harness/generated/runtime/debug-panel-sidebar.js",
 		"/__harness/generated/vendor/json-editor.js",
+		"/__harness/generated/vendor/ace.js",
+		"/__harness/generated/vendor/ace-mode-javascript.js",
+		"/__harness/generated/vendor/ace-theme-harness.js",
+		"/__harness/generated/vendor/js-beautify.js",
 		"/__harness/generated/vendor/module-config-editor.js",
 		"/__harness/generated/runtime/debug-panel.js",
 		"/__harness/generated/runtime/quality-panel.js",

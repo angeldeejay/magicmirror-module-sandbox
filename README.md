@@ -167,6 +167,7 @@ path after `--` to focus a single test file.
 - `server/`: Fastify host, routes, helper lifecycle, startup scripts, and watch loop
 - `client/app/`: Preact shell app and typed bootstrap boundary
 - `client/runtime/`: TypeScript stage/runtime adapters that keep the real module flow
+- `client/vendor/`: hand-authored browser components (`module-config-editor.ts`, `ace-theme-harness.ts`) compiled as standalone assets
 - `client/generated/`: built browser assets emitted from the maintained runtime and shell
 - `config/`: harness config, contracts, language metadata, and module option metadata
 - `docs/`: operator manuals by sidebar domain

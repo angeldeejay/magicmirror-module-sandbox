@@ -2,6 +2,9 @@
  * Unit coverage for Eta/Preact SSR parity across the hydrated shell surfaces.
  */
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { h } from "preact";
 import { renderToString } from "preact/compat/server";
 import { HTMLElement, parse } from "node-html-parser";
@@ -21,6 +24,19 @@ import type { HarnessState } from "../../../client/app/harness-state.ts";
 import htmlModule from "../../../server/html.ts";
 
 const { createHtmlPage } = htmlModule;
+
+const SANDBOX_VERSION: string = (() => {
+	try {
+		const thisDir = path.dirname(fileURLToPath(import.meta.url));
+		const pkgPath = path.resolve(thisDir, "../../../package.json");
+		const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+			version?: unknown;
+		};
+		return typeof pkg.version === "string" ? pkg.version : "";
+	} catch {
+		return "";
+	}
+})();
 
 type DomProjection = string | ProjectedElement;
 
@@ -42,7 +58,8 @@ const harnessConfig = {
 	header: false,
 	hiddenOnStartup: false,
 	language: "en",
-	locale: "en-US"
+	locale: "en-US",
+	mmVersion: "2.36.0"
 };
 
 const rawModuleConfig = {
@@ -55,6 +72,9 @@ const harness: HarnessState = {
 	locale: harnessConfig.locale,
 	sandboxUrl: "http://127.0.0.1:3010",
 	watchEnabled: true,
+	sandboxVersion: SANDBOX_VERSION,
+	moduleVersion: "",
+	mmVersion: "2.36.0",
 	availableLanguages,
 	moduleConfigOptions: getModuleConfigUiMetadata(),
 	moduleConfig: normalizeModuleConfig(rawModuleConfig, {
@@ -260,7 +280,7 @@ const parityCases: ParityCase[] = [
 		name: "footer",
 		selector: ".harness-footer",
 		render() {
-			return renderToString(h(Footer, {}));
+			return renderToString(h(Footer, { harness }));
 		}
 	}
 ];

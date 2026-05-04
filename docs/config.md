@@ -34,6 +34,14 @@ object:
   module only
 - in the default plug-and-play flow, another module repo gets its own empty
   `{}` object until that project saves something
+- the editor accepts `//` and `/* */` comments while you type and will still
+  validate correctly — comments are stripped when you click **Format config**
+  and are not saved to disk
+- a **Config valid** / **Config invalid** badge updates as you type to reflect
+  the current parse state
+- when the config is invalid, the editor marks the error row with a gutter icon
+  and a subtle highlight so you can locate the problem without reading the full
+  error
 - the non-editable wrapper preview around the editor reflects the current
   General panel settings so you can see how the final config envelope will look
 
@@ -43,8 +51,8 @@ Both panels share the same footer actions:
 
 - **Revert draft** restores the General controls, sandbox language, and nested
   module `config` body to the last saved sandbox state.
-- **Format config** rewrites the nested `config` body with the editor's
-  normalized formatting, without saving yet.
+- **Format config** rewrites the nested `config` body with normalized
+  formatting and strips any comments, without saving yet.
 - **Refresh styles** reloads only the stylesheets declared by `getStyles()`
   without a full viewport reload.
 - **Save and reload** writes the current config envelope plus the current

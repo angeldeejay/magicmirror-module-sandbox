@@ -273,6 +273,7 @@ body:not(.harness-stage-page) {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	position: relative;
 	gap: 16px;
 	min-width: 0;
 	padding: 0 16px;
@@ -285,6 +286,8 @@ body:not(.harness-stage-page) {
 
 .harness-footer-copy,
 .harness-footer-credits {
+	display: flex;
+	align-items: center;
 	min-width: 0;
 	white-space: nowrap;
 	overflow: hidden;
@@ -319,6 +322,150 @@ body:not(.harness-stage-page) {
 .harness-footer a:hover {
 	text-decoration: underline;
 }
+
+.harness-footer-center {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	white-space: nowrap;
+}
+
+.harness-footer-mm-link {
+	color: var(--hns-accent);
+	text-decoration: none;
+
+	&:hover {
+		text-decoration: underline;
+	}
+}
+
+.harness-footer-mm-version {
+	color: var(--hns-text-dim);
+}
+
+.harness-footer-divider {
+	width: 1px;
+	height: 10px;
+	background: var(--hns-border);
+	margin: 0 6px;
+	flex-shrink: 0;
+}
+
+.harness-footer-version {
+	color: var(--hns-text-dim);
+}
+
+// ── Module Config Editor (Light DOM) ─────────────────────────────────────────
+
+module-config-editor {
+	width: 100%;
+}
+
+.mce-shell {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	overflow: hidden;
+	box-sizing: border-box;
+	border: 1px solid var(--hns-border-control);
+	border-radius: 6px;
+	background: var(--hns-bg-input);
+	color: var(--hns-text-primary);
+	font-family: Consolas, "Courier New", monospace;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+module-config-editor[data-valid="false"] .mce-shell {
+	border-color: var(--hns-sev-error-icon, #f05e5e);
+}
+
+.mce-line {
+	display: flex;
+	align-items: baseline;
+	column-gap: 4px;
+	padding: 0;
+	white-space: pre;
+	flex-shrink: 0;
+	min-height: 18px;
+}
+
+.mce-ln {
+	display: inline-block;
+	width: calc(3ch + 1px);
+	flex-shrink: 0;
+	text-align: right;
+	box-sizing: border-box;
+	user-select: none;
+	pointer-events: none;
+	background: var(--hns-bg-elevated, #252530);
+	color: var(--hns-text-dim, #565664);
+	border-right: 1px solid var(--hns-border, #28282f);
+}
+.mce-indent {
+	display: inline-block;
+	flex-shrink: 0;
+}
+
+.mce-block {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+
+.mce-embedded {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	position: relative;
+}
+
+.mce-prefix-container,
+.mce-suffix-container {
+	flex: 0 0 auto;
+	overflow: hidden;
+	position: relative;
+
+	&::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		z-index: 10;
+		cursor: default;
+	}
+
+	.ace_cursor {
+		display: none !important;
+	}
+}
+
+.mce-editable-container {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+}
+
+// Ace error line marker
+.ace-error-line {
+	background: rgba(255, 0, 0, 0.12);
+	position: absolute;
+}
+
+// Static envelope token colors (matches former shadow-DOM token palette)
+.mce-token-keyword { color: #e393ff; }
+.mce-token-key { color: #ff6188; }
+.mce-token-string { color: #78dce8; }
+.mce-token-punctuation { color: #84aecc; }
+.mce-token-number { color: #a9dc76; }
+.mce-token-null { color: #cccccc; }
+.mce-token-true { color: #c2e69f; }
+.mce-token-false { color: #e69fc2; }
 
 .module-stage {
 	position: relative;

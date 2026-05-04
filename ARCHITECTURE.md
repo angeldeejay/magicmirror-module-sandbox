@@ -45,6 +45,10 @@ and how to use it, while this file explains how it is put together.
 - `client/runtime.ts` is just the final bootstrap glue
 - `client/scss/` holds the sandbox stylesheet sources and compiles to
   `client/styles/harness.css`
+- `client/vendor/` holds hand-authored TypeScript browser components that ship
+  as compiled assets but are not part of the Vite + Preact shell bundle:
+  `module-config-editor.ts` is the custom element implementing the config editor;
+  `ace-theme-harness.ts` is the Ace Editor theme definition
 
 ### Shims
 
@@ -60,6 +64,43 @@ and how to use it, while this file explains how it is put together.
   can `require("express")` and `server_functions.js` can `require("undici")` via
   standard Node module resolution, without source patches and without adding them
   as sandbox dependencies
+
+## Config editor architecture
+
+The module config editor (`client/vendor/module-config-editor.ts`) is a
+`HTMLElement` custom element (`<module-config-editor>`) rendered inside the
+Config → Module sidebar pane.
+
+### Three-editor layout
+
+The editor splits the full MagicMirror config block into three stacked Ace
+Editor instances inside a CSS flex column:
+
+| Pane | Role | Ace mode |
+|---|---|---|
+| Prefix | Read-only envelope: `let config = { … config: {` | `readOnly: true`, auto-height |
+| Editable | Inner config properties, scrollable | `readOnly: false`, `flex: 1` |
+| Suffix | Read-only closing: `    },\n  }]\n};` | `readOnly: true`, auto-height |
+
+Line numbers are continuous across all three panes via Ace's `firstLineNumber`
+option. The suffix pane recalculates its `firstLineNumber` on every editable
+change through `_syncSuffixFirstLine()`.
+
+### Indent depth
+
+The editable pane always displays content at a minimum indent of depth 3 (6
+spaces, `INNER_INDENT`). `_indentInner()` adds the prefix before display;
+`_dedentInner()` strips it before storage or validation. The stored and
+validated value is always at depth 0.
+
+### Ace theme
+
+`client/vendor/ace-theme-harness.ts` defines `ace/theme/harness` — a custom
+Ace theme that reads all chrome and syntax base colors from the `--hns-*` CSS
+custom property token set. Fixed syntax tokens (keywords, strings, booleans,
+operators, functions) are overridden per `[data-theme]` attribute for each of
+the four sandbox themes, so the editor adapts to theme switches without any
+JavaScript intervention.
 
 ## Watch mode details
 

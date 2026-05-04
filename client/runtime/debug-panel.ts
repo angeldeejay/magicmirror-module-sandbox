@@ -235,14 +235,8 @@
 				return;
 			}
 
-			const rawValue = String(moduleConfigEditor.raw_string || "");
-			const trimmedValue = rawValue.trim();
 			const isValid = moduleConfigEditor.is_valid();
-			const message = !trimmedValue
-				? "Config valid. Saving will write an empty config."
-				: isValid
-					? "Config valid."
-					: moduleConfigEditor.validation_error || "Config invalid.";
+			const message = isValid ? "Config valid" : "Config invalid";
 
 			moduleConfigValidityEl.textContent = isValid ? "Valid" : "Invalid";
 			moduleConfigValidityEl.dataset.state = isValid ? "on" : "off";
@@ -364,7 +358,7 @@
 
 			if (moduleConfigDirtyStateEl) {
 				moduleConfigDirtyStateEl.textContent = isDirty
-					? "Edited locally"
+					? "Edited"
 					: "Saved";
 				moduleConfigDirtyStateEl.dataset.state = isDirty ? "off" : "on";
 			}
@@ -819,8 +813,7 @@
 				return;
 			}
 
-			const normalizedConfig = moduleConfigEditor.json_value;
-			moduleConfigEditor.json_value = normalizedConfig;
+			moduleConfigEditor.applyBeautify();
 			syncModuleConfigEditorState();
 			setModuleConfigStatus(
 				"Reformatted the mounted module config draft."
@@ -996,7 +989,15 @@
 				event.preventDefault();
 				const nextDomain = button.dataset.domain || "";
 				const currentlyActive = button.dataset.active === "true";
-				setActiveDomain(currentlyActive ? "" : nextDomain);
+				const targetDomain = currentlyActive ? "" : nextDomain;
+				history.replaceState(
+					null,
+					"",
+					targetDomain
+						? `#${targetDomain}`
+						: location.pathname + location.search
+				);
+				setActiveDomain(targetDomain);
 			});
 		});
 
@@ -1011,9 +1012,15 @@
 
 		if (sidebarCloseButton) {
 			sidebarCloseButton.addEventListener("click", () => {
+				history.replaceState(null, "", location.pathname + location.search);
 				setActiveDomain("");
 			});
 		}
+
+		globalScope.addEventListener("hashchange", () => {
+			const domain = (globalScope as Window).location.hash.slice(1);
+			setActiveDomain(domain || "");
+		});
 
 		if (lifecycleVisibilityActionButton) {
 			lifecycleVisibilityActionButton.addEventListener("click", () => {
@@ -1161,7 +1168,8 @@
 		if (moduleConfigRefreshStylesButton) {
 			moduleConfigRefreshStylesButton.disabled = !core.stageReady;
 		}
-		setActiveDomain("runtime");
+		const initialDomain = (globalScope as Window).location.hash.slice(1);
+		setActiveDomain(initialDomain || "runtime");
 		setStatus("Notification engine ready.");
 	};
 })(window);

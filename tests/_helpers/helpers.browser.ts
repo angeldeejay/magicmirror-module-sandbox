@@ -357,6 +357,17 @@ export async function writeModuleConfig(nextConfig) {
 }
 
 /**
+ * Set raw text in the mounted-module config editor, preserving comments and
+ * bypassing JSON normalization.
+ *
+ * @param {string} rawText
+ * @returns {Promise<void>}
+ */
+export async function writeModuleConfigRaw(rawText) {
+	await commands.sandboxWriteModuleConfigRaw(rawText);
+}
+
+/**
  * Click a shell-side control that triggers a stage reload and wait for the new
  * iframe runtime to become ready.
  *

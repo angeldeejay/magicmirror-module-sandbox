@@ -26,7 +26,7 @@ export function createHarnessConfig() {
 		moduleIdentifier: detectedModuleInfo.moduleIdentifier,
 		sandbox: detectedModuleInfo.sandbox,
 		configDeepMerge: false,
-		mmVersion: "2.35.0",
+		mmVersion: "2.36.0",
 		header: false,
 		hiddenOnStartup: false
 	};

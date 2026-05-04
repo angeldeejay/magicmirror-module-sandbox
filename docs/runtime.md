@@ -9,7 +9,7 @@ It reflects the module the sandbox picked up from your current project.
 
 ## Always-visible host summary
 
-Runtime now opens with a small host summary above the tabbed content:
+Runtime opens with a small host summary above the tabbed content:
 
 - current sandbox URL
 - config editing location (`sandbox UI`)

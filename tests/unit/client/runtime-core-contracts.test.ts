@@ -57,7 +57,7 @@ function createMockWindow() {
 		__HARNESS__: {
 			language: "en",
 			locale: "en-US",
-			mmVersion: "2.35.0",
+			mmVersion: "2.36.0",
 			moduleConfig: {},
 			moduleIdentifier: "MMM-Test_sandbox",
 			moduleName: "MMM-Test",
@@ -187,7 +187,7 @@ describe("compareVersions — requiresVersion gate (module.js:compareVersions)",
 			l: string,
 			r: string
 		) => number;
-		expect(compareVersions("2.35.0", "2.35.0")).toBe(0);
+		expect(compareVersions("2.36.0", "2.36.0")).toBe(0);
 	});
 
 	test("higher major returns 1", () => {
@@ -195,7 +195,7 @@ describe("compareVersions — requiresVersion gate (module.js:compareVersions)",
 			l: string,
 			r: string
 		) => number;
-		expect(compareVersions("3.0.0", "2.35.0")).toBe(1);
+		expect(compareVersions("3.0.0", "2.36.0")).toBe(1);
 	});
 
 	test("lower major returns -1", () => {
@@ -211,7 +211,7 @@ describe("compareVersions — requiresVersion gate (module.js:compareVersions)",
 			l: string,
 			r: string
 		) => number;
-		expect(compareVersions("2.35.0", "2.0.0")).toBe(1);
+		expect(compareVersions("2.36.0", "2.0.0")).toBe(1);
 	});
 
 	test("same major.minor, higher patch returns 1", () => {
@@ -219,18 +219,18 @@ describe("compareVersions — requiresVersion gate (module.js:compareVersions)",
 			l: string,
 			r: string
 		) => number;
-		expect(compareVersions("2.35.1", "2.35.0")).toBe(1);
+		expect(compareVersions("2.36.1", "2.36.0")).toBe(1);
 	});
 
-	test("sandbox mmVersion '2.35.0' satisfies requiresVersion '2.0.0'", () => {
+	test("sandbox mmVersion '2.36.0' satisfies requiresVersion '2.0.0'", () => {
 		const compareVersions = core.compareVersions as (
 			l: string,
 			r: string
 		) => number;
 		// Module.register accepts the module when mmVersion >= requiresVersion.
-		// compareVersions("2.35.0", "2.0.0") must be >= 0 (not negative).
+		// compareVersions("2.36.0", "2.0.0") must be >= 0 (not negative).
 		// Source: module.js Module.register gating logic.
-		expect(compareVersions("2.35.0", "2.0.0")).toBeGreaterThanOrEqual(0);
+		expect(compareVersions("2.36.0", "2.0.0")).toBeGreaterThanOrEqual(0);
 	});
 });
 
@@ -315,9 +315,17 @@ describe("D8 — installGlobals creates Log with all required methods (logger.js
 		const mockWindow = createMockWindow();
 		const noop = () => {};
 		const silentConsole = {
-			log: noop, info: noop, warn: noop, error: noop, debug: noop,
-			group: noop, groupCollapsed: noop, groupEnd: noop,
-			time: noop, timeEnd: noop, timeStamp: noop
+			log: noop,
+			info: noop,
+			warn: noop,
+			error: noop,
+			debug: noop,
+			group: noop,
+			groupCollapsed: noop,
+			groupEnd: noop,
+			time: noop,
+			timeEnd: noop,
+			timeStamp: noop
 		};
 		const ctx = vm.createContext({
 			window: mockWindow,
@@ -399,12 +407,8 @@ describe("D8 — installGlobals creates Log with all required methods (logger.js
 			(logObject.groupCollapsed as (...a: unknown[]) => void)("grp")
 		).not.toThrow();
 		expect(() => (logObject.groupEnd as () => void)()).not.toThrow();
-		expect(() =>
-			(logObject.time as (l: string) => void)("t")
-		).not.toThrow();
-		expect(() =>
-			(logObject.timeEnd as (l: string) => void)("t")
-		).not.toThrow();
+		expect(() => (logObject.time as (l: string) => void)("t")).not.toThrow();
+		expect(() => (logObject.timeEnd as (l: string) => void)("t")).not.toThrow();
 		expect(() =>
 			(logObject.timeStamp as (l: string) => void)("ts")
 		).not.toThrow();
@@ -456,8 +460,7 @@ describe("D9 — setSelectionMethodsForModules: filter methods non-enumerable, w
 			typeof (modules as unknown as Record<string, unknown>).withClass
 		).toBe("function");
 		expect(
-			typeof (modules as unknown as Record<string, unknown>)
-				.exceptWithClass
+			typeof (modules as unknown as Record<string, unknown>).exceptWithClass
 		).toBe("function");
 		expect(
 			typeof (modules as unknown as Record<string, unknown>).exceptModule
@@ -551,10 +554,7 @@ describe("D9 — setSelectionMethodsForModules: filter methods non-enumerable, w
 		setSelectionMethods()(modules);
 
 		const enumerate = (
-			modules as unknown as Record<
-				string,
-				(cb: (m: unknown) => void) => void
-			>
+			modules as unknown as Record<string, (cb: (m: unknown) => void) => void>
 		).enumerate;
 
 		const visited: unknown[] = [];
@@ -581,8 +581,7 @@ describe("D9 — setSelectionMethodsForModules: filter methods non-enumerable, w
 			typeof (filtered as unknown as Record<string, unknown>).withClass
 		).toBe("function");
 		expect(
-			typeof (filtered as unknown as Record<string, unknown>)
-				.exceptWithClass
+			typeof (filtered as unknown as Record<string, unknown>).exceptWithClass
 		).toBe("function");
 		expect(
 			typeof (filtered as unknown as Record<string, unknown>).exceptModule

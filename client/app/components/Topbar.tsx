@@ -59,6 +59,11 @@ export function Topbar({ harness }: TopbarProps) {
 					module
 				</span>
 				<code>{harness.moduleName ?? ""}</code>
+				{harness.moduleVersion && (
+					<span class="harness-mounted-module-version">
+						v{harness.moduleVersion}
+					</span>
+				)}
 			</div>
 			<div class="harness-theme-picker" id="harness-theme-picker">
 				<button

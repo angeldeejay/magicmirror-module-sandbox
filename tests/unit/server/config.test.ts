@@ -92,7 +92,7 @@ function createHarnessConfigStub(overrides = {}) {
 		moduleIdentifier: "MMM-TestModule_sandbox",
 		sandbox: {},
 		configDeepMerge: false,
-		mmVersion: "2.35.0",
+		mmVersion: "2.36.0",
 		header: false,
 		hiddenOnStartup: false,
 		...overrides
@@ -543,7 +543,7 @@ test("harness config ignores env overrides and follows mounted-module autodetect
 		assert.equal(harnessConfig.moduleEntry, "MMM-TestModule.js");
 		assert.equal(harnessConfig.moduleIdentifier, "MMM-TestModule_sandbox");
 		assert.equal(harnessConfig.configDeepMerge, false);
-		assert.equal(harnessConfig.mmVersion, "2.35.0");
+		assert.equal(harnessConfig.mmVersion, "2.36.0");
 		assert.deepEqual(harnessConfig.sandbox, {});
 	} finally {
 		restoreEnv("MM_SANDBOX_MOUNTED_MODULE_ROOT", originalRoot);
