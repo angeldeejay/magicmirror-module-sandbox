@@ -18,7 +18,7 @@ export interface AnalysisWatcherOptions {
 	moduleName: string;
 	/** Relative path (from moduleRoot) to the module entry file. */
 	moduleEntry: string;
-	/** Whether a node_helper.js is known to exist. */
+	/** Whether a node_helper (.ts or .js) is known to exist. */
 	hasNodeHelper: boolean;
 	/** Socket.IO server instance for live result push. */
 	io: import("socket.io").Server;
@@ -55,7 +55,11 @@ export function startAnalysisWatcher(
 	// Build initial entry points
 	const entryPoints: string[] = [path.join(moduleRoot, moduleEntry)];
 	if (hasNodeHelper) {
-		const helperPath = path.join(moduleRoot, "node_helper.js");
+		const tsHelperPath = path.join(moduleRoot, "node_helper.ts");
+		const jsHelperPath = path.join(moduleRoot, "node_helper.js");
+		const helperPath = fs.existsSync(tsHelperPath)
+			? tsHelperPath
+			: jsHelperPath;
 		if (fs.existsSync(helperPath)) {
 			entryPoints.push(helperPath);
 		}
@@ -115,7 +119,10 @@ export function startAnalysisWatcher(
 			const result = await analyzer.analyze(moduleRoot, moduleName);
 			setAnalysisResult(result);
 		} catch (err) {
-			console.error("[module-sandbox] analysis-watcher: analysis error", err);
+			console.error(
+				"[module-sandbox] analysis-watcher: analysis error",
+				err
+			);
 		}
 	}
 

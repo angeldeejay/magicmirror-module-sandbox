@@ -5,7 +5,10 @@
 
 import * as fs from "node:fs";
 import * as path from "pathe";
-import type { AnalysisFinding, ModuleAnalysisResult } from "./analysis-types.ts";
+import type {
+	AnalysisFinding,
+	ModuleAnalysisResult
+} from "./analysis-types.ts";
 import {
 	detectUsedDependencies,
 	extractDeclaredDependencyNames,
@@ -27,7 +30,10 @@ export interface IModuleAnalyzer {
 	 * @param {string} moduleName - Display name of the module.
 	 * @returns {Promise<ModuleAnalysisResult>}
 	 */
-	analyze(moduleRoot: string, moduleName: string): Promise<ModuleAnalysisResult>;
+	analyze(
+		moduleRoot: string,
+		moduleName: string
+	): Promise<ModuleAnalysisResult>;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,8 +175,13 @@ export class VendorModuleAnalyzer implements IModuleAnalyzer {
 					!Array.isArray(repo) &&
 					typeof (repo as Record<string, unknown>).url === "string"
 				) {
-					moduleUrl = ((repo as Record<string, unknown>).url as string) || null;
-				} else if (typeof packageJson.homepage === "string" && packageJson.homepage) {
+					moduleUrl =
+						((repo as Record<string, unknown>).url as string) ||
+						null;
+				} else if (
+					typeof packageJson.homepage === "string" &&
+					packageJson.homepage
+				) {
 					moduleUrl = packageJson.homepage;
 				} else {
 					moduleUrl = null;
@@ -215,7 +226,8 @@ export class VendorModuleAnalyzer implements IModuleAnalyzer {
 				}
 			}
 
-			const declaredDependencies = extractDeclaredDependencyNames(packageJson);
+			const declaredDependencies =
+				extractDeclaredDependencyNames(packageJson);
 			const missingDeps = findMissingDependencies({
 				usedDependencies,
 				declaredDependencies
@@ -244,8 +256,12 @@ export class VendorModuleAnalyzer implements IModuleAnalyzer {
 			}
 
 			// Step 6 — Assemble result
-			const errors = findings.filter((f) => f.severity === "error").length;
-			const warnings = findings.filter((f) => f.severity === "warning").length;
+			const errors = findings.filter(
+				(f) => f.severity === "error"
+			).length;
+			const warnings = findings.filter(
+				(f) => f.severity === "warning"
+			).length;
 			const info = findings.filter((f) => f.severity === "info").length;
 
 			return {

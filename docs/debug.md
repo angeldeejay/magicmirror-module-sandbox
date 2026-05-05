@@ -6,13 +6,13 @@ The **Debug** area gives you the browser and helper logs in one place.
 
 ### Helper Log
 
-![Debug Helper Log screenshot](screenshots/debug-helper-log.png)
+![Debug Helper Log screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/debug-helper-log.png)
 
 This panel shows `node_helper` log entries mirrored from the server process.
 
 ### Console Log
 
-![Debug Console Log screenshot](screenshots/debug-console-log.png)
+![Debug Console Log screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/debug-console-log.png)
 
 This panel shows browser-side runtime log entries captured by the sandbox.
 

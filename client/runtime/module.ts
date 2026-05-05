@@ -478,7 +478,7 @@
 						if (!core.isTemplateFile(template)) {
 							return Promise.resolve();
 						}
-						return new Promise((resolve) => {
+						return new Promise<void>((resolve) => {
 							this.nunjucksEnvironment().render(
 								template,
 								{},

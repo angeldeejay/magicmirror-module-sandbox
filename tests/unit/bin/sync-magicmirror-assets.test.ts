@@ -134,6 +134,99 @@ test("rewriteCssAssetUrls copies referenced assets into the sandbox fonts root",
 	assert.equal(fs.existsSync(path.join(fontsRoot, "roboto.woff2")), true);
 });
 
+test("clearManagedFontAssets returns immediately when fontsRoot does not exist", () => {
+	const nonExistentPath = path.join(
+		os.tmpdir(),
+		`mm-nonexistent-${Date.now()}`
+	);
+	assert.doesNotThrow(() => {
+		clearManagedFontAssets(nonExistentPath);
+	});
+});
+
+test("readManagedAssetManifest returns empty array when manifest files field is not an array", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-sync-")
+	);
+
+	try {
+		const manifestPath = getManagedAssetManifestPath(tempRoot);
+		fs.writeFileSync(
+			manifestPath,
+			JSON.stringify({ files: "not-an-array" }),
+			"utf8"
+		);
+
+		assert.deepEqual(readManagedAssetManifest(tempRoot), []);
+	} finally {
+		fs.rmSync(tempRoot, { recursive: true, force: true });
+	}
+});
+
+test("copyReferencedAsset throws when the referenced asset file does not exist", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-sync-")
+	);
+	const fontsRoot = path.join(tempRoot, "fonts");
+	fs.mkdirSync(fontsRoot, { recursive: true });
+
+	try {
+		assert.throws(
+			() => {
+				copyReferencedAsset({
+					assetUrl: "nonexistent.woff2",
+					sourceDirectory: tempRoot,
+					targetFontsRoot: fontsRoot,
+					packageRoot: tempRoot
+				});
+			},
+			/Missing referenced MagicMirror asset/
+		);
+	} finally {
+		fs.rmSync(tempRoot, { recursive: true, force: true });
+	}
+});
+
+test("copyReferencedAsset throws when two different source files share the same filename", () => {
+	const tempRoot = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-sync-")
+	);
+	const sourceRootA = path.join(tempRoot, "source-a");
+	const sourceRootB = path.join(tempRoot, "source-b");
+	const fontsRoot = path.join(tempRoot, "fonts");
+	fs.mkdirSync(sourceRootA, { recursive: true });
+	fs.mkdirSync(sourceRootB, { recursive: true });
+	fs.mkdirSync(fontsRoot, { recursive: true });
+	fs.writeFileSync(path.join(sourceRootA, "font.woff2"), "font-a", "utf8");
+	fs.writeFileSync(path.join(sourceRootB, "font.woff2"), "font-b", "utf8");
+
+	const copiedFiles = new Map<string, string>();
+	copyReferencedAsset({
+		assetUrl: "font.woff2",
+		sourceDirectory: sourceRootA,
+		targetFontsRoot: fontsRoot,
+		packageRoot: tempRoot,
+		copiedFiles
+	});
+
+	try {
+		assert.throws(
+			() => {
+				copyReferencedAsset({
+					assetUrl: "font.woff2",
+					sourceDirectory: sourceRootB,
+					targetFontsRoot: fontsRoot,
+					packageRoot: tempRoot,
+					copiedFiles
+				});
+			},
+			/Asset name collision/
+		);
+	} finally {
+		fs.rmSync(tempRoot, { recursive: true, force: true });
+	}
+});
+
 test("syncMagicMirrorAssets writes generated stage and font styles from MagicMirror sources", () => {
 	const packageRoot = fs.mkdtempSync(
 		path.join(os.tmpdir(), "magicmirror-module-sandbox-sync-")

@@ -1,13 +1,16 @@
 <aside id="harness-sidebar" class="harness-sidebar" aria-hidden="true">
-  <div class="harness-sidebar-scroll">
-    <div class="harness-sidebar-header">
-      <div>
-        <h2 id="sidebar-title" class="harness-sidebar-title">Tools</h2>
-        <p id="sidebar-copy" class="harness-sidebar-copy">Open a domain from the topbar to inspect or control the sandbox.</p>
-      </div>
-      <button id="sidebar-close" class="harness-sidebar-close" type="button" aria-label="Close panel"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Close</button>
+  <div class="harness-domain-nav">
+    <button class="harness-domain-nav-trigger" type="button" aria-expanded="false"><i class="fa-solid fa-microchip" aria-hidden="true"></i>Runtime<i class="fa-solid fa-chevron-down harness-domain-nav-chevron" aria-hidden="true"></i></button>
+    <div class="harness-domain-nav-panel">
+      <a id="menu-runtime" class="harness-menu-link harness-domain-nav-link" href="#runtime" data-domain="runtime"><i class="fa-solid fa-microchip" aria-hidden="true"></i>Runtime</a>
+      <a id="menu-config" class="harness-menu-link harness-domain-nav-link" href="#config" data-domain="config"><i class="fa-solid fa-gear" aria-hidden="true"></i>Config</a>
+      <a id="menu-notifications" class="harness-menu-link harness-domain-nav-link" href="#notifications" data-domain="notifications"><i class="fa-solid fa-bell" aria-hidden="true"></i>Notifications</a>
+      <a id="menu-debug" class="harness-menu-link harness-domain-nav-link" href="#debug" data-domain="debug"><i class="fa-solid fa-bug" aria-hidden="true"></i>Debug</a>
+      <a id="menu-quality" class="harness-menu-link harness-domain-nav-link" href="#quality" data-domain="quality"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Quality</a>
+      <a id="menu-about" class="harness-menu-link harness-domain-nav-link" href="#about" data-domain="about"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>About</a>
     </div>
-
+  </div>
+  <div class="harness-sidebar-scroll">
     <%~ include("./sidebar-runtime") %>
     <%~ include("./sidebar-config") %>
     <%~ include("./sidebar-notifications") %>

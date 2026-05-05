@@ -23,6 +23,7 @@ It mounts **one real third-party module at a time**, keeps real
 - Helper and browser debug output
 - Module quality analysis against MagicMirror 3rd-party criteria
 - Quick product context while you work
+- Collapsible sidebar with domain navigation dropdown
 
 The goal is simple: give a MagicMirror module author a narrow, practical place
 to develop and inspect a real module without pretending to be a full
@@ -107,13 +108,14 @@ From this source repository, use the preview commands to boot the internal
 `MMM-TestModule` fixture:
 
 ```bash
-npm run start:preview
+npm run dev:watch-preview
 ```
 
-or:
+This is the recommended maintainer mode — it watches JS, CSS, and the server
+together. For lighter starts without full watch mode:
 
 ```bash
-npm run watch:preview
+npm run dev:start-preview
 ```
 
 If neither flow resolves a real mounted module, startup fails clearly instead
@@ -131,20 +133,22 @@ npm start
 
 Useful maintainer commands:
 
-- `npm run build:client-assets`
-- `npm run build:client-runtime`
-- `npm run build:node-compat`
-- `npm run watch`
-- `npm run start:preview`
-- `npm run watch:preview`
+- `npm run build:10-client`
+- `npm run client:shell`
+- `npm run client:runtime`
+- `npm run build:20-node-compat`
+- `npm run dev:watch`
+- `npm run dev:watch-preview`
+- `npm run dev:start-preview`
 - `npm run typecheck`
 - `npm test`
+- `npm run docs:screenshots`
 
 For browser-backed inspection during maintenance:
 
-- `npm run test:ui:headed`
-- `npm run test:integration:headed`
-- `npm run test:browser:headed`
+- `npm run test-headed:ui`
+- `npm run test-headed:integration`
+- `npm run test-headed`
 
 The headed browser scripts are maintainer inspection tools. They switch the
 Vitest browser suites to headed Chromium, run more slowly, and keep the visible

@@ -1,14 +1,14 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env tsx
 
 /**
  * Maintainer asset-sync entrypoint for copying MagicMirror CSS and font assets into the sandbox.
  */
 
+import { transformSync } from "esbuild";
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
-import * as path from "pathe";
 import { fileURLToPath } from "node:url";
-import { transformSync } from "esbuild";
+import * as path from "pathe";
 import {
 	inlineAndRewriteStylesheet,
 	rewriteCssAssetUrls as rewriteCssAssetUrlsFromParser
@@ -362,9 +362,9 @@ if (isMain) {
 export {
 	clearManagedFontAssets,
 	copyReferencedAsset,
+	getManagedAssetManifestPath,
 	getPackageRoot,
 	inlineCssImports,
-	getManagedAssetManifestPath,
 	readManagedAssetManifest,
 	resolveMagicMirrorRoot,
 	rewriteCssAssetUrls,

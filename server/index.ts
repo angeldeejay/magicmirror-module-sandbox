@@ -34,6 +34,21 @@ import { runStartupScripts } from "./startup-scripts.ts";
 import { startAnalysisWatcher } from "./analysis-watcher.ts";
 import { startModuleWatcher, startSandboxWatcher } from "./watch.ts";
 
+/**
+ * Resolves the tsx CLI entry point for spawning TypeScript scripts cross-platform.
+ * Returns the path to tsx/dist/cli.mjs, which node can execute directly.
+ */
+function resolveTsxCli(): string {
+	return path.join(
+		currentDirPath,
+		"..",
+		"node_modules",
+		"tsx",
+		"dist",
+		"cli.mjs"
+	);
+}
+
 type ShutdownOptions = {
 	app: import("fastify").FastifyInstance;
 	io: import("socket.io").Server;
@@ -47,12 +62,12 @@ type ShutdownOptions = {
 const args = process.argv.slice(2);
 const watchEnabled = args.includes("--watch");
 const currentFilePath = fromOS(
-	typeof __filename === "string"
-		? __filename
-		: fileURLToPath(import.meta.url)
+	typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url)
 );
 const currentDirPath =
-	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
+	typeof __dirname === "string"
+		? fromOS(__dirname)
+		: path.dirname(currentFilePath);
 const {
 	getAvailableLanguages,
 	getHarnessConfig,
@@ -79,9 +94,7 @@ function spawnAsync(
 		const child = spawn(command, args, { ...options, stdio: "inherit" });
 		child.on("close", (code) => {
 			if (code !== 0) {
-				reject(
-					new Error(`Process exited with code ${String(code)}`)
-				);
+				reject(new Error(`Process exited with code ${String(code)}`));
 			} else {
 				resolve();
 			}
@@ -106,7 +119,7 @@ function runNodeCompatBuild(): void {
 
 	const result = spawnSync(
 		process.execPath,
-		["--experimental-strip-types", nodeCompatScriptPath],
+		[resolveTsxCli(), nodeCompatScriptPath],
 		{
 			cwd: path.join(currentDirPath, ".."),
 			stdio: "inherit"
@@ -166,14 +179,10 @@ function runClientAssetsBuild(): void {
 		return;
 	}
 
-	const result = spawnSync(
-		process.execPath,
-		["--experimental-strip-types", scriptPath],
-		{
-			cwd: path.join(currentDirPath, ".."),
-			stdio: "inherit"
-		}
-	);
+	const result = spawnSync(process.execPath, [resolveTsxCli(), scriptPath], {
+		cwd: path.join(currentDirPath, ".."),
+		stdio: "inherit"
+	});
 	if (result.status !== 0) {
 		throw new Error(
 			`Client assets build failed (exit ${String(result.status)})`
@@ -197,7 +206,7 @@ async function rebuildNodeCompat(): Promise<void> {
 	}
 	await spawnAsync(
 		process.execPath,
-		["--experimental-strip-types", nodeCompatScriptPath],
+		[resolveTsxCli(), nodeCompatScriptPath],
 		{ cwd: path.join(currentDirPath, "..") }
 	);
 }
@@ -225,6 +234,11 @@ function registerShutdownHandlers({
 		}
 		shuttingDown = true;
 
+		const forceExitTimer = setTimeout(() => {
+			console.error("[module-sandbox] shutdown timed out, forcing exit");
+			process.exit(exitCode);
+		}, 5000).unref();
+
 		try {
 			if (moduleWatcher) {
 				await moduleWatcher.close();
@@ -237,6 +251,7 @@ function registerShutdownHandlers({
 			}
 			await helperRuntime.stopHelper();
 			await startupController.stopAll();
+			app.server.closeAllConnections();
 			await new Promise<void>((resolve, reject) => {
 				io.close((error?: Error) => {
 					if (error) {
@@ -259,6 +274,7 @@ function registerShutdownHandlers({
 			console.error("[module-sandbox] shutdown error", error);
 			process.exitCode = 1;
 		} finally {
+			clearTimeout(forceExitTimer);
 			process.exit(exitCode);
 		}
 	}
@@ -297,7 +313,7 @@ async function startServer(): Promise<void> {
 	});
 	await app.register(fastifyMiddie);
 	await app.register(fastifyRateLimit, {
-		max: 500,
+		max: 5000,
 		timeWindow: "1 minute"
 	});
 	const io = new Server(app.server, {
@@ -332,12 +348,7 @@ async function startServer(): Promise<void> {
 				: "runtime";
 		await spawnAsync(
 			process.execPath,
-			[
-				"--experimental-strip-types",
-				clientAssetsScriptPath,
-				"--scope",
-				scope
-			],
+			[resolveTsxCli(), clientAssetsScriptPath, "--scope", scope],
 			{ cwd: path.join(currentDirPath, "..") }
 		);
 	};
@@ -377,7 +388,10 @@ async function startServer(): Promise<void> {
 		analysisService: {
 			getAnalysisResult: getLastAnalysisResult,
 			triggerAnalysis: async () => {
-				const result = await moduleAnalyzer.analyze(repoRoot, harnessConfig.moduleName);
+				const result = await moduleAnalyzer.analyze(
+					repoRoot,
+					harnessConfig.moduleName
+				);
 				setAnalysisResult(result);
 			}
 		}
@@ -428,15 +442,20 @@ async function startServer(): Promise<void> {
 		moduleRoot: repoRoot,
 		moduleName: harnessConfig.moduleName,
 		moduleEntry: harnessConfig.moduleEntry,
-		hasNodeHelper: fs.existsSync(path.join(repoRoot, "node_helper.js")),
+		hasNodeHelper:
+			fs.existsSync(path.join(repoRoot, "node_helper.ts")) ||
+			fs.existsSync(path.join(repoRoot, "node_helper.js")),
 		io,
 		analyzer: moduleAnalyzer
 	});
 
 	// Run initial analysis immediately so the quality panel has data on first load.
-	moduleAnalyzer.analyze(repoRoot, harnessConfig.moduleName).then(setAnalysisResult).catch((err: unknown) => {
-		console.error("[module-sandbox] initial analysis error", err);
-	});
+	moduleAnalyzer
+		.analyze(repoRoot, harnessConfig.moduleName)
+		.then(setAnalysisResult)
+		.catch((err: unknown) => {
+			console.error("[module-sandbox] initial analysis error", err);
+		});
 
 	registerShutdownHandlers({
 		app,

@@ -2,7 +2,7 @@
 
 The **About** area gives you the quick product story and a few useful links.
 
-![About screenshot](screenshots/about.png)
+![About screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/about.png)
 
 ## What you will see
 

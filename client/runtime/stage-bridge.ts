@@ -116,7 +116,9 @@
 			case "request-stage-snapshot":
 				// Pass current boot state so a snapshot request that arrives after
 				// boot has already completed does not overwrite bootComplete back to false.
-				core.publishStageReady(Boolean(core.lifecycleState?.domCreated));
+				core.publishStageReady(
+					Boolean(core.lifecycleState?.domCreated)
+				);
 				return;
 			case "emit-notification":
 				if (

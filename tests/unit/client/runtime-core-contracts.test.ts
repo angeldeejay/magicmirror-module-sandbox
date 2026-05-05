@@ -407,8 +407,12 @@ describe("D8 — installGlobals creates Log with all required methods (logger.js
 			(logObject.groupCollapsed as (...a: unknown[]) => void)("grp")
 		).not.toThrow();
 		expect(() => (logObject.groupEnd as () => void)()).not.toThrow();
-		expect(() => (logObject.time as (l: string) => void)("t")).not.toThrow();
-		expect(() => (logObject.timeEnd as (l: string) => void)("t")).not.toThrow();
+		expect(() =>
+			(logObject.time as (l: string) => void)("t")
+		).not.toThrow();
+		expect(() =>
+			(logObject.timeEnd as (l: string) => void)("t")
+		).not.toThrow();
 		expect(() =>
 			(logObject.timeStamp as (l: string) => void)("ts")
 		).not.toThrow();
@@ -460,7 +464,8 @@ describe("D9 — setSelectionMethodsForModules: filter methods non-enumerable, w
 			typeof (modules as unknown as Record<string, unknown>).withClass
 		).toBe("function");
 		expect(
-			typeof (modules as unknown as Record<string, unknown>).exceptWithClass
+			typeof (modules as unknown as Record<string, unknown>)
+				.exceptWithClass
 		).toBe("function");
 		expect(
 			typeof (modules as unknown as Record<string, unknown>).exceptModule
@@ -554,7 +559,10 @@ describe("D9 — setSelectionMethodsForModules: filter methods non-enumerable, w
 		setSelectionMethods()(modules);
 
 		const enumerate = (
-			modules as unknown as Record<string, (cb: (m: unknown) => void) => void>
+			modules as unknown as Record<
+				string,
+				(cb: (m: unknown) => void) => void
+			>
 		).enumerate;
 
 		const visited: unknown[] = [];
@@ -581,7 +589,8 @@ describe("D9 — setSelectionMethodsForModules: filter methods non-enumerable, w
 			typeof (filtered as unknown as Record<string, unknown>).withClass
 		).toBe("function");
 		expect(
-			typeof (filtered as unknown as Record<string, unknown>).exceptWithClass
+			typeof (filtered as unknown as Record<string, unknown>)
+				.exceptWithClass
 		).toBe("function");
 		expect(
 			typeof (filtered as unknown as Record<string, unknown>).exceptModule

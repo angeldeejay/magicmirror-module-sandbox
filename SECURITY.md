@@ -14,6 +14,7 @@ Report vulnerabilities privately via GitHub:
 [Security Advisories](https://github.com/angeldeejay/magicmirror-module-sandbox/security/advisories/new)
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact

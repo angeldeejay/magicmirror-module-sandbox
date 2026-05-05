@@ -31,9 +31,7 @@ export function fromOS(p: string): string {
 
 const currentFilePath = fromOS(
 	/* v8 ignore next 3 */
-	typeof __filename === "string"
-		? __filename
-		: fileURLToPath(import.meta.url)
+	typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url)
 );
 const currentDirPath = path.dirname(currentFilePath);
 
@@ -224,7 +222,9 @@ export function resolveMountedModuleInfo(
 		packageVersion,
 		moduleEntry,
 		moduleIdentifier: `${moduleName}_sandbox`,
-		hasNodeHelper: fs.existsSync(path.join(rootPath, "node_helper.js")),
+		hasNodeHelper:
+			fs.existsSync(path.join(rootPath, "node_helper.ts")) ||
+			fs.existsSync(path.join(rootPath, "node_helper.js")),
 		sandbox: getPackageSandboxConfig(packageData)
 	};
 }
@@ -273,7 +273,10 @@ export function resolveRepoRoot(): string {
 	}
 
 	return (
-		findMountedModuleRoot(fromOS(process.cwd()), MAX_PARENT_PACKAGE_DEPTH) ||
+		findMountedModuleRoot(
+			fromOS(process.cwd()),
+			MAX_PARENT_PACKAGE_DEPTH
+		) ||
 		findMountedModuleRoot(harnessRoot, MAX_PARENT_PACKAGE_DEPTH) ||
 		fromOS(process.cwd())
 	);

@@ -231,7 +231,9 @@ function startModuleWatcher({
 		// .gitignore changed: reload patterns silently, no browser reload.
 		if (norm(filePath) === moduleGitignorePath) {
 			loadModuleGitignore();
-			console.log("[module-sandbox] .gitignore updated — reload patterns");
+			console.log(
+				"[module-sandbox] .gitignore updated — reload patterns"
+			);
 			return;
 		}
 
@@ -259,7 +261,10 @@ function startModuleWatcher({
 
 					// Restart helper for all changes except styles and translations.
 					// node_helper is stateful — dirty state contaminates subsequent frontend loads.
-					if (!isStyleFile(filePath) && !isModuleTranslationFile(filePath)) {
+					if (
+						!isStyleFile(filePath) &&
+						!isModuleTranslationFile(filePath)
+					) {
 						await restartHelper();
 					}
 
@@ -382,7 +387,10 @@ function startSandboxWatcher({
 						version: reloadVersion
 					});
 				} catch (err) {
-					console.error("[module-sandbox] sandbox watcher error", err);
+					console.error(
+						"[module-sandbox] sandbox watcher error",
+						err
+					);
 				}
 			})();
 		}, 150);

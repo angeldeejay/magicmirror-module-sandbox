@@ -226,7 +226,7 @@ function buildStyles(): void {
 async function buildShell(): Promise<void> {
 	const { build } = await import("vite");
 	const viteConfigModule = await import(
-		pathToFileURL(path.join(root, "vite.config.mjs")).href
+		pathToFileURL(path.join(root, "vite.config.ts")).href
 	);
 	await build(viteConfigModule.default);
 }

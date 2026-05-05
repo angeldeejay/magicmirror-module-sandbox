@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env tsx
 
 /**
  * Postinstall guard that enforces supported consumer install modes for the sandbox package.
@@ -82,9 +82,16 @@ function syncMagicMirrorAssetsForMaintainerRepo({
 	const scriptPath = fs.existsSync(sourceScriptPath)
 		? sourceScriptPath
 		: distScriptPath;
+	const tsxCliPath = path.join(
+		packageRoot,
+		"node_modules",
+		"tsx",
+		"dist",
+		"cli.mjs"
+	);
 	/* v8 ignore next 3 */
 	const args = scriptPath.endsWith(".ts")
-		? ["--experimental-strip-types", scriptPath]
+		? [tsxCliPath, scriptPath]
 		: [scriptPath];
 	const result = spawnSync(process.execPath, args, {
 		cwd: packageRoot,

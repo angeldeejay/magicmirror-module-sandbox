@@ -25,7 +25,9 @@ function resolveCoreLogger(): unknown {
 		);
 	}
 
-	return nodeRequire(path.join(moduleSandboxGlobal.root_path, "js", "logger.js"));
+	return nodeRequire(
+		path.join(moduleSandboxGlobal.root_path, "js", "logger.js")
+	);
 }
 
 const logger = resolveCoreLogger();

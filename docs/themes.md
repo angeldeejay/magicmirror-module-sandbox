@@ -3,7 +3,7 @@
 The sandbox ships four built-in themes that change the shell color palette
 without affecting the mounted module or the stage iframe.
 
-![Theme switcher screenshot](screenshots/themes/theme-switcher.png)
+![Theme switcher screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/themes/theme-switcher.png)
 
 ## Switching themes
 
@@ -15,28 +15,28 @@ theme persists across sessions via `localStorage` — no page reload needed.
 
 ### Carbon Slate
 
-![Carbon Slate screenshot](screenshots/themes/carbon-slate.png)
+![Carbon Slate screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/themes/carbon-slate.png)
 
 The default theme. Deep carbon background with a teal/cyan accent. Designed for
 long sessions in low-light environments.
 
 ### Obsidian Amber
 
-![Obsidian Amber screenshot](screenshots/themes/obsidian-amber.png)
+![Obsidian Amber screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/themes/obsidian-amber.png)
 
 Near-black background with a warm golden amber accent. Reminiscent of classic
 amber phosphor displays.
 
 ### Violet Circuit
 
-![Violet Circuit screenshot](screenshots/themes/violet-circuit.png)
+![Violet Circuit screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/themes/violet-circuit.png)
 
 Dark background with a lavender/purple accent. Clean and modern, easy on the
 eyes for extended use.
 
 ### Phosphor Green
 
-![Phosphor Green screenshot](screenshots/themes/phosphor-green.png)
+![Phosphor Green screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/themes/phosphor-green.png)
 
 Black background with a bright terminal green accent. Evokes classic green
 phosphor monitors.

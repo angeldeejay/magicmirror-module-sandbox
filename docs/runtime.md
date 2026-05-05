@@ -5,7 +5,7 @@ quickly see what state it is in.
 
 It reflects the module the sandbox picked up from your current project.
 
-![Runtime lifecycle screenshot](screenshots/runtime-lifecycle.png)
+![Runtime lifecycle screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/runtime-lifecycle.png)
 
 ## Always-visible host summary
 

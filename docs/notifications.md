@@ -6,7 +6,7 @@ The **Notifications** area is your small test bench for frontend notifications.
 
 ### Emit
 
-![Notifications Emit screenshot](screenshots/notifications-emit.png)
+![Notifications Emit screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/notifications-emit.png)
 
 This panel lets you fire one frontend MagicMirror notification with:
 
@@ -16,13 +16,13 @@ This panel lets you fire one frontend MagicMirror notification with:
 
 ### Log
 
-![Notifications Log screenshot](screenshots/notifications-log.png)
+![Notifications Log screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/notifications-log.png)
 
 This panel shows the frontend notification log captured by the sandbox bus.
 
 ### WebSocket
 
-![Notifications WebSocket screenshot](screenshots/notifications-websocket.png)
+![Notifications WebSocket screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/notifications-websocket.png)
 
 This panel shows Socket.IO traffic between the mounted frontend module and the
 real helper.

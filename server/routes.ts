@@ -20,8 +20,12 @@ type ConfigService = {
 	getModuleConfigPath: () => string;
 	getRuntimeConfig: () => Record<string, unknown>;
 	getRuntimeConfigPath: () => string;
-	saveModuleConfig: (nextConfig: Record<string, unknown>) => Record<string, unknown>;
-	saveRuntimeConfig: (nextConfig: Record<string, unknown>) => Record<string, unknown>;
+	saveModuleConfig: (
+		nextConfig: Record<string, unknown>
+	) => Record<string, unknown>;
+	saveRuntimeConfig: (
+		nextConfig: Record<string, unknown>
+	) => Record<string, unknown>;
 	getContract: () => Record<string, unknown>;
 };
 
@@ -44,7 +48,9 @@ type RuntimeService = {
 };
 
 type AnalysisService = {
-	getAnalysisResult: () => import("./analysis-types.ts").ModuleAnalysisResult | null;
+	getAnalysisResult: () =>
+		| import("./analysis-types.ts").ModuleAnalysisResult
+		| null;
 	triggerAnalysis: () => Promise<void>;
 };
 
@@ -87,7 +93,8 @@ async function registerRoutes({
 		createHtmlPage,
 		createStagePage
 	} = assetService;
-	const { io, restartHelper, watchEnabled, getHelperLogEntries } = runtimeService;
+	const { io, restartHelper, watchEnabled, getHelperLogEntries } =
+		runtimeService;
 	const { getAnalysisResult, triggerAnalysis } = analysisService;
 	const harnessConfig = getHarnessConfig();
 
@@ -133,30 +140,50 @@ async function registerRoutes({
 		});
 	});
 
-	app.get("/moment.js", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
-		reply.type("application/javascript; charset=utf-8");
-		return reply.send(fs.createReadStream(resolveMomentPath()));
-	});
+	app.get(
+		"/moment.js",
+		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
+		async (_request, reply) => {
+			reply.type("application/javascript; charset=utf-8");
+			return reply.send(fs.createReadStream(resolveMomentPath()));
+		}
+	);
 
-	app.get("/animate.css", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
-		reply.type("text/css; charset=utf-8");
-		return reply.send(fs.createReadStream(resolveAnimateCss()));
-	});
+	app.get(
+		"/animate.css",
+		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
+		async (_request, reply) => {
+			reply.type("text/css; charset=utf-8");
+			return reply.send(fs.createReadStream(resolveAnimateCss()));
+		}
+	);
 
-	app.get("/croner.js", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
-		reply.type("application/javascript; charset=utf-8");
-		return reply.send(fs.createReadStream(resolveCronerPath()));
-	});
+	app.get(
+		"/croner.js",
+		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
+		async (_request, reply) => {
+			reply.type("application/javascript; charset=utf-8");
+			return reply.send(fs.createReadStream(resolveCronerPath()));
+		}
+	);
 
-	app.get("/moment-timezone.js", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
-		reply.type("application/javascript; charset=utf-8");
-		return reply.send(fs.createReadStream(resolveMomentTimezonePath()));
-	});
+	app.get(
+		"/moment-timezone.js",
+		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
+		async (_request, reply) => {
+			reply.type("application/javascript; charset=utf-8");
+			return reply.send(fs.createReadStream(resolveMomentTimezonePath()));
+		}
+	);
 
-	app.get("/font-awesome.css", { config: { rateLimit: { max: 500, timeWindow: "1 minute" } } }, async (_request, reply) => {
-		reply.type("text/css; charset=utf-8");
-		return reply.send(fs.createReadStream(resolveFontAwesomeCss()));
-	});
+	app.get(
+		"/font-awesome.css",
+		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
+		async (_request, reply) => {
+			reply.type("text/css; charset=utf-8");
+			return reply.send(fs.createReadStream(resolveFontAwesomeCss()));
+		}
+	);
 
 	app.get("/__harness/config", async (_request, reply) => {
 		return reply.send({
@@ -210,7 +237,8 @@ async function registerRoutes({
 			return reply
 				.code(error instanceof ValidationError ? error.statusCode : 500)
 				.send({
-					error: routeError.message || "Failed to save sandbox config."
+					error:
+						routeError.message || "Failed to save sandbox config."
 				});
 		}
 	});

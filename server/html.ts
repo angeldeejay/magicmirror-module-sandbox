@@ -14,13 +14,13 @@ import { fromOS } from "./paths.ts";
 
 const currentFilePath = fromOS(
 	/* v8 ignore next 3 */
-	typeof __filename === "string"
-		? __filename
-		: fileURLToPath(import.meta.url)
+	typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url)
 );
 const currentDirPath =
 	/* v8 ignore next */
-	typeof __dirname === "string" ? fromOS(__dirname) : path.dirname(currentFilePath);
+	typeof __dirname === "string"
+		? fromOS(__dirname)
+		: path.dirname(currentFilePath);
 
 export type HtmlPageOptions = {
 	watchEnabled?: boolean;
@@ -51,7 +51,14 @@ const templateEngine = new Eta({
 
 const SANDBOX_VERSION: string = (() => {
 	try {
-		const pkgPath = path.join(currentDirPath, "..", "package.json");
+		const inDist =
+			path.basename(currentDirPath) === "server" &&
+			path.basename(path.dirname(currentDirPath)) === "dist";
+		const pkgPath = path.join(
+			currentDirPath,
+			inDist ? "../.." : "..",
+			"package.json"
+		);
 		const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
 			version?: unknown;
 		};

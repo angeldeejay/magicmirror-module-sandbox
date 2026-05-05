@@ -29,6 +29,7 @@ declare module "vitest/browser" {
 		sandboxPageUrl(): Promise<string>;
 		sandboxPageValue(selector: string): Promise<string>;
 		sandboxPageVisible(selector: string): Promise<boolean>;
+		sandboxReset(): Promise<void>;
 		sandboxReadFixtureTextFile(
 			fixtureRelativePath: string
 		): Promise<string>;
@@ -52,6 +53,7 @@ declare module "vitest/browser" {
 			content: string
 		): Promise<void>;
 		sandboxWriteModuleConfig(nextConfig: object): Promise<void>;
+		sandboxWriteModuleConfigRaw(rawText: string): Promise<void>;
 		sandboxWriteTextFile(
 			relativePath: string,
 			content: string

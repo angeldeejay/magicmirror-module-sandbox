@@ -47,6 +47,7 @@ type HarnessConfig = {
 	mmVersion: string;
 	header: string | boolean;
 	hiddenOnStartup: boolean;
+	packageVersion?: string;
 };
 type ConfigApiOptions = {
 	loadHarnessConfig?: () => HarnessConfig;
@@ -258,7 +259,10 @@ function createConfigApi({
 		if (!mountedModuleInfo) {
 			return null;
 		}
-		const packagePath = path.join(mountedModuleInfo.rootPath, "package.json");
+		const packagePath = path.join(
+			mountedModuleInfo.rootPath,
+			"package.json"
+		);
 		if (!fs.existsSync(packagePath)) {
 			return null;
 		}
@@ -283,7 +287,7 @@ function createConfigApi({
 				return null;
 			}
 			return moduleConfig as JsonObject;
-		/* v8 ignore next 3 */
+			/* v8 ignore next 3 */
 		} catch {
 			return null;
 		}
@@ -304,7 +308,10 @@ function createConfigApi({
 			return sandboxPath;
 		}
 		if (mountedModuleInfo && readPackageSandboxModuleConfig() !== null) {
-			return path.join(mountedModuleInfo.rootPath, SANDBOX_CONFIG_FILENAME);
+			return path.join(
+				mountedModuleInfo.rootPath,
+				SANDBOX_CONFIG_FILENAME
+			);
 		}
 		return tempModuleConfigPath;
 	}
@@ -422,7 +429,10 @@ function createConfigApi({
 
 		// 3. Temp file
 		if (!fs.existsSync(tempModuleConfigPath)) {
-			return normalizeModuleConfig({}, { defaultConfigDeepMerge: deepMerge });
+			return normalizeModuleConfig(
+				{},
+				{ defaultConfigDeepMerge: deepMerge }
+			);
 		}
 		return normalizeModuleConfig(readJsonFile(tempModuleConfigPath), {
 			defaultConfigDeepMerge: deepMerge

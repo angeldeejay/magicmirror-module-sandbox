@@ -3,7 +3,7 @@
 The **Quality** area runs a static analysis of your mounted module against
 MagicMirror 3rd-party module criteria and shows the results in one place.
 
-![Quality screenshot](screenshots/quality.png)
+![Quality screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/quality.png)
 
 ## What you will see
 
