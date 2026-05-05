@@ -12,7 +12,6 @@ export default defineConfig({
 		outDir: resolve("client", "generated"),
 		emptyOutDir: false,
 		cssCodeSplit: false,
-		codeSplitting: false,
 		target: "es2021",
 		rollupOptions: {
 			input: resolve("client", "app", "main.tsx"),

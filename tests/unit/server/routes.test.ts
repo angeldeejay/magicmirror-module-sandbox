@@ -483,6 +483,45 @@ test("POST /__harness/config/module returns 500 when saveModuleConfig throws an 
 	assert.equal(response.statusCode, 500);
 });
 
+test("POST /__harness/config/save returns fallback error text when thrown error has an empty message", async () => {
+	const saveModuleConfig = vi.fn(() => {
+		throw new Error("");
+	});
+	const app = await buildApp({ saveModuleConfig, watchEnabled: true });
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/config/save",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			moduleConfig: { config: {} },
+			runtimeConfig: { language: "en" }
+		})
+	});
+
+	assert.equal(response.statusCode, 500);
+	const body = JSON.parse(response.body);
+	assert.equal(body.error, "Failed to save sandbox config.");
+});
+
+test("POST /__harness/config/module returns fallback error text when thrown error has an empty message", async () => {
+	const saveModuleConfig = vi.fn(() => {
+		throw new Error("");
+	});
+	const app = await buildApp({ saveModuleConfig, watchEnabled: true });
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/config/module",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ config: {} })
+	});
+
+	assert.equal(response.statusCode, 500);
+	const body = JSON.parse(response.body);
+	assert.equal(body.error, "Failed to save module config.");
+});
+
 // ---------------------------------------------------------------------------
 // Tests — static asset routes
 // ---------------------------------------------------------------------------

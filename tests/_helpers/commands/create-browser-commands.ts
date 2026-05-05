@@ -254,7 +254,8 @@ export function createSandboxBrowserCommands(suiteName) {
 	 * @returns {Promise<void>}
 	 */
 	async function resetSandbox(context) {
-		const runtime = await runtimeController.getLiveRuntimeForContext(context);
+		const runtime =
+			await runtimeController.getLiveRuntimeForContext(context);
 		const page = await getSandboxPage(context);
 
 		// Guard: fall back to full navigation if the shell is not loaded yet.
@@ -334,6 +335,23 @@ export function createSandboxBrowserCommands(suiteName) {
 			);
 		}, domain);
 		if (!alreadyOpen) {
+			// Domain links live inside the DomainNav dropdown panel (display:none
+			// when closed). Open the dropdown first so the link becomes visible.
+			const dropdownOpen = await page.evaluate(() => {
+				return (
+					globalThis.document
+						.querySelector(".harness-domain-nav-panel")
+						?.classList.contains(
+							"harness-domain-nav-panel--open"
+						) ?? false
+				);
+			});
+			if (!dropdownOpen) {
+				await page.locator(".harness-domain-nav-trigger").click();
+				await page
+					.locator(".harness-domain-nav-panel--open")
+					.waitFor({ state: "visible" });
+			}
 			await page.locator(`#menu-${domain}`).click();
 		}
 		await page.locator(`#domain-${domain}[data-active="true"]`).waitFor({
@@ -373,7 +391,9 @@ export function createSandboxBrowserCommands(suiteName) {
 	 */
 	async function pageClick(context, selector) {
 		const page = await getSandboxPage(context);
-		await page.locator(selector).click();
+		const locator = page.locator(selector);
+		await locator.waitFor({ state: "visible" });
+		await locator.evaluate((el: HTMLElement) => el.click());
 	}
 
 	/**

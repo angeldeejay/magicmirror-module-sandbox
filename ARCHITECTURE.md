@@ -26,8 +26,8 @@ and how to use it, while this file explains how it is put together.
 - `client/app/` holds the Vite + Preact shell for the persistent host UI
 - `client/app/harness-state.ts` is the typed shell bootstrap boundary and parses
   `window.__HARNESS__` with Zod
-- `client/app/components/` owns the topbar, sidebar domains, footer, and shell
-  iconography
+- `client/app/components/` owns the topbar (including domain navigation dropdown),
+  sidebar (with toggle behavior), sidebar domains, footer, and shell iconography
 - `client/runtime/*.ts` is the maintained browser-runtime source surface
 - `client/generated/` is the browser-served output built from the shell bundle plus
   runtime/vendor TypeScript sources
@@ -65,6 +65,27 @@ and how to use it, while this file explains how it is put together.
   standard Node module resolution, without source patches and without adding them
   as sandbox dependencies
 
+### TypeScript configuration
+
+The TypeScript surface is split into four targeted roots:
+
+| Config file                     | Covers                                                           |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `tsconfig.json`                 | Server, shims, bin, and shared sources                           |
+| `tsconfig.node.json`            | Scripts and build helpers                                        |
+| `tsconfig.config.json`          | Config-layer sources (`config/`)                                 |
+| `client/tsconfig.json`          | Vite + Preact shell (`client/app/`)                              |
+| `client/tsconfig.runtime.json`  | Runtime and vendor sources (`client/runtime/`, `client/vendor/`) |
+| `tests/tsconfig.testfiles.json` | Test-file sources for type checking                              |
+
+`tsconfig.client-runtime.json` at the repo root was removed; the two client-scoped configs under `client/` replace it.
+
+## Sidebar toggle and domain navigation
+
+The sidebar is collapsible. Clicking the active `.harness-sidebar-tab` closes the sidebar panel; clicking any tab while the sidebar is closed opens it. The toggle mechanism lives in `client/app/components/Sidebar.tsx` and requires no extra state beyond the active-tab tracking already present.
+
+The topbar exposes a **domain navigation dropdown** for switching sidebar domains. The dropdown opens on click, closes on outside click or selection, and reflects the active domain label. The dropdown is implemented in `client/app/components/Topbar.tsx`.
+
 ## Config editor architecture
 
 The module config editor (`client/vendor/module-config-editor.ts`) is a
@@ -76,11 +97,11 @@ Config → Module sidebar pane.
 The editor splits the full MagicMirror config block into three stacked Ace
 Editor instances inside a CSS flex column:
 
-| Pane | Role | Ace mode |
-|---|---|---|
-| Prefix | Read-only envelope: `let config = { … config: {` | `readOnly: true`, auto-height |
-| Editable | Inner config properties, scrollable | `readOnly: false`, `flex: 1` |
-| Suffix | Read-only closing: `    },\n  }]\n};` | `readOnly: true`, auto-height |
+| Pane     | Role                                             | Ace mode                      |
+| -------- | ------------------------------------------------ | ----------------------------- |
+| Prefix   | Read-only envelope: `let config = { … config: {` | `readOnly: true`, auto-height |
+| Editable | Inner config properties, scrollable              | `readOnly: false`, `flex: 1`  |
+| Suffix   | Read-only closing: `    },\n  }]\n};`            | `readOnly: true`, auto-height |
 
 Line numbers are continuous across all three panes via Ace's `firstLineNumber`
 option. The suffix pane recalculates its `firstLineNumber` on every editable
@@ -137,11 +158,11 @@ API changes were required.
 Four themes override selected tokens through `[data-theme]` attribute selectors
 in `client/scss/_themes.scss`:
 
-| Theme | Key accent |
-|---|---|
-| `carbon-slate` | `#4ecdc4` teal/cyan |
-| `obsidian-amber` | `#d4a843` golden amber |
-| `violet-circuit` | `#a78bfa` lavender |
+| Theme            | Key accent               |
+| ---------------- | ------------------------ |
+| `carbon-slate`   | `#4ecdc4` teal/cyan      |
+| `obsidian-amber` | `#d4a843` golden amber   |
+| `violet-circuit` | `#a78bfa` lavender       |
 | `phosphor-green` | `#39d353` terminal green |
 
 The server-rendered HTML sets `data-theme="carbon-slate"` on `<html>` to
@@ -217,15 +238,15 @@ Maintainers build the distributable package with `npm run build`, and
 `npm pack` / `npm publish` trigger that step through `prepack`. The published
 package ships the prebuilt sandbox under `dist/`, so consumers install only
 runtime artifacts instead of development sources like `client/scss/`. Use
-`npm run styles` for a one-off stylesheet rebuild, `npm run build:client-assets`
-for the full maintained browser output, `npm run build:client-runtime` for the
-runtime/vendor slice only, `npm run build:node-compat` for generated CommonJS
-shim wrappers, or `npm run styles:watch` while iterating on SCSS.
+`npm run client:styles` for a one-off stylesheet rebuild, `npm run build:10-client`
+for the full maintained browser output, `npm run client:runtime` for the
+runtime/vendor slice only, `npm run build:20-node-compat` for generated CommonJS
+shim wrappers, or `npm run client:styles:watch` while iterating on SCSS.
 
 That publish build also minifies the distributed browser JavaScript under
 `dist/client/`, while maintainer source files remain readable in the repo.
 
-Inside this repository, `npm start` and `npm run watch` still run against the
+Inside this repository, `npm start` and `npm run dev:watch` still run against the
 source tree for maintainer workflows. The CLI falls back to `dist/` only when
 the package is installed without source files.
 

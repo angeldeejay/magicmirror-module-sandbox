@@ -1,10 +1,10 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env tsx
 
 /**
  * Downloads vendored files from MagicMirrorOrg/MagicMirror-3rd-Party-Modules
  * into server/vendor/check-modules/ with a VENDORED header.
  *
- * Run via: npm run sync:module-analyzer
+ * Run via: npm run build:01-sync-analyzer
  */
 
 import * as fs from "node:fs";
@@ -40,7 +40,9 @@ const vendorDir = path.join(root, "server", "vendor", "check-modules");
 async function syncFile(fileName: string): Promise<void> {
 	const dest = path.join(vendorDir, fileName);
 	if (process.env.ACT && fs.existsSync(dest)) {
-		console.log(`[sync:module-analyzer] Skipped ${fileName} (pre-existing, ACT mode)`);
+		console.log(
+			`[build:01-sync-analyzer] Skipped ${fileName} (pre-existing, ACT mode)`
+		);
 		return;
 	}
 	const url = `${UPSTREAM_BASE}/${fileName}`;
@@ -51,13 +53,13 @@ async function syncFile(fileName: string): Promise<void> {
 		);
 	}
 	const source = await response.text();
-	const header = `// VENDORED from MagicMirrorOrg/MagicMirror-3rd-Party-Modules — do not edit directly.\n// Update by running: npm run sync:module-analyzer\n// Source: ${url}\n\n`;
+	const header = `// VENDORED from MagicMirrorOrg/MagicMirror-3rd-Party-Modules — do not edit directly.\n// Update by running: npm run build:01-sync-analyzer\n// Source: ${url}\n\n`;
 	fs.writeFileSync(
 		path.join(vendorDir, fileName),
 		`${header}${source}`,
 		"utf8"
 	);
-	console.log(`[sync:module-analyzer] Written ${fileName}`);
+	console.log(`[build:01-sync-analyzer] Written ${fileName}`);
 }
 
 /**
@@ -67,11 +69,11 @@ async function syncAll(): Promise<void> {
 	ensureDirectory(vendorDir);
 	await Promise.all(VENDORED_FILES.map(syncFile));
 	console.log(
-		`[sync:module-analyzer] Done — ${VENDORED_FILES.length} files synced`
+		`[build:01-sync-analyzer] Done — ${VENDORED_FILES.length} files synced`
 	);
 }
 
 syncAll().catch((err: unknown) => {
-	console.error("[sync:module-analyzer] Error:", err);
+	console.error("[build:01-sync-analyzer] Error:", err);
 	process.exitCode = 1;
 });

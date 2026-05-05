@@ -19,6 +19,19 @@ import { getSandboxServerInvocation } from "../sandbox-process.ts";
 import { sourceFixtureRoot } from "../test-module-fixture.ts";
 import { writeFixtureStylesheet } from "../test-module-style-fixture.ts";
 
+/**
+ * ChildProcess with stdout/stderr narrowed to net.Socket, which is the actual
+ * runtime type when spawning with the default stdio: 'pipe' option.
+ * @types/node types these as Readable | null, but spawn always produces Sockets.
+ */
+type SpawnedProcess = Omit<
+	import("child_process").ChildProcess,
+	"stdout" | "stderr"
+> & {
+	stdout: net.Socket | null;
+	stderr: net.Socket | null;
+};
+
 const sandboxSessionRuntimes = new Map();
 // Pool of warm servers not currently assigned to any session.
 // Avoids cold-start cost for subsequent sessions on the same worker.
@@ -67,12 +80,14 @@ function expirePoolEntry(suiteName: string, entry: PooledRuntime): void {
 			pool.splice(idx, 1);
 		}
 	}
-	void terminateChildProcess(entry.runtime.child, { timeoutMs: 5_000 }).then(() => {
-		fs.rmSync(entry.runtime.runtimeRoot, {
-			recursive: true,
-			force: true
-		});
-	});
+	void terminateChildProcess(entry.runtime.child, { timeoutMs: 5_000 }).then(
+		() => {
+			fs.rmSync(entry.runtime.runtimeRoot, {
+				recursive: true,
+				force: true
+			});
+		}
+	);
 }
 
 /**
@@ -122,7 +137,7 @@ type SandboxSessionRuntime = {
 	fixtureStylePath: string;
 	port?: number;
 	baseUrl?: string;
-	child?: import("child_process").ChildProcess | null;
+	child?: SpawnedProcess | null;
 	stdout?: string;
 	stderr?: string;
 	startPromise?: Promise<void> | null;
@@ -368,7 +383,11 @@ async function ensureSandboxSessionServer(runtime) {
 
 	runtime.startPromise = (async () => {
 		const maxSpawnAttempts = 3;
-		for (let spawnAttempt = 1; spawnAttempt <= maxSpawnAttempts; spawnAttempt++) {
+		for (
+			let spawnAttempt = 1;
+			spawnAttempt <= maxSpawnAttempts;
+			spawnAttempt++
+		) {
 			runtime.stdout = "";
 			runtime.stderr = "";
 			const invocation = getSandboxServerInvocation();
@@ -383,7 +402,7 @@ async function ensureSandboxSessionServer(runtime) {
 				},
 				stdio: ["ignore", "pipe", "pipe"],
 				windowsHide: true
-			});
+			}) as SpawnedProcess;
 
 			runtime.child.stdout.on("data", (chunk) => {
 				runtime.stdout = `${runtime.stdout}${chunk.toString()}`.slice(
@@ -500,7 +519,10 @@ async function cleanupSandboxSessionRuntime(suiteName, sessionId) {
 		runtime.child.unref();
 		const entry: PooledRuntime = {
 			runtime,
-			timer: setTimeout(() => expirePoolEntry(suiteName, entry!), POOL_TTL_MS)
+			timer: setTimeout(
+				() => expirePoolEntry(suiteName, entry!),
+				POOL_TTL_MS
+			)
 		};
 		entry.timer.unref();
 		getWorkerPool(suiteName).push(entry);

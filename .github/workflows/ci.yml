@@ -17,6 +17,7 @@ jobs:
         env:
             FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
             PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
+            HUSKY: "0"
         steps:
             - name: Checkout
               uses: actions/checkout@v6
@@ -44,20 +45,19 @@ jobs:
                   npm run build
                   npm test
 
-            - name: Generate unit coverage badges
-              if: ${{ always() && hashFiles('coverage/coverage-summary.json') != '' }}
-              run: npm run coverage:badges
-
-            - name: Generate journey coverage badges
-              if: ${{ always() && hashFiles('.runtime-cache/journey-coverage/summary.integration.json') != '' && hashFiles('.runtime-cache/journey-coverage/summary.ui.json') != '' }}
-              run: npm run coverage:journey-badges
-
-            - name: Write unified coverage summary
+            - name: Generate coverage reports
               if: always()
-              run: npm run coverage:job-summary
+              run: npm run report
+
+            - name: Generate docs screenshots
+              if: ${{ !env.ACT && ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || (github.event_name == 'pull_request' && github.head_ref == 'develop')) }}
+              run: |
+                  npm run docs:screenshots
+                  mkdir -p coverage/screenshots
+                  cp -r docs/screenshots/. coverage/screenshots/
 
             - name: Publish coverage artifacts branch
-              if: ${{ !env.ACT && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && hashFiles('coverage/coverage-summary.json') != '' }}
+              if: ${{ !env.ACT && ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || (github.event_name == 'pull_request' && github.head_ref == 'develop')) && hashFiles('coverage/coverage-summary.json') != '' }}
               uses: JamesIves/github-pages-deploy-action@v4
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}

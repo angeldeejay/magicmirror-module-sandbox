@@ -39,7 +39,10 @@ if (
 							JSON.parse(payloadStr)
 						);
 					} catch (e) {
-						Log.error("Error substituting variables in payload: ", e);
+						Log.error(
+							"Error substituting variables in payload: ",
+							e
+						);
 						this.socketNotificationReceived(notification, payload);
 					}
 				} else {
@@ -49,10 +52,14 @@ if (
 		});
 	};
 
-	Object.defineProperty(__moduleSandboxCoreNodeHelper, "__moduleSandboxSocketPatched", {
-		value: true,
-		configurable: false,
-		enumerable: false,
-		writable: false
-	});
+	Object.defineProperty(
+		__moduleSandboxCoreNodeHelper,
+		"__moduleSandboxSocketPatched",
+		{
+			value: true,
+			configurable: false,
+			enumerable: false,
+			writable: false
+		}
+	);
 }

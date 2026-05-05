@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.0.0
+
+- **Toolchain modernization** — replaced `--experimental-strip-types` with the stable `--strip-types` flag across all scripts and npm run commands. `eslint.config.mjs` migrated to `eslint.config.ts`; `vite.config.mjs` migrated to `vite.config.ts`; `bin/install-guard.js` migrated to `bin/install-guard.ts`. All build scripts (`build-client-assets`, `sync-module-analyzer`, `magicmirror-module-sandbox`) now run under `tsx`. Added `.prettierignore`.
+- **TypeScript configuration restructure** — added `client/tsconfig.json` and aligned `client/tsconfig.runtime.json` for the client build surface; added `tests/tsconfig.testfiles.json` and `tsconfig.config.json` for test and config roots. Removed `tsconfig.client-runtime.json`. Tightened path references in `tsconfig.json` and `tsconfig.node.json`.
+- **Sidebar toggle** — clicking the active sidebar tab now closes the sidebar panel; clicking any tab while the sidebar is closed opens it. Toggle state is handled through `.harness-sidebar-tab` events without extra state management.
+- **Domain navigation dropdown** — the topbar now exposes a domain navigation dropdown that opens on click, closes on outside click or selection, and reflects the active domain label. Replaces the previous always-visible tab row for switching sidebar areas.
+- **CSS fix: sidebar panel scroll** — `.harness-sidebar` was missing `min-height: 0`, which caused the flex item to grow to full content height (overflowing its CSS grid row) and disabled `overflow-y: auto` on `.harness-sidebar-scroll`. Fixed with `min-height: 0`.
+- **Fix: `SANDBOX_VERSION` path resolution from installed package** — the `SANDBOX_VERSION` IIFE now detects when running from a `dist/server/` context and resolves `../../package.json` instead of `../package.json`, so the version string is correctly read in consumer installs.
+- **Fix: e2e build environment isolation** — `buildCurrentRepo` in `tests/e2e/helpers.ts` now strips `NODE_ENV`, `VITEST`, `VITEST_POOL_ID`, and `VITEST_WORKER_ID` before spawning the build subprocess. This prevents `@preact/preset-vite`'s CJS variant from loading `zimmerframe` via `require()` (ESM-only package) under rolldown `optimizeDeps` when the test environment is active.
+- **`jiti` devDependency** — added `jiti@^2.6.1` to support ESLint 10+ loading TypeScript config files (`eslint.config.ts`).
+- **Journey coverage expanded** — added 6 new journey IDs (`ui-domain-nav-dropdown-opens`, `ui-domain-nav-dropdown-closes-on-outside-click`, `ui-domain-nav-trigger-reflects-active-domain`, `ui-domain-nav-dropdown-closes-on-selection`, `ui-sidebar-toggle-opens`, `ui-sidebar-toggle-closes`). Total journey coverage catalog: 15 → 21 entries.
+- **Test suite hardening** — expanded `startup-scripts`, `shell-hydration-parity`, and `runtime-core-contracts` unit tests; fixed `pageClick` browser command to use `el.click()` via `evaluate` to bypass Playwright coordinate routing intercepted by a positioned footer element.
+- **Dependabot configuration updated** — bumped and regrouped update schedule entries.
+
 ## v1.3.0
 
 - **Upgraded MagicMirror dependency to v2.36.0** — formalized the pin from `^2.35.0` to `^2.36.0` and propagated the version string across all sandbox surfaces (`config/harness.config.ts`, `server/html.ts`, `client/runtime/module.ts`, test fixtures and assertions). Full contract audit confirmed zero API breaks between v2.35 and v2.36: `module.js`, `node_helper.js`, `logger.js`, `http_fetcher.js`, `server_functions.js`, and `vendor.js` all retain the same public API.

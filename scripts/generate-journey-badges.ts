@@ -121,6 +121,19 @@ async function downloadBadge(
  * Generates journey coverage badges for each tracked suite/metric pair.
  */
 async function generateJourneyBadges(): Promise<void> {
+	const missingSuites = trackedSuites.filter(
+		(suite) =>
+			!fs.existsSync(
+				path.join(journeyCoverageDirectory, `summary.${suite}.json`)
+			)
+	);
+	if (missingSuites.length > 0) {
+		console.log(
+			`[report:20-journey-badges] Skipped: missing summary for suite(s): ${missingSuites.join(", ")}`
+		);
+		return;
+	}
+
 	fs.mkdirSync(badgeOutputDirectory, {
 		recursive: true
 	});

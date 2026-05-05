@@ -1,31 +1,40 @@
-/**
- * ESLint configuration for the sandbox package.
- *
- * Node-side files use CommonJS globals while browser runtime files stay in
- * script mode with DOM globals and the Socket.IO client exposed.
- */
+// @ts-check
 import js from "@eslint/js";
+import prettierRecommended from "eslint-plugin-prettier/recommended";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
 import globals from "globals";
 
-export default [
+/** @type {import("eslint").Linter.Config[]} */
+const config = [
 	{
 		ignores: [
-			"dist/**",
-			"node_modules/**",
+			".claude/worktree/**",
 			".runtime-cache/**",
-			"client/fonts/**"
+			"client/generated/**",
+			"client/styles/**",
+			"client/webfonts/**",
+			"codeql-db/**",
+			"coverage/**",
+			"dist/**",
+			"playwright-report/**",
+			"scripts/templates/**",
+			"shims/generated/**",
+			"test-results/**"
 		]
 	},
 	js.configs.recommended,
+	prettierRecommended,
 	{
-		files: [
-			"bin/**/*.js",
-			"config/**/*.js",
-			"scripts/**/*.js",
-			"server/**/*.js",
-			"shims/**/*.js",
-			"tests/**/*.js"
-		],
+		plugins: {
+			"simple-import-sort": simpleImportSort
+		},
+		rules: {
+			"simple-import-sort/imports": "error",
+			"simple-import-sort/exports": "error"
+		}
+	},
+	{
+		files: ["tests/**/*.js"],
 		languageOptions: {
 			ecmaVersion: 2021,
 			sourceType: "commonjs",
@@ -85,7 +94,7 @@ export default [
 		}
 	},
 	{
-		files: ["client/**/*.js"],
+		files: ["tests/_fixtures/**/*.js"],
 		languageOptions: {
 			ecmaVersion: 2021,
 			sourceType: "script",
@@ -109,3 +118,5 @@ export default [
 		}
 	}
 ];
+
+export default config;

@@ -32,8 +32,11 @@ export function AboutDomain() {
 				<i class="fa-solid fa-book-open" aria-hidden="true" />{" "}
 				MagicMirror references
 			</div>
-			<ul class="sandbox-hint-list">
+			<ul class="fa-ul sandbox-hint-list">
 				<li>
+					<span class="fa-li">
+						<i class="fa-solid fa-link" aria-hidden="true" />
+					</span>
 					<a
 						href="https://docs.magicmirror.builders/"
 						target="_blank"
@@ -43,6 +46,9 @@ export function AboutDomain() {
 					</a>
 				</li>
 				<li>
+					<span class="fa-li">
+						<i class="fa-solid fa-link" aria-hidden="true" />
+					</span>
 					<a
 						href="https://docs.magicmirror.builders/module-development/introduction.html"
 						target="_blank"
@@ -52,6 +58,9 @@ export function AboutDomain() {
 					</a>
 				</li>
 				<li>
+					<span class="fa-li">
+						<i class="fa-solid fa-link" aria-hidden="true" />
+					</span>
 					<a
 						href="https://docs.magicmirror.builders/module-development/core-module-file.html"
 						target="_blank"
@@ -61,6 +70,9 @@ export function AboutDomain() {
 					</a>
 				</li>
 				<li>
+					<span class="fa-li">
+						<i class="fa-solid fa-link" aria-hidden="true" />
+					</span>
 					<a
 						href="https://docs.magicmirror.builders/module-development/node-helper.html"
 						target="_blank"

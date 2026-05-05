@@ -427,6 +427,35 @@ test("createHtmlPage includes the shell bundle script tag when the bundle exists
 	}
 });
 
+test("createHtmlPage exposes trimmed packageVersion as moduleVersion when set", () => {
+	const html = createHtmlPage({
+		watchEnabled: false,
+		getAvailableLanguages() {
+			return [];
+		},
+		getHarnessConfig() {
+			return {
+				moduleName: "MMM-TestModule",
+				moduleEntry: "MMM-TestModule.js",
+				moduleIdentifier: "MMM-TestModule_sandbox",
+				language: "en",
+				packageVersion: "  1.2.3  "
+			};
+		},
+		getModuleConfig() {
+			return {};
+		},
+		getContract() {
+			return {};
+		},
+		getHelperLogEntries() {
+			return [];
+		}
+	});
+
+	assert.match(html, /"moduleVersion":"1\.2\.3"/);
+});
+
 test("createHtmlPage skips the optional shell bundle when it is not built yet", () => {
 	const originalExistsSync = fs.existsSync;
 	const shellBundleSuffix = path.join("client", "generated", "shell-app.js");

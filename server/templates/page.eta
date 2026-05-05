@@ -25,6 +25,9 @@
       <div id="harness-sidebar-root">
         <%~ include("./partials/sidebar") %>
       </div>
+      <button id="harness-sidebar-tab" class="harness-sidebar-tab" type="button" aria-label="Open sidebar">
+        <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+      </button>
       <%~ include("./partials/stage") %>
     </div>
     <div id="harness-footer-root">

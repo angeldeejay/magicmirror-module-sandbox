@@ -291,6 +291,101 @@ module.exports = HelperClass;\n`
 	}
 });
 
+test("injectShimResolution defaults mmTestMode to 'false' when env var is not set", () => {
+	const prev = process.env.mmTestMode;
+	delete process.env.mmTestMode;
+
+	try {
+		injectShimResolution();
+		assert.equal(
+			(globalThis as { mmTestMode?: string }).mmTestMode,
+			"false"
+		);
+	} finally {
+		if (prev !== undefined) {
+			process.env.mmTestMode = prev;
+		}
+	}
+});
+
+test("restartHelper auto-detects node_helper.ts at repo root when no helperPath override is given", async () => {
+	const rootHelperTsPath = path.join(repoRoot, "node_helper.ts");
+	fs.writeFileSync(
+		rootHelperTsPath,
+		`module.exports = {\n\tsetName() {},\n\tsetPath() {},\n\tsetExpressApp() {},\n\tsetSocketIO() {}\n};\n`,
+		"utf8"
+	);
+
+	try {
+		const helperRuntime = createHelperRuntime({
+			app: { use() {} },
+			io: {},
+			/**
+			 * Gets harness config.
+			 */
+			getHarnessConfig() {
+				return { moduleName: "MMM-TestModule" };
+			},
+			/**
+			 * Gets harness cache dir.
+			 */
+			getHarnessCacheDir() {
+				return ".runtime-cache/default";
+			}
+		});
+
+		await assert.doesNotReject(async () => {
+			await helperRuntime.restartHelper();
+		});
+	} finally {
+		try {
+			delete nodeRequire.cache[nodeRequire.resolve(rootHelperTsPath)];
+		} catch {
+			// not cached
+		}
+		fs.rmSync(rootHelperTsPath, { force: true });
+	}
+});
+
+test("restartHelper registers tsx CJS hook when helperPath ends with .ts", async () => {
+	const tsHelperPath = path.join(
+		tempHelperDir,
+		`__test_ts_helper_${Date.now()}_${Math.random().toString(36).slice(2)}.ts`
+	);
+	fs.mkdirSync(tempHelperDir, { recursive: true });
+	fs.writeFileSync(
+		tsHelperPath,
+		`module.exports = {\n\tsetName() {},\n\tsetPath() {},\n\tsetExpressApp() {},\n\tsetSocketIO() {}\n};\n`,
+		"utf8"
+	);
+
+	try {
+		const helperRuntime = createHelperRuntime({
+			app: { use() {} },
+			io: {},
+			/**
+			 * Gets harness config.
+			 */
+			getHarnessConfig() {
+				return { moduleName: "MMM-TestModule" };
+			},
+			/**
+			 * Gets harness cache dir.
+			 */
+			getHarnessCacheDir() {
+				return ".runtime-cache/default";
+			},
+			helperPath: tsHelperPath
+		});
+
+		await assert.doesNotReject(async () => {
+			await helperRuntime.restartHelper();
+		});
+	} finally {
+		cleanupTempHelper(tsHelperPath);
+	}
+});
+
 test("restartHelper boots and reuses helper wiring while stopHelper shuts down the active instance", async () => {
 	const helperCalls = [];
 	global.__MODULE_SANDBOX_HELPER_TEST_CALLS__ = helperCalls;

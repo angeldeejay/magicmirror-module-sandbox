@@ -11,7 +11,13 @@ declare const ace: {
 		name: string,
 		deps: string[],
 		factory: (
-			acequire: (dep: string) => { importCssString: (css: string, id: string, defer: boolean) => void },
+			acequire: (dep: string) => {
+				importCssString: (
+					css: string,
+					id: string,
+					defer: boolean
+				) => void;
+			},
 			exports: Record<string, unknown>
 		) => void
 	) => void;
@@ -197,6 +203,10 @@ ace.define(
 `;
 
 		const dom = acequire("ace/lib/dom");
-		dom.importCssString(exports.cssText as string, exports.cssClass as string, false);
+		dom.importCssString(
+			exports.cssText as string,
+			exports.cssClass as string,
+			false
+		);
 	}
 );

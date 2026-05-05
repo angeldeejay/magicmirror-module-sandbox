@@ -10,28 +10,29 @@ Run commands from the repository root.
 ```bash
 node --run install
 node --run build
-node --run build:client-assets
-node --run build:client-shell
-node --run build:client-runtime
-node --run build:node-compat
-node --run sync:mm-assets
+node --run build:10-client
+node --run client:shell
+node --run client:runtime
+node --run build:20-node-compat
+node --run build:00-sync-mm-assets
 node --run start
-node --run start:preview
-node --run watch
-node --run watch:preview
+node --run dev:watch-preview
+node --run dev:start-preview
+node --run dev:watch
 node --run typecheck
 node --run test
-node --run test:unit
-node --run test:unit:coverage
-node --run test:integration
-node --run test:integration:headed
-node --run test:e2e
-node --run test:ui
-node --run test:ui:headed
-node --run test:browser:headed
-node --run styles
+node --run test-quick:unit
+node --run test:10-unit-coverage
+node --run test:20-integration
+node --run test-headed:integration
+node --run test:40-e2e
+node --run test:30-ui
+node --run test-headed:ui
+node --run test-headed
+node --run client:styles
 node --run lint
-node --run format
+node --run lint:fix
+node --run docs:screenshots
 ```
 
 ## Product scope

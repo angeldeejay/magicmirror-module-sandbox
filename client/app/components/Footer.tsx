@@ -27,8 +27,13 @@ export function Footer({ harness }: FooterProps) {
 				</a>
 				{harness.sandboxVersion && (
 					<>
-						<span class="harness-footer-divider" aria-hidden="true" />
-						<span class="harness-footer-version">v{harness.sandboxVersion}</span>
+						<span
+							class="harness-footer-divider"
+							aria-hidden="true"
+						/>
+						<span class="harness-footer-version">
+							v{harness.sandboxVersion}
+						</span>
 					</>
 				)}
 			</div>
@@ -44,7 +49,9 @@ export function Footer({ harness }: FooterProps) {
 					</a>
 				)}
 				{harness.mmVersion && (
-					<span class="harness-footer-mm-version">v{harness.mmVersion}</span>
+					<span class="harness-footer-mm-version">
+						v{harness.mmVersion}
+					</span>
 				)}
 			</div>
 			<div class="harness-footer-credits">

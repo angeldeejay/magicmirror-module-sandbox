@@ -131,23 +131,24 @@ function buildCommandInvocation(command, args) {
  *
  * @param {string} command
  * @param {string[]} args
- * @param {import("child_process").SpawnSyncOptions} options
+ * @param {import("child_process").SpawnSyncOptions & { baseEnv?: NodeJS.ProcessEnv }} options
  * @returns {string}
  */
-function runCommand(command, args, options) {
+function runCommand(command, args, options?) {
+	const { baseEnv, ...spawnOptions } = options ?? {};
 	const invocation = buildCommandInvocation(command, args);
 	const result = spawnSync(invocation.command, invocation.args, {
 		encoding: "utf8",
 		...invocation.options,
-		...options,
+		...spawnOptions,
 		env:
 			command === npmCommand
 				? {
-						...process.env,
+						...(baseEnv ?? process.env),
 						...quietNpmEnv,
-						...options?.env
+						...spawnOptions?.env
 					}
-				: options?.env
+				: spawnOptions?.env
 	});
 
 	if (result.error) {
@@ -226,11 +227,25 @@ function allocateLoopbackPort(): Promise<number> {
  * e2e global setup performs the build explicitly and then packs with scripts
  * disabled to avoid paying the same build cost twice.
  *
+ * Strip test-runner env vars (NODE_ENV=test, VITEST, VITEST_POOL_ID,
+ * VITEST_WORKER_ID) before spawning the build.  When vite runs under those
+ * vars it forces @preact/preset-vite to load via its CJS variant, which uses
+ * require("zimmerframe") — a package that ships only an ESM export — causing
+ * rolldown's optimizeDeps to fail.
+ *
  * @returns {void}
  */
 function buildCurrentRepo() {
+	const {
+		NODE_ENV: _node,
+		VITEST: _vitest,
+		VITEST_POOL_ID: _pool,
+		VITEST_WORKER_ID: _worker,
+		...cleanEnv
+	} = process.env;
 	runCommand(npmCommand, ["run", "build"], {
-		cwd: repoRoot
+		cwd: repoRoot,
+		baseEnv: cleanEnv
 	});
 }
 

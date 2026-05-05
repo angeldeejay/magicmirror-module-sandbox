@@ -32,9 +32,16 @@ export function getSandboxServerInvocation() {
 		) || distEntrypoint;
 
 	if (entrypoint.endsWith(".ts")) {
+		const tsxCli = path.join(
+			sandboxRoot,
+			"node_modules",
+			"tsx",
+			"dist",
+			"cli.mjs"
+		);
 		return {
 			command: process.execPath,
-			args: ["--experimental-strip-types", entrypoint]
+			args: [tsxCli, entrypoint]
 		};
 	}
 

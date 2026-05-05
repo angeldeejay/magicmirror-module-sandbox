@@ -1,9 +1,9 @@
 /**
- * Browser-backed UI coverage for topbar domain navigation correctness.
+ * Browser-backed UI coverage for sidebar domain navigation correctness.
  *
- * Each test verifies that clicking a topbar menu link activates exactly the
+ * Each test verifies that using the DomainNav dropdown activates exactly the
  * corresponding sidebar panel and leaves all other panels inactive.
- * A separate test asserts that the visual order of both the topbar links and
+ * A separate test asserts that the visual order of both the DomainNav links and
  * the sidebar sections matches the canonical domain sequence — catching the
  * class of regression where one surface is reordered without updating the other.
  */
@@ -34,15 +34,41 @@ const CANONICAL_DOMAIN_ORDER = [
 type Domain = (typeof CANONICAL_DOMAIN_ORDER)[number];
 
 /**
- * Returns the data-domain attribute values for all topbar menu links, in DOM order.
+ * Returns the data-domain attribute values for all DomainNav dropdown links, in DOM order.
  */
-function getTopbarDomainOrder(): Promise<string[]> {
+function getDomainNavOrder(): Promise<string[]> {
 	return pageEvaluate(() => {
 		return Array.from(
 			globalThis.document.querySelectorAll<HTMLElement>(
-				".harness-menu-link[data-domain]"
+				".harness-domain-nav-link[data-domain]"
 			)
 		).map((el) => el.dataset.domain ?? "");
+	});
+}
+
+/**
+ * Returns whether the DomainNav dropdown panel is currently open.
+ */
+function isDomainNavOpen(): Promise<boolean> {
+	return pageEvaluate(() => {
+		const panel = globalThis.document.querySelector(
+			".harness-domain-nav-panel"
+		);
+		return (
+			panel?.classList.contains("harness-domain-nav-panel--open") ?? false
+		);
+	});
+}
+
+/**
+ * Returns the text content of the DomainNav trigger button (active domain label).
+ */
+function getDomainNavTriggerLabel(): Promise<string> {
+	return pageEvaluate(() => {
+		const trigger = globalThis.document.querySelector<HTMLElement>(
+			".harness-domain-nav-trigger"
+		);
+		return trigger?.textContent?.trim().replace(/[\s]+/g, " ") ?? "";
 	});
 }
 
@@ -90,21 +116,137 @@ function getActivePanelMap(): Promise<Record<string, string>> {
 
 journeyTest(
 	"ui-domain-navigation-order",
-	"topbar link order and sidebar panel order match the canonical domain sequence",
+	"DomainNav dropdown order and sidebar panel order match the canonical domain sequence",
 	async () => {
 		await gotoSandbox();
 
 		await expect
-			.poll(getTopbarDomainOrder)
+			.poll(getDomainNavOrder)
 			.toEqual([...CANONICAL_DOMAIN_ORDER]);
 
 		await expect
 			.poll(getSidebarDomainOrder)
 			.toEqual([...CANONICAL_DOMAIN_ORDER]);
 
-		const topbarOrder = await getTopbarDomainOrder();
+		const navOrder = await getDomainNavOrder();
 		const sidebarOrder = await getSidebarDomainOrder();
-		expect(topbarOrder).toEqual(sidebarOrder);
+		expect(navOrder).toEqual(sidebarOrder);
+	}
+);
+
+// ── DomainNav dropdown behavior ───────────────────────────────────────────────
+
+journeyTest(
+	"ui-domain-nav-dropdown-opens",
+	"DomainNav trigger opens the dropdown panel on click",
+	async () => {
+		await gotoSandbox();
+		await expect.poll(isDomainNavOpen).toBe(false);
+		await pageEvaluate(() => {
+			globalThis.document
+				.querySelector<HTMLElement>(".harness-domain-nav-trigger")
+				?.click();
+		});
+		await expect.poll(isDomainNavOpen).toBe(true);
+	}
+);
+
+journeyTest(
+	"ui-domain-nav-dropdown-closes-on-outside-click",
+	"DomainNav dropdown closes when clicking outside",
+	async () => {
+		await gotoSandbox();
+		await pageEvaluate(() => {
+			globalThis.document
+				.querySelector<HTMLElement>(".harness-domain-nav-trigger")
+				?.click();
+		});
+		await expect.poll(isDomainNavOpen).toBe(true);
+		await pageEvaluate(() => {
+			globalThis.document.body.dispatchEvent(
+				new MouseEvent("mousedown", { bubbles: true })
+			);
+		});
+		await expect.poll(isDomainNavOpen).toBe(false);
+	}
+);
+
+journeyTest(
+	"ui-domain-nav-trigger-reflects-active-domain",
+	"DomainNav trigger label updates to reflect the selected domain",
+	async () => {
+		await gotoSandbox();
+		await openDomain("config");
+		await expect.poll(getDomainNavTriggerLabel).toMatch(/config/i);
+	}
+);
+
+journeyTest(
+	"ui-domain-nav-dropdown-closes-on-selection",
+	"DomainNav dropdown closes after selecting a domain",
+	async () => {
+		await gotoSandbox();
+		await pageEvaluate(() => {
+			globalThis.document
+				.querySelector<HTMLElement>(".harness-domain-nav-trigger")
+				?.click();
+		});
+		await expect.poll(isDomainNavOpen).toBe(true);
+		await pageEvaluate(() => {
+			globalThis.document
+				.querySelector<HTMLElement>("#menu-config")
+				?.click();
+		});
+		await expect.poll(isDomainNavOpen).toBe(false);
+	}
+);
+
+// ── Sidebar toggle ────────────────────────────────────────────────────────────
+
+function isSidebarOpen(): Promise<boolean> {
+	return pageEvaluate(() => {
+		return (
+			globalThis.document.getElementById("harness-body")?.dataset
+				.sidebarOpen === "true"
+		);
+	});
+}
+
+journeyTest(
+	"ui-sidebar-toggle-opens",
+	"sidebar tab button opens the sidebar when it is closed",
+	async () => {
+		await gotoSandbox();
+		await expect.poll(isSidebarOpen).toBe(true);
+		// Close sidebar first via the tab
+		await pageEvaluate(() => {
+			globalThis.document
+				.querySelector<HTMLElement>(".harness-sidebar-tab")
+				?.click();
+		});
+		await expect.poll(isSidebarOpen).toBe(false);
+		// Re-open
+		await pageEvaluate(() => {
+			globalThis.document
+				.querySelector<HTMLElement>(".harness-sidebar-tab")
+				?.click();
+		});
+		await expect.poll(isSidebarOpen).toBe(true);
+	}
+);
+
+journeyTest(
+	"ui-sidebar-toggle-closes",
+	"sidebar tab button closes the sidebar when it is open",
+	async () => {
+		await gotoSandbox();
+		await expect.poll(isSidebarOpen).toBe(true);
+		await pageEvaluate(() => {
+			globalThis.document
+				.querySelector<HTMLElement>(".harness-sidebar-tab")
+				?.click();
+		});
+		await expect.poll(isSidebarOpen).toBe(false);
 	}
 );
 

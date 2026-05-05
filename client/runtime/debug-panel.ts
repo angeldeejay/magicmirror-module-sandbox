@@ -23,7 +23,6 @@
 		const bodyEl = getById<HTMLElement>("harness-body");
 		const sidebarTitleEl = getById<HTMLElement>("sidebar-title");
 		const sidebarCopyEl = getById<HTMLElement>("sidebar-copy");
-		const sidebarCloseButton = getById<HTMLButtonElement>("sidebar-close");
 		const menuButtons = Array.from(
 			document.querySelectorAll<HTMLElement>(
 				".harness-menu-link[data-domain]"
@@ -984,20 +983,15 @@
 			syncPayloadEditorState();
 		});
 
+		let lastActiveDomain = "runtime";
 		menuButtons.forEach((button) => {
 			button.addEventListener("click", (event) => {
 				event.preventDefault();
 				const nextDomain = button.dataset.domain || "";
-				const currentlyActive = button.dataset.active === "true";
-				const targetDomain = currentlyActive ? "" : nextDomain;
-				history.replaceState(
-					null,
-					"",
-					targetDomain
-						? `#${targetDomain}`
-						: location.pathname + location.search
-				);
+				const targetDomain = nextDomain;
+				history.replaceState(null, "", `#${targetDomain}`);
 				setActiveDomain(targetDomain);
+				lastActiveDomain = targetDomain;
 			});
 		});
 
@@ -1010,10 +1004,21 @@
 			});
 		});
 
-		if (sidebarCloseButton) {
-			sidebarCloseButton.addEventListener("click", () => {
-				history.replaceState(null, "", location.pathname + location.search);
-				setActiveDomain("");
+		const sidebarTabButton = getById("harness-sidebar-tab");
+		if (sidebarTabButton) {
+			sidebarTabButton.addEventListener("click", () => {
+				const isOpen = bodyEl?.dataset.sidebarOpen === "true";
+				if (isOpen) {
+					history.replaceState(
+						null,
+						"",
+						location.pathname + location.search
+					);
+					setActiveDomain("");
+				} else {
+					history.replaceState(null, "", `#${lastActiveDomain}`);
+					setActiveDomain(lastActiveDomain);
+				}
 			});
 		}
 
@@ -1169,7 +1174,9 @@
 			moduleConfigRefreshStylesButton.disabled = !core.stageReady;
 		}
 		const initialDomain = (globalScope as Window).location.hash.slice(1);
-		setActiveDomain(initialDomain || "runtime");
+		const resolvedInitialDomain = initialDomain || "runtime";
+		lastActiveDomain = resolvedInitialDomain;
+		setActiveDomain(resolvedInitialDomain);
 		setStatus("Notification engine ready.");
 	};
 })(window);

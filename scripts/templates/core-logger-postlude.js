@@ -1,13 +1,17 @@
 const __moduleSandboxLogTarget = module.exports;
 const __moduleSandboxLogMethods = __HELPER_LOG_METHODS__;
 const __moduleSandboxWrapLoggerMethods = () => {
-	if (!__moduleSandboxLogTarget || typeof __moduleSandboxLogTarget !== "object") {
+	if (
+		!__moduleSandboxLogTarget ||
+		typeof __moduleSandboxLogTarget !== "object"
+	) {
 		return;
 	}
 	for (const method of __moduleSandboxLogMethods) {
 		if (
 			typeof __moduleSandboxLogTarget[method] !== "function" ||
-			__moduleSandboxLogTarget[method].__moduleSandboxWrappedMethod === true
+			__moduleSandboxLogTarget[method].__moduleSandboxWrappedMethod ===
+				true
 		) {
 			continue;
 		}
@@ -46,18 +50,26 @@ if (
 			__moduleSandboxWrapLoggerMethods();
 			return result;
 		};
-		Object.defineProperty(wrappedSetLogLevel, "__moduleSandboxWrappedMethod", {
+		Object.defineProperty(
+			wrappedSetLogLevel,
+			"__moduleSandboxWrappedMethod",
+			{
+				value: true,
+				configurable: false,
+				enumerable: false,
+				writable: false
+			}
+		);
+		__moduleSandboxLogTarget.setLogLevel = wrappedSetLogLevel;
+	}
+	Object.defineProperty(
+		__moduleSandboxLogTarget,
+		"__moduleSandboxSetLogLevelWrapped",
+		{
 			value: true,
 			configurable: false,
 			enumerable: false,
 			writable: false
-		});
-		__moduleSandboxLogTarget.setLogLevel = wrappedSetLogLevel;
-	}
-	Object.defineProperty(__moduleSandboxLogTarget, "__moduleSandboxSetLogLevelWrapped", {
-		value: true,
-		configurable: false,
-		enumerable: false,
-		writable: false
-	});
+		}
+	);
 }

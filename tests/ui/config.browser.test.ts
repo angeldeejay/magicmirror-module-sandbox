@@ -216,8 +216,9 @@ journeyTest(
 			.poll(() =>
 				pageEvaluate(() => {
 					return (
-						globalThis.document.getElementById("module-config-validity")
-							?.textContent ?? ""
+						globalThis.document.getElementById(
+							"module-config-validity"
+						)?.textContent ?? ""
 					);
 				})
 			)
@@ -283,13 +284,14 @@ journeyTest(
 		await openSidebarTab("config", "module");
 
 		// Comment input stays valid and is visible in editor text.
-		await writeModuleConfigRaw("// my api key\napiKey: \"abc\"");
+		await writeModuleConfigRaw('// my api key\napiKey: "abc"');
 		await expect
 			.poll(() =>
 				pageEvaluate(() => {
 					return (
-						globalThis.document.getElementById("module-config-validity")
-							?.textContent ?? ""
+						globalThis.document.getElementById(
+							"module-config-validity"
+						)?.textContent ?? ""
 					);
 				})
 			)
@@ -307,8 +309,9 @@ journeyTest(
 			.poll(() =>
 				pageEvaluate(() => {
 					return (
-						globalThis.document.getElementById("module-config-validity")
-							?.textContent ?? ""
+						globalThis.document.getElementById(
+							"module-config-validity"
+						)?.textContent ?? ""
 					);
 				})
 			)

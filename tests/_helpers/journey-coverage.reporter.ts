@@ -122,7 +122,8 @@ class JourneyCoverageReporter implements Reporter {
 		for (const testModule of testModules) {
 			const id = testModule.relativeModuleId.replace(/\\/g, "/");
 			if (/\/tests\/ui\//.test(id)) detectedSuites.add("ui");
-			if (/\/tests\/integration\//.test(id)) detectedSuites.add("integration");
+			if (/\/tests\/integration\//.test(id))
+				detectedSuites.add("integration");
 		}
 
 		for (const testModule of testModules) {
@@ -146,7 +147,9 @@ class JourneyCoverageReporter implements Reporter {
 			}
 		}
 
-		const summary = buildJourneyCoverageSummary(records, [...detectedSuites]);
+		const summary = buildJourneyCoverageSummary(records, [
+			...detectedSuites
+		]);
 		if (!summary || !this.ctx) {
 			return;
 		}

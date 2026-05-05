@@ -7,6 +7,14 @@
 	padding-left: 18px;
 }
 
+ul.fa-ul.sandbox-hint-list {
+	.fa-li {
+		font-size: 0.75em;
+		top: 50%;
+		transform: translateY(-50%);
+	}
+}
+
 .debug-log-meta {
 	color: var(--hns-text-debug);
 }

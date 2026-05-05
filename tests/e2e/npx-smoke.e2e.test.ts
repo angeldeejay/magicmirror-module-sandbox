@@ -2,7 +2,11 @@
  * End-to-end smoke coverage for consumer npx installs.
  */
 import { test } from "vitest";
-import { allocateLoopbackPort, runSmokeCommand, withPackedSandbox } from "./helpers.ts";
+import {
+	allocateLoopbackPort,
+	runSmokeCommand,
+	withPackedSandbox
+} from "./helpers.ts";
 
 /**
  * Packaged-install smoke coverage for the one-off `npm exec --package` workflow.

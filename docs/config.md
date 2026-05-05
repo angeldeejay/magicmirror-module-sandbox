@@ -7,7 +7,7 @@ saved JSON config.
 
 ### General
 
-![Config General screenshot](screenshots/config-general.png)
+![Config General screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/config-general.png)
 
 This panel collects the wrapper-level options and the sandbox language used for
 the mounted module:
@@ -25,7 +25,7 @@ the mounted module:
 
 ### Module
 
-![Config Module screenshot](screenshots/config-module.png)
+![Config Module screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/config-module.png)
 
 This panel gives you the embedded JSON editor for the module's nested `config`
 object:

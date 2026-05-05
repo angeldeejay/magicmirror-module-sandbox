@@ -14,6 +14,7 @@ declare global {
 		lastFormattedString?: string;
 		validation_error: string;
 		is_valid(): boolean;
+		applyBeautify(): void;
 		json_value: any;
 		value: string;
 	}

@@ -148,10 +148,11 @@ function runStartupScripts({
 		let child: ChildProcess;
 		try {
 			const npmSpawn = getNpmSpawnCommand(repoRoot, scriptName);
-			child = spawnProcess(npmSpawn.command, npmSpawn.args, {
-				...npmSpawn.options,
-				detached: process.platform !== "win32"
-			});
+			child = spawnProcess(
+				npmSpawn.command,
+				npmSpawn.args,
+				npmSpawn.options
+			);
 		} catch (error) {
 			const spawnError = error as Error;
 			log(
@@ -203,6 +204,34 @@ function runStartupScripts({
 	};
 }
 
+type PsSpawnSyncFn = (
+	cmd: string,
+	args: string[],
+	opts: { encoding: "utf8" }
+) => { stdout: string };
+
+/**
+ * Collects all descendant PIDs of a given parent by parsing ps output lines.
+ */
+function collectDescendants(
+	lines: string[],
+	parentPid: number,
+	acc: number[] = []
+): number[] {
+	for (const line of lines) {
+		const parts = line.trim().split(/\s+/);
+		if (parts.length >= 2) {
+			const childPid = parseInt(parts[0], 10);
+			const childPpid = parseInt(parts[1], 10);
+			if (!isNaN(childPid) && childPpid === parentPid) {
+				acc.push(childPid);
+				collectDescendants(lines, childPid, acc);
+			}
+		}
+	}
+	return acc;
+}
+
 /**
  * Stops process tree.
  */
@@ -211,10 +240,12 @@ function stopProcessTree(
 	{
 		platform = process.platform,
 		spawnProcess = spawn,
+		spawnSyncProcess = spawnSync as unknown as PsSpawnSyncFn,
 		processKill = process.kill
 	}: {
 		platform?: NodeJS.Platform;
 		spawnProcess?: SpawnFn;
+		spawnSyncProcess?: PsSpawnSyncFn;
 		processKill?: typeof process.kill;
 	} = {}
 ): Promise<void> {
@@ -258,20 +289,30 @@ function stopProcessTree(
 		});
 	}
 
-	return new Promise((resolve, reject) => {
-		try {
-			processKill(-pid, "SIGKILL");
-		} catch (error) {
-			const killError = error as Error & { code?: string };
-			if (killError.code === "ESRCH" || killError.code === "EPERM") {
-				resolve();
-				return;
-			}
-			reject(killError);
-			return;
-		}
-		resolve();
+	const psResult = spawnSyncProcess("ps", ["-eo", "pid,ppid"], {
+		encoding: "utf8"
 	});
+	const lines = psResult.stdout.trim().split("\n").slice(1);
+	const descendants = collectDescendants(lines, pid);
+
+	for (const dpid of descendants.reverse()) {
+		try {
+			processKill(dpid, "SIGKILL");
+		} catch {
+			// already gone
+		}
+	}
+
+	try {
+		processKill(pid, "SIGKILL");
+	} catch (error) {
+		const killError = error as Error & { code?: string };
+		if (killError.code === "ESRCH" || killError.code === "EPERM") {
+			return Promise.resolve();
+		}
+		return Promise.reject(killError);
+	}
+	return Promise.resolve();
 }
 
 export {

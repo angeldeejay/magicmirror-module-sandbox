@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types
+#!/usr/bin/env tsx
 
 /**
  * CLI bootstrap that resolves preview mode and launches the maintained or packaged server entrypoint.

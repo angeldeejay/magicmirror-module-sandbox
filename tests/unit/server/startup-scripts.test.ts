@@ -159,10 +159,11 @@ test("runStartupScripts runs all declared startup scripts in order", () => {
 		/**
 		 * Internal helper for spawn.
 		 */
-		spawn(command, args) {
+		spawn(command, args, options) {
 			calls.push({
 				command,
-				args
+				args,
+				options
 			});
 			return new EventEmitter();
 		}
@@ -183,6 +184,10 @@ test("runStartupScripts runs all declared startup scripts in order", () => {
 			["run first", "run second"]
 		);
 	}
+	assert.ok(
+		calls.every((call) => call.options?.detached === undefined),
+		"spawn must not use detached"
+	);
 });
 
 test("runStartupScripts logs synchronous spawn errors without crashing", () => {
@@ -434,30 +439,27 @@ test("stopProcessTree resolves cleanly when pid is missing", async () => {
 });
 
 test("stopProcessTree uses SIGKILL immediately on non-Windows platforms", async () => {
-	const originalPlatform = process.platform;
-	const originalKill = process.kill;
 	const calls = [];
 
-	Object.defineProperty(process, "platform", {
-		configurable: true,
-		value: "linux"
-	});
-	/**
-	 * Internal helper for kill.
-	 */
-	process.kill = (pid, signal) => {
-		calls.push({ pid, signal });
-	};
-
 	try {
-		await stopProcessTree(321);
-		assert.deepEqual(calls, [{ pid: -321, signal: "SIGKILL" }]);
-	} finally {
-		Object.defineProperty(process, "platform", {
-			configurable: true,
-			value: originalPlatform
+		await stopProcessTree(321, {
+			platform: "linux",
+			/**
+			 * Internal helper for spawnSync (ps).
+			 */
+			spawnSyncProcess() {
+				return { stdout: "  PID  PPID\n" };
+			},
+			/**
+			 * Internal helper for kill.
+			 */
+			processKill(pid, signal) {
+				calls.push({ pid, signal });
+			}
 		});
-		process.kill = originalKill;
+		assert.deepEqual(calls, [{ pid: 321, signal: "SIGKILL" }]);
+	} finally {
+		// no global state to restore
 	}
 });
 
@@ -528,6 +530,12 @@ test("stopProcessTree rejects unexpected non-Windows kill errors", async () => {
 		await stopProcessTree(456, {
 			platform: "linux",
 			/**
+			 * Internal helper for spawnSync (ps).
+			 */
+			spawnSyncProcess() {
+				return { stdout: "  PID  PPID\n" };
+			},
+			/**
 			 * Internal helper for process kill.
 			 */
 			processKill() {
@@ -537,4 +545,71 @@ test("stopProcessTree rejects unexpected non-Windows kill errors", async () => {
 			}
 		});
 	}, /kill failed/);
+});
+
+test("stopProcessTree kills descendants bottom-up before root on non-Windows", async () => {
+	const calls = [];
+
+	await stopProcessTree(321, {
+		platform: "linux",
+		/**
+		 * Internal helper for spawnSync (ps).
+		 */
+		spawnSyncProcess() {
+			return {
+				stdout: "  PID  PPID\n  321     1\n  400   321\n  401   321\n  500   400\n"
+			};
+		},
+		/**
+		 * Internal helper for kill.
+		 */
+		processKill(pid, signal) {
+			calls.push({ pid, signal });
+		}
+	});
+
+	assert.deepEqual(calls, [
+		{ pid: 401, signal: "SIGKILL" },
+		{ pid: 500, signal: "SIGKILL" },
+		{ pid: 400, signal: "SIGKILL" },
+		{ pid: 321, signal: "SIGKILL" }
+	]);
+});
+
+test("stopProcessTree kills a real spawned process", async () => {
+	const { spawn } = await import("node:child_process");
+
+	const child = spawn(
+		process.execPath,
+		["-e", "setInterval(() => {}, 60000)"],
+		{
+			stdio: "ignore"
+		}
+	);
+
+	await new Promise((resolve) => {
+		if (child.pid) {
+			resolve();
+		} else {
+			child.once("spawn", resolve);
+		}
+	});
+
+	const pid = child.pid;
+	assert.ok(pid, "child must have a pid");
+
+	await stopProcessTree(pid);
+
+	await new Promise((resolve) => setTimeout(resolve, 50));
+
+	let dead = false;
+	try {
+		process.kill(pid, 0);
+	} catch (err) {
+		const e = err;
+		if (e.code === "ESRCH" || e.code === "EPERM") {
+			dead = true;
+		}
+	}
+	assert.ok(dead, `process ${pid} should be dead after stopProcessTree`);
 });

@@ -31,12 +31,18 @@ export type JourneyId =
 	| "ui-domain-nav-about"
 	| "ui-domain-nav-config"
 	| "ui-domain-nav-debug"
+	| "ui-domain-nav-dropdown-closes-on-outside-click"
+	| "ui-domain-nav-dropdown-closes-on-selection"
+	| "ui-domain-nav-dropdown-opens"
 	| "ui-domain-nav-notifications"
 	| "ui-domain-nav-quality"
 	| "ui-domain-nav-runtime"
+	| "ui-domain-nav-trigger-reflects-active-domain"
 	| "ui-domain-navigation-order"
 	| "ui-notifications-sidebar"
-	| "ui-runtime-controls";
+	| "ui-runtime-controls"
+	| "ui-sidebar-toggle-closes"
+	| "ui-sidebar-toggle-opens";
 
 /**
  * Canonical definition for one modeled product journey.
@@ -488,6 +494,56 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 		description: "Clicking About in topbar activates only the About panel.",
 		transitions: ["navigation:about-opened"],
 		outcomes: ["about panel active", "other panels inactive"]
+	},
+	{
+		id: "ui-domain-nav-dropdown-opens",
+		suite: "ui",
+		label: "DomainNav dropdown opens",
+		description: "DomainNav trigger opens the dropdown panel on click.",
+		transitions: ["domain-nav:trigger-clicked"],
+		outcomes: ["dropdown panel visible"]
+	},
+	{
+		id: "ui-domain-nav-dropdown-closes-on-outside-click",
+		suite: "ui",
+		label: "DomainNav dropdown closes on outside click",
+		description:
+			"DomainNav dropdown closes when clicking outside the panel.",
+		transitions: ["domain-nav:outside-mousedown"],
+		outcomes: ["dropdown panel hidden"]
+	},
+	{
+		id: "ui-domain-nav-trigger-reflects-active-domain",
+		suite: "ui",
+		label: "DomainNav trigger reflects active domain",
+		description:
+			"DomainNav trigger label updates to reflect the selected domain.",
+		transitions: ["domain-nav:domain-selected"],
+		outcomes: ["trigger label matches active domain"]
+	},
+	{
+		id: "ui-domain-nav-dropdown-closes-on-selection",
+		suite: "ui",
+		label: "DomainNav dropdown closes on selection",
+		description: "DomainNav dropdown closes after selecting a domain.",
+		transitions: ["domain-nav:link-clicked"],
+		outcomes: ["dropdown panel hidden after selection"]
+	},
+	{
+		id: "ui-sidebar-toggle-opens",
+		suite: "ui",
+		label: "Sidebar tab opens sidebar",
+		description: "Sidebar tab button opens the sidebar when it is closed.",
+		transitions: ["sidebar:tab-clicked-while-closed"],
+		outcomes: ["sidebar becomes visible"]
+	},
+	{
+		id: "ui-sidebar-toggle-closes",
+		suite: "ui",
+		label: "Sidebar tab closes sidebar",
+		description: "Sidebar tab button closes the sidebar when it is open.",
+		transitions: ["sidebar:tab-clicked-while-open"],
+		outcomes: ["sidebar becomes hidden"]
 	}
 ] as const;
 

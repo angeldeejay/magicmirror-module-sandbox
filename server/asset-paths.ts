@@ -35,26 +35,14 @@ export function resolveWebfontsRoot(): string {
  * Resolves croner path.
  */
 export function resolveCronerPath(): string {
-	return path.join(
-		harnessRoot,
-		"client",
-		"generated",
-		"vendor",
-		"croner.js"
-	);
+	return path.join(harnessRoot, "client", "generated", "vendor", "croner.js");
 }
 
 /**
  * Resolves moment path.
  */
 export function resolveMomentPath(): string {
-	return path.join(
-		harnessRoot,
-		"client",
-		"generated",
-		"vendor",
-		"moment.js"
-	);
+	return path.join(harnessRoot, "client", "generated", "vendor", "moment.js");
 }
 
 /**

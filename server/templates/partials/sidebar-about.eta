@@ -5,11 +5,11 @@
   <span class="status-pill">Supported surface is intentionally narrow but MagicMirror-faithful.</span>
   <span class="status-pill">Official MagicMirror references worth keeping close while building modules.</span>
   <div class="sandbox-section-title"><i class="fa-solid fa-book-open" aria-hidden="true"></i> MagicMirror references</div>
-  <ul class="sandbox-hint-list">
-    <li><a href="https://docs.magicmirror.builders/" target="_blank" rel="noreferrer noopener">MagicMirror documentation</a></li>
-    <li><a href="https://docs.magicmirror.builders/module-development/introduction.html" target="_blank" rel="noreferrer noopener">Module development introduction</a></li>
-    <li><a href="https://docs.magicmirror.builders/module-development/core-module-file.html" target="_blank" rel="noreferrer noopener">Core module file reference</a></li>
-    <li><a href="https://docs.magicmirror.builders/module-development/node-helper.html" target="_blank" rel="noreferrer noopener">Node helper reference</a></li>
+  <ul class="fa-ul sandbox-hint-list">
+    <li><span class="fa-li"><i class="fa-solid fa-link" aria-hidden="true"></i></span><a href="https://docs.magicmirror.builders/" target="_blank" rel="noreferrer noopener">MagicMirror documentation</a></li>
+    <li><span class="fa-li"><i class="fa-solid fa-link" aria-hidden="true"></i></span><a href="https://docs.magicmirror.builders/module-development/introduction.html" target="_blank" rel="noreferrer noopener">Module development introduction</a></li>
+    <li><span class="fa-li"><i class="fa-solid fa-link" aria-hidden="true"></i></span><a href="https://docs.magicmirror.builders/module-development/core-module-file.html" target="_blank" rel="noreferrer noopener">Core module file reference</a></li>
+    <li><span class="fa-li"><i class="fa-solid fa-link" aria-hidden="true"></i></span><a href="https://docs.magicmirror.builders/module-development/node-helper.html" target="_blank" rel="noreferrer noopener">Node helper reference</a></li>
   </ul>
   <div class="sandbox-section-title">Credits</div>
   <ul class="sandbox-hint-list">

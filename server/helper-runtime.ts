@@ -14,6 +14,19 @@ const nodeRequire = createRequire(
 	/* v8 ignore next */
 	typeof __filename === "string" ? __filename : import.meta.url
 );
+
+let tsxCjsRegistered = false;
+
+/**
+ * Registers tsx CJS hook so nodeRequire can load .ts files.
+ * Safe to call multiple times; registers only once.
+ */
+function ensureTsxCjsRegistered(): void {
+	/* v8 ignore next 3 */
+	if (tsxCjsRegistered) return;
+	nodeRequire("tsx/cjs");
+	tsxCjsRegistered = true;
+}
 const compatShimsRoot = path.join(shimsRoot, "generated");
 const compatMagicMirrorRoot = path.join(compatShimsRoot, "magicmirror-core");
 const compatMagicMirrorPackagePath = path.join(
@@ -33,7 +46,7 @@ type HelperRuntimeOptions = {
 	io: import("socket.io").Server;
 	getHarnessConfig: () => { moduleName: string };
 	getHarnessCacheDir: () => string;
-	/** Override the resolved `node_helper.js` path. Primarily for testing. */
+	/** Override the resolved node_helper path (.ts or .js). Primarily for testing. */
 	helperPath?: string;
 };
 type HelperInstance = {
@@ -149,11 +162,18 @@ function createHelperRuntime({
 		clearModuleRequireCache();
 		process.env.MM_SANDBOX_CACHE_DIR = getHarnessCacheDir();
 		const harnessConfig = getHarnessConfig();
+		const tsHelperPath = path.join(repoRoot, "node_helper.ts");
 		const helperPath =
-			helperPathOverride ?? path.join(repoRoot, "node_helper.js");
+			helperPathOverride ??
+			(fs.existsSync(tsHelperPath)
+				? tsHelperPath
+				: path.join(repoRoot, "node_helper.js"));
 		if (!fs.existsSync(helperPath)) {
 			helperInstance = null;
 			return;
+		}
+		if (helperPath.endsWith(".ts")) {
+			ensureTsxCjsRegistered();
 		}
 		const helperModule = nodeRequire(helperPath) as HelperModuleExport;
 		const helper =

@@ -5,8 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, defineProject } from "vitest/config";
 import {
-	getBrowserInspectionOptions,
-	getBrowserWorkerConfig
+    getBrowserInspectionOptions,
+    getBrowserWorkerConfig
 } from "./tests/_helpers/browser-inspection.ts";
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));

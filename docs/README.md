@@ -2,7 +2,7 @@
 
 These pages walk through the main parts of the MagicMirror Module Sandbox UI.
 
-![Runtime domain screenshot](screenshots/runtime-lifecycle.png)
+![Runtime domain screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/runtime-lifecycle.png)
 
 ## What you will find here
 

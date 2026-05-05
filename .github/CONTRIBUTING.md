@@ -23,10 +23,10 @@ Run commands from the repository root.
 
 ### Run Prettier
 
-We use [Prettier](https://prettier.io/) for repository formatting.
+We use [Prettier](https://prettier.io/) integrated as an ESLint plugin. Use `lint:fix` to format:
 
 ```bash
-npm run format
+npm run lint:fix
 ```
 
 ### Run ESLint
@@ -50,22 +50,33 @@ working on the sandbox itself with no mounted consumer module available, use the
 maintainer fixture flow instead:
 
 ```bash
-npm run start:preview
+npm run dev:start-preview
 ```
 
 For watch-mode behavior:
 
 ```bash
-npm run watch
-npm run watch:preview
+npm run dev:watch
+npm run dev:watch-preview
 ```
 
 For sandbox stylesheet work:
 
 ```bash
-npm run styles
-npm run styles:watch
+npm run client:styles
+npm run client:styles:watch
 ```
+
+When updating the docs screenshots (after UI changes):
+
+```bash
+npm run docs:screenshots
+```
+
+This starts a short-lived sandbox instance on a random free port, captures
+all sidebar domains and themes at 1366×1024, saves to `docs/screenshots/`,
+then shuts down. No running sandbox required. The theme-switcher screenshot
+is excluded and maintained manually.
 
 For package/distribution changes:
 
@@ -87,19 +98,19 @@ npm test
 
 The sandbox CI workflow runs the same validation path as local maintainer work:
 install dependencies, provision Playwright Chromium, then run lint, build, and
-`npm test` from one validation step.
+`npm test` as separate pipeline steps for easier failure diagnosis.
 
 Or run the layers separately:
 
 ```bash
 npm run typecheck
-npm run test:unit
-npm run test:unit:coverage
-npm run test:ui
-npm run test:ui:headed
-npm run test:integration
-npm run test:integration:headed
-npm run test:e2e
+npm run test-quick:unit
+npm run test:10-unit-coverage
+npm run test:30-ui
+npm run test-headed:ui
+npm run test:20-integration
+npm run test-headed:integration
+npm run test:40-e2e
 ```
 
 The `*:headed` browser scripts are for maintainer inspection, not CI: they open

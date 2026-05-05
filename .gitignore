@@ -1,6 +1,9 @@
 # Package manager directories
 node_modules/
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Build and coverage output
 dist/
 client/generated/
@@ -18,6 +21,7 @@ test-results/
 playwright-report/
 .vitest-attachments/
 tests/**/__screenshots__/
+docs/screenshots/
 
 # Local archives
 *.zip
@@ -50,3 +54,6 @@ memory/
 HANDOFF.md
 CLAUDE.md
 TODO.md
+
+# IDE-specific files
+.vscode/

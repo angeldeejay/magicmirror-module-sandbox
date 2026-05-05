@@ -1,0 +1,51 @@
+# Package manager
+node_modules/
+
+# Build output
+dist/
+client/generated/
+client/webfonts/
+client/styles/font-awesome.css
+client/styles/magicmirror-fonts.css
+client/styles/magicmirror-stage.css
+client/styles/harness.css
+shims/generated/
+
+# Font assets (binary, no parser)
+client/fonts/**/*.woff
+client/fonts/**/*.woff2
+
+# Managed asset manifests (auto-generated)
+client/fonts/.magicmirror-managed-assets.json
+
+# Screenshots (binary, no parser)
+docs/screenshots/
+
+# Runtime and coverage
+coverage/
+.runtime-cache/
+
+# Test artifacts
+test-results/
+.playwright-mcp/
+playwright-report/
+.vitest-attachments/
+tests/**/__screenshots__/
+
+# Vendored upstream (auto-synced)
+server/vendor/
+
+# CodeQL
+codeql-db/
+codeql-results.sarif
+
+# Agent and local files
+memory/
+.claude/
+.secrets
+CLAUDE.md
+HANDOFF.md
+TODO.md
+
+# Lock files
+package-lock.json
