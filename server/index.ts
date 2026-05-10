@@ -28,7 +28,19 @@ import {
 	getLastAnalysisResult,
 	setAnalysisResult
 } from "./module-analysis.ts";
-import { fromOS, resolveRepoRoot } from "./paths.ts";
+import {
+	fromOS,
+	getActiveShimsRoot,
+	resolveRepoRoot
+} from "./paths.ts";
+import {
+	downloadVersion,
+	buildShimsForVersion,
+	getActiveVersion,
+	getVersionInfo,
+	sanitizeVersion,
+	setActiveVersion
+} from "./mm-version-manager.ts";
 import { registerRoutes } from "./routes.ts";
 import { runStartupScripts } from "./startup-scripts.ts";
 import { startAnalysisWatcher } from "./analysis-watcher.ts";
@@ -133,9 +145,10 @@ function runNodeCompatBuild(): void {
 }
 
 /**
- * Determines whether node compat artifacts.
+ * Determines whether node compat artifacts exist in the active shims root.
  */
 function hasNodeCompatArtifacts(): boolean {
+	const activeShimsRoot = getActiveShimsRoot();
 	return [
 		"logger.js",
 		"node_helper.js",
@@ -144,11 +157,7 @@ function hasNodeCompatArtifacts(): boolean {
 		path.join("magicmirror-core", "js", "server_functions.js"),
 		path.join("node_modules", "express", "index.js"),
 		path.join("node_modules", "undici", "index.js")
-	].every((fileName) => {
-		return fs.existsSync(
-			path.join(currentDirPath, "..", "shims", "generated", fileName)
-		);
-	});
+	].every((fileName) => fs.existsSync(path.join(activeShimsRoot, fileName)));
 }
 
 /**
@@ -288,6 +297,57 @@ function registerShutdownHandlers({
 }
 
 /**
+ * Reads package.json#sandbox.mmVersion from the mounted module and activates
+ * that version in ~/.mmvm/ if it differs from the currently active one.
+ * Downloads + builds shims if not already cached.
+ */
+async function applyPinnedMmVersion(repoRoot: string): Promise<void> {
+	try {
+		const pkgPath = path.join(repoRoot, "package.json");
+		if (!fs.existsSync(pkgPath)) return;
+		const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+			sandbox?: { mmVersion?: unknown };
+		};
+		const pinned = pkg?.sandbox?.mmVersion;
+		if (typeof pinned !== "string" || !pinned.trim()) return;
+
+		const key = sanitizeVersion(pinned);
+		const active = getActiveVersion();
+		if (active === key) return;
+
+		console.log(`[module-sandbox] mmvm: activating pinned version "${pinned}"`);
+
+		const harnessRoot = path.join(currentDirPath, "..");
+		const info = getVersionInfo(key);
+
+		if (!info.installed) {
+			console.log(`[module-sandbox] mmvm: downloading "${pinned}"…`);
+			const dl = downloadVersion(pinned);
+			if (!dl.ok) {
+				console.error(`[module-sandbox] mmvm: download failed — ${dl.error}`);
+				return;
+			}
+		}
+
+		if (!info.shimsBuilt) {
+			console.log(`[module-sandbox] mmvm: building shims for "${pinned}"…`);
+			const built = await buildShimsForVersion(key, harnessRoot);
+			if (!built.ok) {
+				console.error(
+					`[module-sandbox] mmvm: shim build failed — ${built.error}`
+				);
+				return;
+			}
+		}
+
+		setActiveVersion(pinned);
+		console.log(`[module-sandbox] mmvm: active version set to "${pinned}"`);
+	} catch (err) {
+		console.warn("[module-sandbox] mmvm: could not apply pinned version", err);
+	}
+}
+
+/**
  * Starts server.
  */
 async function startServer(): Promise<void> {
@@ -297,6 +357,7 @@ async function startServer(): Promise<void> {
 		repoRoot,
 		startupScripts: (harnessConfig.sandbox?.startup as string[]) || []
 	});
+	await applyPinnedMmVersion(repoRoot);
 	ensureNodeCompatBuild();
 	if (watchEnabled) {
 		runClientAssetsBuild();
@@ -382,8 +443,10 @@ async function startServer(): Promise<void> {
 		runtimeService: {
 			io,
 			restartHelper: helperRuntime.restartHelper,
+			injectShimResolution,
 			watchEnabled,
-			getHelperLogEntries
+			getHelperLogEntries,
+			harnessRoot: path.join(currentDirPath, "..")
 		},
 		analysisService: {
 			getAnalysisResult: getLastAnalysisResult,
@@ -416,6 +479,10 @@ async function startServer(): Promise<void> {
 		`[module-sandbox] mounted module ${harnessConfig.moduleName} (${harnessConfig.moduleEntry})`
 	);
 	console.log(`[module-sandbox] cache dir ${getHarnessCacheDir()}`);
+	const activeMmVersion = getActiveVersion();
+	console.log(
+		`[module-sandbox] mm core ${activeMmVersion ? `mmvm:${activeMmVersion}` : "built-in (shims/generated)"}`
+	);
 	console.log(
 		`[module-sandbox] ${watchEnabled ? "watch mode enabled" : "watch mode disabled"}`
 	);

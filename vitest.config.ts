@@ -66,6 +66,18 @@ export default defineConfig(async () => {
 		projects.push(
 			defineProject({
 				extends: true,
+				resolve: {
+					alias: {
+						react: "preact/compat",
+						"react-dom": "preact/compat",
+						"react/jsx-runtime": "preact/jsx-runtime",
+						"react/jsx-dev-runtime": "preact/jsx-dev-runtime"
+					}
+				},
+				esbuild: {
+					jsx: "automatic",
+					jsxImportSource: "preact"
+				},
 				test: {
 					name: "unit",
 					environment: "node",
@@ -79,7 +91,8 @@ export default defineConfig(async () => {
 						)
 					],
 					include: [
-						path.posix.join("tests", "unit", "**", "*.test.ts")
+						path.posix.join("tests", "unit", "**", "*.test.ts"),
+						path.posix.join("tests", "unit", "**", "*.test.tsx")
 					]
 				}
 			})

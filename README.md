@@ -22,8 +22,9 @@ It mounts **one real third-party module at a time**, keeps real
 - Notification inspection
 - Helper and browser debug output
 - Module quality analysis against MagicMirror 3rd-party criteria
+- MagicMirror version management (install, activate, and switch core versions)
 - Quick product context while you work
-- Collapsible sidebar with domain navigation dropdown
+- Collapsible sidebar with domain navigation dropdown and topbar version badge
 
 The goal is simple: give a MagicMirror module author a narrow, practical place
 to develop and inspect a real module without pretending to be a full

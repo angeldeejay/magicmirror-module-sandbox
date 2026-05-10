@@ -5,6 +5,11 @@
 import * as fs from "node:fs";
 import * as path from "pathe";
 import { fileURLToPath } from "node:url";
+import {
+	getActiveVersion,
+	areShimsBuilt,
+	getVersionShimsDir
+} from "./mm-version-manager.ts";
 
 type JsonObject = Record<string, unknown>;
 type MountedModuleInfo = {
@@ -323,6 +328,19 @@ export function createMissingMountedModuleError(): Error {
 export const repoRoot = resolveRepoRoot();
 export const configRoot = harnessConfigRoot;
 export const shimsRoot = path.join(harnessRoot, "shims");
+
+/**
+ * Returns the active shims directory.
+ * If a version is active in ~/.mmvm/ and its shims exist, returns that path.
+ * Falls back to the built-in shims/generated/ for backward compatibility.
+ */
+export function getActiveShimsRoot(): string {
+	const active = getActiveVersion();
+	if (active && areShimsBuilt(active)) {
+		return getVersionShimsDir(active);
+	}
+	return path.join(shimsRoot, "generated");
+}
 
 export default {
 	harnessRoot,

@@ -84,8 +84,12 @@ function resolveCoreVendorAssetPath(
 	magicMirrorRoot: string,
 	sourceRelativePath: string
 ): string {
+	// mmInstallRoot = the prefix dir that was used for npm install (e.g. mmcore-source/)
+	// MM's own dependencies are hoisted there: mmInstallRoot/node_modules/<dep>
+	const mmInstallRoot = path.dirname(path.dirname(magicMirrorRoot));
 	const candidatePaths = [
 		path.join(magicMirrorRoot, sourceRelativePath),
+		path.join(mmInstallRoot, sourceRelativePath),
 		path.join(root, sourceRelativePath)
 	];
 	const resolvedPath = candidatePaths.find((candidatePath) =>
@@ -270,6 +274,22 @@ function buildJsBeautifyBundle(): void {
 }
 
 /**
+ * Bundles jsonc-parser into a browser-ready script that exposes window.jsoncParser.
+ */
+function buildJsoncParserBundle(): void {
+	const destDir = path.join(generatedRoot, "vendor");
+	ensureDirectory(destDir);
+	buildSync({
+		entryPoints: [path.join(clientRoot, "vendor", "jsonc-parser-bundle.ts")],
+		outfile: path.join(destDir, "jsonc-parser.js"),
+		bundle: true,
+		legalComments: "none",
+		logLevel: "silent",
+		target: "es2021"
+	});
+}
+
+/**
  * Builds runtime.
  */
 function buildRuntime(): void {
@@ -287,6 +307,7 @@ function buildRuntime(): void {
 	syncCoreBrowserVendorAssets();
 	syncAceVendorFiles();
 	buildJsBeautifyBundle();
+	buildJsoncParserBundle();
 }
 
 /**

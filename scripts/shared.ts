@@ -23,11 +23,17 @@ export function ensureDirectory(directoryPath: string): void {
 }
 
 /**
- * Resolves the root directory of the local MagicMirror dependency.
+ * Resolves the root directory of the MagicMirror package.
+ * Prefers mmcore-source/ (populated by sync-mmcore-source.ts) over the
+ * magicmirror devDependency so the devDep can be removed once sync runs.
  *
  * @param repoRoot — absolute path to the sandbox repo root used as resolution base
  */
 export function resolveMagicMirrorRoot(repoRoot: string): string {
+	const mmcoreSourcePath = path.join(repoRoot, "mmcore-source", "node_modules", "magicmirror");
+	if (fs.existsSync(path.join(mmcoreSourcePath, "package.json"))) {
+		return mmcoreSourcePath;
+	}
 	const magicMirrorEntryPath = nodeRequire.resolve("magicmirror", {
 		paths: [repoRoot]
 	});

@@ -2,11 +2,68 @@
  * Topbar navigation for switching between sandbox tool domains.
  */
 
-import type { HarnessState } from "../types";
+import { useState, useEffect } from "preact/hooks";
+import type { HarnessState, MmVersionState } from "../types";
 
 type TopbarProps = {
 	harness: HarnessState;
 };
+
+type BadgeState = {
+	usingBuiltIn: boolean;
+	displayVersion: string;
+};
+
+function MmVersionBadge() {
+	const [badge, setBadge] = useState<BadgeState>({ usingBuiltIn: true, displayVersion: "—" });
+
+	useEffect(() => {
+		function refresh() {
+			fetch("/__harness/mm-versions", { cache: "no-store" })
+				.then((r) => r.json())
+				.then((data: {
+					active?: string | null;
+					usingBuiltIn?: boolean;
+					builtInVersion?: string | null;
+					versions?: Array<{ key: string; displayVersion?: string }>;
+				}) => {
+					const builtIn = data.usingBuiltIn ?? true;
+					let display = "—";
+					if (builtIn) {
+						display = data.builtInVersion ?? "—";
+					} else if (data.active) {
+						const info = (data.versions ?? []).find((v) => v.key === data.active);
+						display = (info?.displayVersion ?? data.active).replace(/-develop$/i, "");
+					}
+					setBadge({ usingBuiltIn: builtIn, displayVersion: display });
+				})
+				.catch(() => {});
+		}
+
+		refresh();
+		window.addEventListener("module-sandbox:mm-version-changed", refresh);
+		return () => {
+			window.removeEventListener("module-sandbox:mm-version-changed", refresh);
+		};
+	}, []);
+
+	const { usingBuiltIn, displayVersion } = badge;
+
+	return (
+		<button
+			class={`mmv-topbar-badge${usingBuiltIn ? " mmv-topbar-badge--builtin" : ""}`}
+			type="button"
+			aria-label="MagicMirror core version"
+			title={usingBuiltIn ? `Built-in shims (MM ${displayVersion})` : `MM core: ${displayVersion}`}
+			onClick={() => {
+				location.hash = "#mmversion";
+			}}
+		>
+			<i class="fa-solid fa-code-branch" aria-hidden="true" />
+			<span class="mmv-topbar-badge__label">{displayVersion}</span>
+		</button>
+	);
+}
 
 /**
  * Internal helper for topbar.
@@ -17,6 +74,7 @@ export function Topbar({ harness }: TopbarProps) {
 			<div class="harness-product">
 				<h1 class="harness-product-name">MagicMirror Module Sandbox</h1>
 			</div>
+			<MmVersionBadge />
 			<nav class="harness-menu" aria-label="Sandbox tools">
 				<button
 					id="harness-restart-btn"

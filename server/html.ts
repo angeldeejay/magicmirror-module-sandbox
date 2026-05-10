@@ -189,6 +189,7 @@ function createHtmlPage({
 		"/__harness/generated/vendor/ace-mode-javascript.js",
 		"/__harness/generated/vendor/ace-theme-harness.js",
 		"/__harness/generated/vendor/js-beautify.js",
+		"/__harness/generated/vendor/jsonc-parser.js",
 		"/__harness/generated/vendor/module-config-editor.js",
 		"/__harness/generated/runtime/debug-panel.js",
 		"/__harness/generated/runtime/quality-panel.js",

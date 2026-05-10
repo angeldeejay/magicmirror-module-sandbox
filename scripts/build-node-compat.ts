@@ -24,6 +24,7 @@ type MagicMirrorCompatTarget = {
 	sourceName: string;
 	destinationPath: string;
 	transformSource?: (source: string) => string;
+	optional?: boolean;
 };
 const magicMirrorCompatTargets = [
 	{
@@ -42,7 +43,8 @@ const magicMirrorCompatTargets = [
 	},
 	{
 		sourceName: "http_fetcher.js",
-		destinationPath: path.join("js", "http_fetcher.js")
+		destinationPath: path.join("js", "http_fetcher.js"),
+		optional: true
 	},
 	{
 		sourceName: "server_functions.js",
@@ -118,20 +120,17 @@ function adaptCoreNodeHelperSource(source: string): string {
 
 /**
  * Bundles Express from the magicmirror package's own dependency tree into
- * shims/generated/node_modules/express/index.js so that node_helper.js can
+ * <outputRoot>/node_modules/express/index.js so that node_helper.js can
  * require('express') via standard Node module resolution without any source patch.
  */
-function bundleExpressForNodeHelper(): void {
-	const magicMirrorRoot = resolveMagicMirrorRoot(root);
+function bundleExpressForNodeHelper(
+	magicMirrorRoot: string,
+	outputRoot: string
+): void {
 	const expressEntry = nodeRequire.resolve("express", {
 		paths: [magicMirrorRoot]
 	});
-	const outFile = path.join(
-		generatedRoot,
-		"node_modules",
-		"express",
-		"index.js"
-	);
+	const outFile = path.join(outputRoot, "node_modules", "express", "index.js");
 	ensureDirectory(path.dirname(outFile));
 	buildSync({
 		entryPoints: [expressEntry],
@@ -146,21 +145,18 @@ function bundleExpressForNodeHelper(): void {
 
 /**
  * Bundles undici from the magicmirror package's own dependency tree into
- * shims/generated/node_modules/undici/index.js so that server_functions.js can
+ * <outputRoot>/node_modules/undici/index.js so that server_functions.js can
  * require('undici') via standard Node module resolution without any source patch
  * and without adding undici as a sandbox dependency.
  */
-function bundleUndiciForNodeHelper(): void {
-	const magicMirrorRoot = resolveMagicMirrorRoot(root);
+function bundleUndiciForNodeHelper(
+	magicMirrorRoot: string,
+	outputRoot: string
+): void {
 	const undiciEntry = nodeRequire.resolve("undici", {
 		paths: [magicMirrorRoot]
 	});
-	const outFile = path.join(
-		generatedRoot,
-		"node_modules",
-		"undici",
-		"index.js"
-	);
+	const outFile = path.join(outputRoot, "node_modules", "undici", "index.js");
 	ensureDirectory(path.dirname(outFile));
 	buildSync({
 		entryPoints: [undiciEntry],
@@ -212,8 +208,10 @@ module.exports.default = __moduleSandboxCompatExport;
 /**
  * Synchronizes magic mirror compat files.
  */
-function syncMagicMirrorCompatFiles(): void {
-	const magicMirrorRoot = resolveMagicMirrorRoot(root);
+function syncMagicMirrorCompatFiles(
+	magicMirrorRoot: string,
+	magicMirrorCompatRoot: string
+): void {
 	const magicMirrorPackagePath = path.join(magicMirrorRoot, "package.json");
 	const magicMirrorPackage = JSON.parse(
 		fs.readFileSync(magicMirrorPackagePath, "utf8")
@@ -221,17 +219,21 @@ function syncMagicMirrorCompatFiles(): void {
 		version?: unknown;
 	};
 
+	const copiedTargets: string[] = [];
 	for (const {
 		sourceName,
 		destinationPath,
-		transformSource
+		transformSource,
+		optional
 	} of magicMirrorCompatTargets) {
+		const sourcePath = path.join(magicMirrorRoot, "js", sourceName);
+		if (!fs.existsSync(sourcePath)) {
+			if (optional) continue;
+			throw new Error(`Required MM source file missing: ${sourcePath}`);
+		}
 		const targetPath = path.join(magicMirrorCompatRoot, destinationPath);
 		ensureDirectory(path.dirname(targetPath));
-		const copiedSource = fs.readFileSync(
-			path.join(magicMirrorRoot, "js", sourceName),
-			"utf8"
-		);
+		const copiedSource = fs.readFileSync(sourcePath, "utf8");
 		const minified = transformSync(
 			typeof transformSource === "function"
 				? transformSource(copiedSource)
@@ -244,6 +246,15 @@ function syncMagicMirrorCompatFiles(): void {
 			}
 		);
 		fs.writeFileSync(targetPath, minified.code, "utf8");
+		copiedTargets.push(sourceName);
+	}
+
+	const importsMap: Record<string, { default: string }> = {};
+	if (copiedTargets.includes("server_functions.js")) {
+		importsMap["#server_functions"] = { default: "./js/server_functions.js" };
+	}
+	if (copiedTargets.includes("http_fetcher.js")) {
+		importsMap["#http_fetcher"] = { default: "./js/http_fetcher.js" };
 	}
 
 	fs.writeFileSync(
@@ -256,14 +267,7 @@ function syncMagicMirrorCompatFiles(): void {
 						? magicMirrorPackage.version
 						: "",
 				type: "commonjs",
-				imports: {
-					"#server_functions": {
-						default: "./js/server_functions.js"
-					},
-					"#http_fetcher": {
-						default: "./js/http_fetcher.js"
-					}
-				}
+				imports: importsMap
 			},
 			null,
 			2
@@ -272,17 +276,34 @@ function syncMagicMirrorCompatFiles(): void {
 	);
 }
 
+export type BuildNodeCompatOptions = {
+	/** Override the MagicMirror package root (js/ parent). Defaults to installed magicmirror in node_modules. */
+	mmRoot?: string;
+	/** Override the output directory for generated shims. Defaults to shims/generated/. */
+	outputRoot?: string;
+};
+
 /**
- * Builds node compat.
+ * Builds node compat shims.
+ * Accepts optional overrides for the MM source root and output directory to
+ * support the mmvm version manager (multiple MM versions in ~/.mmvm/).
  */
-export function buildNodeCompat(): void {
-	clearDirectory(generatedRoot);
-	ensureDirectory(generatedRoot);
-	bundleExpressForNodeHelper();
-	bundleUndiciForNodeHelper();
+export function buildNodeCompat(options: BuildNodeCompatOptions = {}): void {
+	const effectiveMmRoot =
+		options.mmRoot ?? resolveMagicMirrorRoot(root);
+	const effectiveOutputRoot = options.outputRoot ?? generatedRoot;
+	const effectiveCompatRoot = path.join(
+		effectiveOutputRoot,
+		"magicmirror-core"
+	);
+
+	clearDirectory(effectiveOutputRoot);
+	ensureDirectory(effectiveOutputRoot);
+	bundleExpressForNodeHelper(effectiveMmRoot, effectiveOutputRoot);
+	bundleUndiciForNodeHelper(effectiveMmRoot, effectiveOutputRoot);
 	buildSync({
 		entryPoints,
-		outdir: generatedRoot,
+		outdir: effectiveOutputRoot,
 		outbase: shimsRoot,
 		bundle: false,
 		format: "cjs",
@@ -297,12 +318,12 @@ export function buildNodeCompat(): void {
 		const relativePath = path
 			.relative(shimsRoot, entryPoint)
 			.replace(/\.ts$/, ".js");
-		const generatedEntryPath = path.join(generatedRoot, relativePath);
+		const generatedEntryPath = path.join(effectiveOutputRoot, relativePath);
 		rewriteRelativeTypeScriptSpecifiers(generatedEntryPath);
 		normalizeCommonJsDefaultExport(generatedEntryPath);
 	}
 
-	syncMagicMirrorCompatFiles();
+	syncMagicMirrorCompatFiles(effectiveMmRoot, effectiveCompatRoot);
 }
 
 const isMain = process.argv[1]

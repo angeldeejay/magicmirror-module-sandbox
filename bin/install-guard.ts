@@ -60,6 +60,24 @@ function getPackageName(packageRoot = getPackageRoot()): string {
 }
 
 /**
+ * Runs a ts/js script via tsx (source) or node (dist) and throws on failure.
+ */
+function runScript(scriptStem: string, label: string, packageRoot: string): void {
+	const tsxCliPath = path.join(packageRoot, "node_modules", "tsx", "dist", "cli.mjs");
+	const srcPath = path.join(packageRoot, scriptStem + ".ts");
+	const distPath = path.join(packageRoot, "dist", scriptStem + ".js");
+	/* v8 ignore next 3 */
+	const scriptPath = fs.existsSync(srcPath) ? srcPath : distPath;
+	/* v8 ignore next 3 */
+	const args = scriptPath.endsWith(".ts") ? [tsxCliPath, scriptPath] : [scriptPath];
+	const result = spawnSync(process.execPath, args, { cwd: packageRoot, stdio: "inherit" });
+	/* v8 ignore next 4 */
+	if (result.status !== 0) {
+		throw new Error(`[module-sandbox] ${label} failed during postinstall (exit ${String(result.status)}).`);
+	}
+}
+
+/**
  * Synchronizes magic mirror assets for maintainer repo.
  */
 function syncMagicMirrorAssetsForMaintainerRepo({
@@ -67,43 +85,8 @@ function syncMagicMirrorAssetsForMaintainerRepo({
 }: {
 	packageRoot?: string;
 } = {}): void {
-	const sourceScriptPath = path.join(
-		packageRoot,
-		"bin",
-		"sync-magicmirror-assets.ts"
-	);
-	const distScriptPath = path.join(
-		packageRoot,
-		"dist",
-		"bin",
-		"sync-magicmirror-assets.js"
-	);
-	/* v8 ignore next 3 */
-	const scriptPath = fs.existsSync(sourceScriptPath)
-		? sourceScriptPath
-		: distScriptPath;
-	const tsxCliPath = path.join(
-		packageRoot,
-		"node_modules",
-		"tsx",
-		"dist",
-		"cli.mjs"
-	);
-	/* v8 ignore next 3 */
-	const args = scriptPath.endsWith(".ts")
-		? [tsxCliPath, scriptPath]
-		: [scriptPath];
-	const result = spawnSync(process.execPath, args, {
-		cwd: packageRoot,
-		stdio: "inherit"
-	});
-
-	/* v8 ignore next 4 */
-	if (result.status !== 0) {
-		throw new Error(
-			`[module-sandbox] MagicMirror asset sync failed during postinstall (exit ${String(result.status)}).`
-		);
-	}
+	runScript("scripts/sync-mmcore-source", "MagicMirror core source sync", packageRoot);
+	runScript("bin/sync-magicmirror-assets", "MagicMirror asset sync", packageRoot);
 }
 
 /**

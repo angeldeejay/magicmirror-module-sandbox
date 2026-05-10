@@ -2,6 +2,7 @@
   <div class="harness-product">
     <h1 class="harness-product-name">MagicMirror Module Sandbox</h1>
   </div>
+  <button class="mmv-topbar-badge mmv-topbar-badge--builtin" type="button" aria-label="MagicMirror core version" title="Built-in shims (MM —)"><i class="fa-solid fa-code-branch" aria-hidden="true"></i><span class="mmv-topbar-badge__label">—</span></button>
   <nav class="harness-menu" aria-label="Sandbox tools">
     <button id="harness-restart-btn" class="harness-restart-btn" type="button" aria-label="Restart sandbox"><i class="fa-solid fa-rotate-right harness-restart-icon" aria-hidden="true"></i><span class="harness-restart-label">Restart</span></button>
   </nav>

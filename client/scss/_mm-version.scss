@@ -1,0 +1,257 @@
+@use "abstracts";
+
+// ── Topbar badge ──────────────────────────────────────────────────────────────
+
+.mmv-topbar-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 3px 8px;
+	border-radius: 12px;
+	border: 1px solid var(--hns-border);
+	background: var(--hns-bg-elevated);
+	color: var(--hns-text-dim);
+	font-size: 11px;
+	font-family: Consolas, monospace;
+	font-weight: inherit;
+	white-space: nowrap;
+	text-decoration: none;
+	appearance: none;
+	transition:
+		background 0.15s,
+		border-color 0.15s,
+		color 0.15s;
+	cursor: pointer;
+
+	&:hover {
+		background: var(--hns-bg-hover);
+		border-color: var(--hns-accent);
+		color: var(--hns-text-primary);
+	}
+}
+
+.mmv-topbar-badge--builtin {
+	opacity: 0.6;
+}
+
+.mmv-topbar-badge__label {
+	font-weight: 600;
+}
+
+// ── Domain section title reuse — already in _shared, no override needed ───────
+
+// ── Capability grid ───────────────────────────────────────────────────────────
+
+.mmv-caps-loading {
+	font-size: 11px;
+	opacity: 0.6;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-bottom: 12px;
+}
+
+.mmv-cap-list {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	column-gap: 10px;
+	row-gap: 4px;
+	margin: 0 0 12px;
+	padding: 8px 10px;
+	font-size: 11px;
+	border: 1px solid var(--sandbox-control-border);
+	background: var(--sandbox-control-bg);
+	border-radius: var(--sandbox-control-radius);
+}
+
+.mmv-cap-dt {
+	color: var(--hns-text-dim);
+	align-self: center;
+	min-width: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mmv-cap-val {
+	margin: 0;
+	align-self: center;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.mmv-cap-val--ok {
+	color: var(--hns-sev-info-icon);
+}
+
+.mmv-cap-val--warn {
+	color: var(--hns-sev-warning-icon);
+}
+
+.mmv-cap-val--off {
+	color: var(--sandbox-control-text-muted);
+	opacity: 0.5;
+}
+
+.mmv-cap-val--info {
+	color: var(--hns-text-primary);
+}
+
+.mmv-cap-val__code {
+	font-family: Consolas, monospace;
+	font-size: 10px;
+	font-weight: 600;
+}
+
+// ── Switch version input row ──────────────────────────────────────────────────
+
+.mmv-input-row {
+	display: flex;
+	gap: 6px;
+	align-items: stretch;
+	margin-bottom: 8px;
+}
+
+.mmv-version-input {
+	flex: 1;
+	min-width: 0;
+	font-family: Consolas, monospace;
+	font-size: 12px;
+}
+
+.mmv-version-select {
+	flex: 1;
+	min-width: 0;
+	font-family: Consolas, monospace;
+	font-size: 12px;
+}
+
+.mmv-builtin-tag {
+	font-size: 10px;
+	font-weight: 500;
+	font-family: inherit;
+	opacity: 0.55;
+	letter-spacing: 0.03em;
+}
+
+.mmv-releases-loading,
+.mmv-releases-error {
+	flex: 1;
+	font-size: 12px;
+	opacity: 0.7;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.mmv-activate-btn {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 12px;
+}
+
+// ── Error message ─────────────────────────────────────────────────────────────
+
+.mmv-error {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 8px 10px;
+	border-radius: 5px;
+	background: var(--hns-sev-error-bg);
+	border: 1px solid var(--hns-sev-error-border);
+	color: var(--hns-sev-error-icon);
+	font-size: 12px;
+	margin-bottom: 8px;
+	word-break: break-word;
+}
+
+// ── Cached versions list ──────────────────────────────────────────────────────
+
+.mmv-version-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.mmv-version-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 6px 6px 10px;
+	border-radius: 5px;
+	background: var(--hns-bg-panel);
+	border: 1px solid var(--hns-border);
+	font-size: 12px;
+	flex-wrap: wrap;
+}
+
+.mmv-version-row--active {
+	border-color: var(--hns-accent);
+	background: var(--hns-bg-elevated);
+}
+
+.mmv-version-row__key {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-family: Consolas, monospace;
+	font-weight: 700;
+	color: var(--hns-text-primary);
+}
+
+.mmv-version-row__active-dot {
+	color: var(--hns-accent);
+	font-size: 9px;
+}
+
+.mmv-version-row__display {
+	font-size: 11px;
+	color: var(--hns-text-dim);
+}
+
+.mmv-version-row__shims {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.mmv-version-row__shims--ok {
+	color: var(--hns-sev-info-icon);
+}
+
+.mmv-version-row__shims--pending {
+	color: var(--hns-sev-warning-icon);
+}
+
+.mmv-version-row__actions {
+	margin-left: auto;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.mmv-version-row__action-btn {
+	font-size: 12px;
+	padding: 0;
+	width: 26px;
+	height: 26px;
+	min-height: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	opacity: 0.75;
+
+	&:hover:not(:disabled) {
+		opacity: 1;
+	}
+}
+
+.mmv-version-row__action-btn--danger:hover:not(:disabled) {
+	color: var(--hns-sev-error-icon);
+	border-color: var(--hns-sev-error-border);
+}

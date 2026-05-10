@@ -305,6 +305,7 @@ const CANONICAL_DOMAIN_ORDER = [
 	"notifications",
 	"debug",
 	"quality",
+	"mmversion",
 	"about"
 ] as const;
 
