@@ -344,6 +344,14 @@
 					})
 				);
 			});
+
+			rootSocket.on("mm:version-changed", (payload) => {
+				globalScope.dispatchEvent(
+					new CustomEvent("module-sandbox:mm-version-changed", {
+						detail: payload
+					})
+				);
+			});
 		}
 
 		if (frame) {

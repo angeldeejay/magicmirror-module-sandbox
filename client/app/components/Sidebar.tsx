@@ -7,6 +7,7 @@ import type { HarnessState } from "../types";
 import { AboutDomain } from "./sidebar/AboutDomain";
 import { ConfigDomain } from "./sidebar/ConfigDomain";
 import { DebugDomain } from "./sidebar/DebugDomain";
+import { MmVersionDomain } from "./sidebar/MmVersionDomain";
 import { NotificationsDomain } from "./sidebar/NotificationsDomain";
 import { QualityDomain } from "./sidebar/QualityDomain";
 import { RuntimeDomain } from "./sidebar/RuntimeDomain";
@@ -17,6 +18,7 @@ const menuItems = [
 	{ id: "notifications", label: "Notifications", icon: "fa-bell" },
 	{ id: "debug", label: "Debug", icon: "fa-bug" },
 	{ id: "quality", label: "Quality", icon: "fa-shield-halved" },
+	{ id: "mmversion", label: "MagicMirror Version", icon: "fa-code-branch" },
 	{ id: "about", label: "About", icon: "fa-circle-info" }
 ] as const;
 
@@ -112,6 +114,7 @@ export function Sidebar({ harness }: SidebarProps) {
 				<NotificationsDomain />
 				<DebugDomain />
 				<QualityDomain />
+				<MmVersionDomain />
 				<AboutDomain />
 			</div>
 		</aside>

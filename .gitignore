@@ -4,6 +4,9 @@ node_modules/
 # TypeScript incremental build cache
 *.tsbuildinfo
 
+# MagicMirror core source cache (populated by sync-mmcore-source.ts)
+mmcore-source/
+
 # Build and coverage output
 dist/
 client/generated/

@@ -10,6 +10,33 @@ import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import Fastify from "fastify";
 import { afterEach } from "vitest";
+import * as mmVer from "../../../server/mm-version-manager.ts";
+
+// ---------------------------------------------------------------------------
+// mm-version-manager mock — no real npm installs or filesystem I/O
+// ---------------------------------------------------------------------------
+
+vi.mock("../../../server/mm-version-manager.ts", () => ({
+	getActiveVersion: vi.fn(() => null),
+	listCachedVersions: vi.fn(() => []),
+	getVersionInfo: vi.fn((key: string) => ({
+		key,
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" }
+	})),
+	getBuiltInMmVersion: vi.fn(() => "2.35.0"),
+	deriveCapabilities: vi.fn(() => ({ expressVersion: "4" })),
+	isVersionInstalled: vi.fn(() => true),
+	downloadVersion: vi.fn(() => ({ ok: true })),
+	buildShimsForVersion: vi.fn(async () => ({ ok: true })),
+	setActiveVersion: vi.fn(),
+	deleteVersionCache: vi.fn(),
+	sanitizeVersion: vi.fn((v: string) =>
+		v.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-{2,}/g, "-")
+	)
+}));
 
 // ---------------------------------------------------------------------------
 // @fastify/static mock — no real filesystem scanning during registration
@@ -100,6 +127,8 @@ function makeRouteOptions(
 		resolveFontAwesomeCss: vi.fn(() => "/stub/font-awesome.css"),
 		io: { emit: vi.fn() } as { emit: ReturnType<typeof vi.fn> },
 		restartHelper: vi.fn(async () => {}),
+		injectShimResolution: vi.fn(),
+		harnessRoot: "/stub/harness" as string,
 		watchEnabled: true as boolean,
 		getAnalysisResult: vi.fn(() => null),
 		triggerAnalysis: vi.fn(async () => {}),
@@ -147,6 +176,8 @@ function makeRouteOptions(
 		runtimeService: {
 			io: flat.io as import("socket.io").Server,
 			restartHelper: flat.restartHelper as () => Promise<void>,
+			injectShimResolution: flat.injectShimResolution as () => void,
+			harnessRoot: flat.harnessRoot as string,
 			watchEnabled: flat.watchEnabled,
 			getHelperLogEntries: flat.getHelperLogEntries as () => Array<
 				Record<string, unknown>
@@ -180,6 +211,7 @@ async function buildApp(overrides: Record<string, unknown> = {}) {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.clearAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -701,4 +733,541 @@ test("POST /__harness/analysis returns 202 with status:pending and triggers anal
 	assert.equal(response.statusCode, 202);
 	const body = JSON.parse(response.body);
 	assert.equal(body.status, "pending");
+});
+
+// ---------------------------------------------------------------------------
+// Tests — GET /__harness/mm-versions
+// ---------------------------------------------------------------------------
+
+test("GET /__harness/mm-versions returns active:null and usingBuiltIn:true when no active version is set", async () => {
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce(null);
+	vi.mocked(mmVer.listCachedVersions).mockReturnValueOnce([]);
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "GET",
+		url: "/__harness/mm-versions"
+	});
+
+	assert.equal(response.statusCode, 200);
+	const body = JSON.parse(response.body);
+	assert.equal(body.active, null);
+	assert.equal(body.usingBuiltIn, true);
+	assert.ok(Array.isArray(body.versions));
+	assert.ok(typeof body.builtInVersion === "string" || body.builtInVersion === null);
+});
+
+test("GET /__harness/mm-versions returns active key and usingBuiltIn:false when a version is active", async () => {
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce("2.35.0");
+	vi.mocked(mmVer.listCachedVersions).mockReturnValueOnce(["2.35.0"]);
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "GET",
+		url: "/__harness/mm-versions"
+	});
+
+	assert.equal(response.statusCode, 200);
+	const body = JSON.parse(response.body);
+	assert.equal(body.active, "2.35.0");
+	assert.equal(body.usingBuiltIn, false);
+	assert.equal(body.versions.length, 1);
+});
+
+test("GET /__harness/mm-versions includes capabilities derived from active version when active is set", async () => {
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce("2.35.0");
+	vi.mocked(mmVer.listCachedVersions).mockReturnValueOnce(["2.35.0"]);
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "GET",
+		url: "/__harness/mm-versions"
+	});
+
+	const body = JSON.parse(response.body);
+	assert.ok(body.capabilities !== undefined);
+});
+
+test("GET /__harness/mm-versions uses deriveCapabilities(builtInVersion) when active version is not in cached list", async () => {
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce("unknown-key");
+	vi.mocked(mmVer.listCachedVersions).mockReturnValueOnce([]);
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "GET",
+		url: "/__harness/mm-versions"
+	});
+
+	assert.equal(response.statusCode, 200);
+	const body = JSON.parse(response.body);
+	assert.ok(body.capabilities !== undefined);
+});
+
+// ---------------------------------------------------------------------------
+// Tests — POST /__harness/mm-versions/activate
+// ---------------------------------------------------------------------------
+
+test("POST /__harness/mm-versions/activate returns 400 when version field is missing", async () => {
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({})
+	});
+
+	assert.equal(response.statusCode, 400);
+	const body = JSON.parse(response.body);
+	assert.ok(typeof body.error === "string");
+});
+
+test("POST /__harness/mm-versions/activate returns 400 when version is an empty string", async () => {
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "   " })
+	});
+
+	assert.equal(response.statusCode, 400);
+});
+
+test("POST /__harness/mm-versions/activate returns 400 when version is not a string", async () => {
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: 42 })
+	});
+
+	assert.equal(response.statusCode, 400);
+});
+
+test("POST /__harness/mm-versions/activate returns 200 and calls restartHelper + io.emit when already installed with shims", async () => {
+	const restartHelper = vi.fn(async () => {});
+	const io = { emit: vi.fn() };
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(true);
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+
+	const app = await buildApp({ restartHelper, io });
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 200);
+	const body = JSON.parse(response.body);
+	assert.equal(body.ok, true);
+	assert.equal(restartHelper.mock.calls.length, 1);
+	assert.ok(io.emit.mock.calls.some(([name]: [string]) => name === "mm:version-changed"));
+	assert.ok(io.emit.mock.calls.some(([name]: [string]) => name === "harness:reload"));
+});
+
+test("POST /__harness/mm-versions/activate downloads version when not installed then returns 200", async () => {
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(false);
+	vi.mocked(mmVer.downloadVersion).mockReturnValueOnce({ ok: true });
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 200);
+	assert.equal(vi.mocked(mmVer.downloadVersion).mock.calls.length, 1);
+});
+
+test("POST /__harness/mm-versions/activate returns 502 when download fails", async () => {
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(false);
+	vi.mocked(mmVer.downloadVersion).mockReturnValueOnce({
+		ok: false,
+		error: "npm ERR! 404 Not Found"
+	});
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "9.99.99" })
+	});
+
+	assert.equal(response.statusCode, 502);
+	const body = JSON.parse(response.body);
+	assert.match(body.error, /Download failed/);
+});
+
+test("POST /__harness/mm-versions/activate builds shims when not yet built then returns 200", async () => {
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(true);
+	vi.mocked(mmVer.getVersionInfo).mockReturnValueOnce({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: false,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+	vi.mocked(mmVer.buildShimsForVersion).mockResolvedValueOnce({ ok: true });
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 200);
+	assert.equal(vi.mocked(mmVer.buildShimsForVersion).mock.calls.length, 1);
+});
+
+test("POST /__harness/mm-versions/activate returns 500 when shim build fails", async () => {
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(true);
+	vi.mocked(mmVer.getVersionInfo).mockReturnValueOnce({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: false,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+	vi.mocked(mmVer.buildShimsForVersion).mockResolvedValueOnce({
+		ok: false,
+		error: "module not found"
+	});
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 500);
+	const body = JSON.parse(response.body);
+	assert.match(body.error, /Shim build failed/);
+});
+
+test("POST /__harness/mm-versions/activate calls injectShimResolution before restart", async () => {
+	const injectShimResolution = vi.fn();
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(true);
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+
+	const app = await buildApp({ injectShimResolution });
+
+	await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(injectShimResolution.mock.calls.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Tests — POST /__harness/mm-versions/redownload
+// ---------------------------------------------------------------------------
+
+test("POST /__harness/mm-versions/redownload returns 400 when version is missing", async () => {
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/redownload",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({})
+	});
+
+	assert.equal(response.statusCode, 400);
+});
+
+test("POST /__harness/mm-versions/redownload returns 502 when download fails", async () => {
+	vi.mocked(mmVer.downloadVersion).mockReturnValueOnce({
+		ok: false,
+		error: "network error"
+	});
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/redownload",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 502);
+	const body = JSON.parse(response.body);
+	assert.match(body.error, /Download failed/);
+});
+
+test("POST /__harness/mm-versions/redownload returns 500 when shim build fails", async () => {
+	vi.mocked(mmVer.downloadVersion).mockReturnValueOnce({ ok: true });
+	vi.mocked(mmVer.buildShimsForVersion).mockResolvedValueOnce({
+		ok: false,
+		error: "build error"
+	});
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/redownload",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 500);
+	const body = JSON.parse(response.body);
+	assert.match(body.error, /Shim build failed/);
+});
+
+test("POST /__harness/mm-versions/redownload returns 200 and does not restart when version is not active", async () => {
+	vi.mocked(mmVer.downloadVersion).mockReturnValueOnce({ ok: true });
+	vi.mocked(mmVer.buildShimsForVersion).mockResolvedValueOnce({ ok: true });
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce("develop");
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+	const restartHelper = vi.fn(async () => {});
+	const io = { emit: vi.fn() };
+
+	const app = await buildApp({ restartHelper, io });
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/redownload",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 200);
+	assert.equal(restartHelper.mock.calls.length, 0);
+	assert.equal(io.emit.mock.calls.length, 0);
+});
+
+test("POST /__harness/mm-versions/redownload restarts and emits events when version is the active one", async () => {
+	vi.mocked(mmVer.downloadVersion).mockReturnValueOnce({ ok: true });
+	vi.mocked(mmVer.buildShimsForVersion).mockResolvedValueOnce({ ok: true });
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce("2.35.0");
+	vi.mocked(mmVer.sanitizeVersion).mockReturnValueOnce("2.35.0");
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+	const restartHelper = vi.fn(async () => {});
+	const io = { emit: vi.fn() };
+	const injectShimResolution = vi.fn();
+
+	const app = await buildApp({ restartHelper, io, injectShimResolution });
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/redownload",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 200);
+	assert.equal(restartHelper.mock.calls.length, 1);
+	assert.equal(injectShimResolution.mock.calls.length, 1);
+	assert.ok(io.emit.mock.calls.some(([name]: [string]) => name === "mm:version-changed"));
+	assert.ok(io.emit.mock.calls.some(([name]: [string]) => name === "harness:reload"));
+});
+
+test("POST /__harness/mm-versions/redownload calls deleteVersionCache before downloading", async () => {
+	vi.mocked(mmVer.downloadVersion).mockReturnValueOnce({ ok: true });
+	vi.mocked(mmVer.buildShimsForVersion).mockResolvedValueOnce({ ok: true });
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce(null);
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.35.0",
+		displayVersion: "2.35.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+
+	const app = await buildApp();
+
+	await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/redownload",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(vi.mocked(mmVer.deleteVersionCache).mock.calls.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// Tests — POST /__harness/mm-versions/delete-cache
+// ---------------------------------------------------------------------------
+
+test("POST /__harness/mm-versions/delete-cache returns 400 when version is missing", async () => {
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/delete-cache",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({})
+	});
+
+	assert.equal(response.statusCode, 400);
+});
+
+test("POST /__harness/mm-versions/delete-cache returns 409 when trying to delete the active version", async () => {
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce("2.35.0");
+	vi.mocked(mmVer.sanitizeVersion).mockReturnValueOnce("2.35.0");
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/delete-cache",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 409);
+	const body = JSON.parse(response.body);
+	assert.match(body.error, /Cannot delete the active version/);
+});
+
+test("POST /__harness/mm-versions/delete-cache returns 200 and calls deleteVersionCache when version is not active", async () => {
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce("develop");
+	vi.mocked(mmVer.sanitizeVersion).mockReturnValueOnce("2.35.0");
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/delete-cache",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 200);
+	assert.deepEqual(JSON.parse(response.body), { ok: true });
+	assert.equal(vi.mocked(mmVer.deleteVersionCache).mock.calls.length, 1);
+});
+
+test("POST /__harness/mm-versions/delete-cache returns 200 when no version is currently active", async () => {
+	vi.mocked(mmVer.getActiveVersion).mockReturnValueOnce(null);
+
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/delete-cache",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.35.0" })
+	});
+
+	assert.equal(response.statusCode, 200);
+});
+
+// ---------------------------------------------------------------------------
+// Tests — DELETE /__harness/mm-versions/active
+// ---------------------------------------------------------------------------
+
+test("DELETE /__harness/mm-versions/active returns 200 with active:null", async () => {
+	const app = await buildApp();
+
+	const response = await app.inject({
+		method: "DELETE",
+		url: "/__harness/mm-versions/active"
+	});
+
+	assert.equal(response.statusCode, 200);
+	const body = JSON.parse(response.body);
+	assert.equal(body.ok, true);
+	assert.equal(body.active, null);
+});
+
+test("DELETE /__harness/mm-versions/active calls setActiveVersion with empty string", async () => {
+	const app = await buildApp();
+
+	await app.inject({ method: "DELETE", url: "/__harness/mm-versions/active" });
+
+	const calls = vi.mocked(mmVer.setActiveVersion).mock.calls;
+	assert.ok(calls.length >= 1);
+	assert.equal(calls[calls.length - 1][0], "");
+});
+
+test("DELETE /__harness/mm-versions/active calls injectShimResolution and restartHelper", async () => {
+	const injectShimResolution = vi.fn();
+	const restartHelper = vi.fn(async () => {});
+
+	const app = await buildApp({ injectShimResolution, restartHelper });
+
+	await app.inject({ method: "DELETE", url: "/__harness/mm-versions/active" });
+
+	assert.equal(injectShimResolution.mock.calls.length, 1);
+	assert.equal(restartHelper.mock.calls.length, 1);
+});
+
+test("DELETE /__harness/mm-versions/active emits mm:version-changed and harness:reload events", async () => {
+	const io = { emit: vi.fn() };
+	const app = await buildApp({ io });
+
+	await app.inject({ method: "DELETE", url: "/__harness/mm-versions/active" });
+
+	const emitNames = io.emit.mock.calls.map(([name]: [string]) => name);
+	assert.ok(emitNames.includes("mm:version-changed"));
+	assert.ok(emitNames.includes("harness:reload"));
+
+	const versionChanged = io.emit.mock.calls.find(
+		([name]: [string]) => name === "mm:version-changed"
+	);
+	assert.ok(versionChanged);
+	assert.equal(versionChanged[1].version, null);
+	assert.equal(versionChanged[1].key, null);
 });

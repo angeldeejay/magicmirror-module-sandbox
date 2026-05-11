@@ -12,6 +12,19 @@ import {
 	parseModuleConfigBody
 } from "./config-payloads.ts";
 import { ValidationError } from "./errors.ts";
+import {
+	buildShimsForVersion,
+	deleteVersionCache,
+	downloadVersion,
+	getActiveVersion,
+	deriveCapabilities,
+	getBuiltInMmVersion,
+	getVersionInfo,
+	isVersionInstalled,
+	listCachedVersions,
+	sanitizeVersion,
+	setActiveVersion
+} from "./mm-version-manager.ts";
 
 type ConfigService = {
 	getAvailableLanguages: () => Array<Record<string, unknown>>;
@@ -43,8 +56,10 @@ type AssetService = {
 type RuntimeService = {
 	io: import("socket.io").Server;
 	restartHelper: () => Promise<void>;
+	injectShimResolution: () => void;
 	watchEnabled: boolean;
 	getHelperLogEntries: () => Array<Record<string, unknown>>;
+	harnessRoot: string;
 };
 
 type AnalysisService = {
@@ -93,8 +108,14 @@ async function registerRoutes({
 		createHtmlPage,
 		createStagePage
 	} = assetService;
-	const { io, restartHelper, watchEnabled, getHelperLogEntries } =
-		runtimeService;
+	const {
+		io,
+		restartHelper,
+		injectShimResolution,
+		watchEnabled,
+		getHelperLogEntries,
+		harnessRoot: runtimeHarnessRoot
+	} = runtimeService;
 	const { getAnalysisResult, triggerAnalysis } = analysisService;
 	const harnessConfig = getHarnessConfig();
 
@@ -303,6 +324,159 @@ async function registerRoutes({
 			version: reloadVersion
 		});
 		return reply.send({ ok: true });
+	});
+
+	// ── MM version manager endpoints ─────────────────────────────────────────────
+
+	app.get("/__harness/mm-versions", async (_request, reply) => {
+		const active = getActiveVersion();
+		const cached = listCachedVersions();
+		const versions = cached.map((key) => getVersionInfo(key));
+		const activeInfo = active ? versions.find((v) => v.key === active) ?? null : null;
+		return reply.send({
+			active,
+			versions,
+			usingBuiltIn: active === null,
+			builtInVersion: getBuiltInMmVersion(),
+			capabilities: activeInfo?.capabilities ?? deriveCapabilities(getBuiltInMmVersion())
+		});
+	});
+
+	app.post("/__harness/mm-versions/activate", async (request, reply) => {
+		const body = request.body as { version?: unknown };
+		const rawVersion = body?.version;
+
+		if (typeof rawVersion !== "string" || !rawVersion.trim()) {
+			return reply.code(400).send({ error: "version string required" });
+		}
+
+		const version = rawVersion.trim();
+		const key = sanitizeVersion(version);
+
+		if (!isVersionInstalled(key)) {
+			const dl = downloadVersion(version);
+			if (!dl.ok) {
+				return reply.code(502).send({
+					error: `Download failed: ${dl.error}`
+				});
+			}
+		}
+
+		const info = getVersionInfo(key);
+		if (!info.shimsBuilt) {
+			const built = await buildShimsForVersion(key, runtimeHarnessRoot);
+			if (!built.ok) {
+				return reply.code(500).send({
+					error: `Shim build failed: ${built.error}`
+				});
+			}
+		}
+
+		setActiveVersion(version);
+
+		// Re-inject shims resolution with the newly active version, then restart
+		// the helper so it picks up the new node_helper.js from the versioned shims.
+		injectShimResolution();
+		await restartHelper();
+
+		const reloadVersion = Date.now().toString(36);
+		io.emit("mm:version-changed", {
+			version,
+			key,
+			capabilities: getVersionInfo(key).capabilities,
+			reloadVersion
+		});
+		io.emit("harness:reload", {
+			event: "mm-version-change",
+			scope: "stage",
+			version: reloadVersion
+		});
+
+		return reply.send({
+			ok: true,
+			active: key,
+			capabilities: getVersionInfo(key).capabilities
+		});
+	});
+
+	app.post("/__harness/mm-versions/redownload", async (request, reply) => {
+		const body = request.body as { version?: unknown };
+		const rawVersion = body?.version;
+
+		if (typeof rawVersion !== "string" || !rawVersion.trim()) {
+			return reply.code(400).send({ error: "version string required" });
+		}
+
+		const version = rawVersion.trim();
+		const key = sanitizeVersion(version);
+
+		deleteVersionCache(version);
+
+		const dl = downloadVersion(version);
+		if (!dl.ok) {
+			return reply.code(502).send({ error: `Download failed: ${dl.error}` });
+		}
+
+		const built = await buildShimsForVersion(key, runtimeHarnessRoot);
+		if (!built.ok) {
+			return reply.code(500).send({ error: `Shim build failed: ${built.error}` });
+		}
+
+		const active = getActiveVersion();
+		if (active === key) {
+			injectShimResolution();
+			await restartHelper();
+			const reloadVersion = Date.now().toString(36);
+			io.emit("mm:version-changed", {
+				version,
+				key,
+				capabilities: getVersionInfo(key).capabilities,
+				reloadVersion
+			});
+			io.emit("harness:reload", {
+				event: "mm-version-change",
+				scope: "stage",
+				version: reloadVersion
+			});
+		}
+
+		return reply.send({
+			ok: true,
+			capabilities: getVersionInfo(key).capabilities
+		});
+	});
+
+	app.post("/__harness/mm-versions/delete-cache", async (request, reply) => {
+		const body = request.body as { version?: unknown };
+		const rawVersion = body?.version;
+		if (typeof rawVersion !== "string" || !rawVersion.trim())
+			return reply.code(400).send({ error: "version string required" });
+		const version = rawVersion.trim();
+		const key = sanitizeVersion(version);
+		const active = getActiveVersion();
+		if (active === key)
+			return reply.code(409).send({ error: "Cannot delete the active version." });
+		deleteVersionCache(version);
+		return reply.send({ ok: true });
+	});
+
+	app.delete("/__harness/mm-versions/active", async (_request, reply) => {
+		setActiveVersion("");
+		injectShimResolution();
+		await restartHelper();
+		const reloadVersion = Date.now().toString(36);
+		io.emit("mm:version-changed", {
+			version: null,
+			key: null,
+			capabilities: deriveCapabilities(getBuiltInMmVersion()),
+			reloadVersion
+		});
+		io.emit("harness:reload", {
+			event: "mm-version-change",
+			scope: "stage",
+			version: reloadVersion
+		});
+		return reply.send({ ok: true, active: null });
 	});
 }
 

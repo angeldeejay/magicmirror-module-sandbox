@@ -7,6 +7,7 @@
       <a id="menu-notifications" class="harness-menu-link harness-domain-nav-link" href="#notifications" data-domain="notifications"><i class="fa-solid fa-bell" aria-hidden="true"></i>Notifications</a>
       <a id="menu-debug" class="harness-menu-link harness-domain-nav-link" href="#debug" data-domain="debug"><i class="fa-solid fa-bug" aria-hidden="true"></i>Debug</a>
       <a id="menu-quality" class="harness-menu-link harness-domain-nav-link" href="#quality" data-domain="quality"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Quality</a>
+      <a id="menu-mmversion" class="harness-menu-link harness-domain-nav-link" href="#mmversion" data-domain="mmversion"><i class="fa-solid fa-code-branch" aria-hidden="true"></i>MagicMirror Version</a>
       <a id="menu-about" class="harness-menu-link harness-domain-nav-link" href="#about" data-domain="about"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>About</a>
     </div>
   </div>
@@ -16,6 +17,7 @@
     <%~ include("./sidebar-notifications") %>
     <%~ include("./sidebar-debug") %>
     <%~ include("./sidebar-quality") %>
+    <%~ include("./sidebar-mmversion") %>
     <%~ include("./sidebar-about") %>
   </div>
 </aside>

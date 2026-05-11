@@ -6,13 +6,14 @@ These pages walk through the main parts of the MagicMirror Module Sandbox UI.
 
 ## What you will find here
 
-The sidebar is organized into six main areas, and the topbar includes a theme switcher:
+The sidebar is organized into seven main areas, and the topbar includes a version badge and a theme switcher:
 
 - [Runtime](runtime.md)
 - [Config](config.md)
 - [Notifications](notifications.md)
 - [Debug](debug.md)
 - [Quality](quality.md)
+- [MM Version](mmversion.md)
 - [About](about.md)
 - [Themes](themes.md)
 

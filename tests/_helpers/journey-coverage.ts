@@ -35,10 +35,26 @@ export type JourneyId =
 	| "ui-domain-nav-dropdown-closes-on-selection"
 	| "ui-domain-nav-dropdown-opens"
 	| "ui-domain-nav-notifications"
+	| "ui-domain-nav-mmversion"
 	| "ui-domain-nav-quality"
 	| "ui-domain-nav-runtime"
 	| "ui-domain-nav-trigger-reflects-active-domain"
 	| "ui-domain-navigation-order"
+	| "ui-mmversion-activate-button-disabled-when-empty"
+	| "ui-mmversion-activate-button-enabled-when-filled"
+	| "ui-mmversion-activate-button-present"
+	| "ui-mmversion-active-row-shows-builtin"
+	| "ui-mmversion-active-core-version-only"
+	| "ui-mmversion-dropdown-bleeding-edge-first"
+	| "ui-mmversion-dropdown-includes-builtin-version"
+	| "ui-mmversion-switch-version-select-present"
+	| "ui-mmversion-domain-activates"
+	| "ui-mmversion-domain-renders"
+	| "ui-mmversion-sidebar-stays-open"
+	| "ui-mmversion-topbar-badge-opens-domain"
+	| "ui-mmversion-topbar-badge-renders"
+	| "ui-mmversion-topbar-badge-shows-builtin"
+	| "ui-mmversion-version-input-present"
 	| "ui-notifications-sidebar"
 	| "ui-runtime-controls"
 	| "ui-sidebar-toggle-closes"
@@ -488,12 +504,142 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 		outcomes: ["quality panel active", "other panels inactive"]
 	},
 	{
+		id: "ui-domain-nav-mmversion",
+		suite: "ui",
+		label: "MM Version domain navigation",
+		description:
+			"Clicking MM Version in sidebar activates only the MM Version panel.",
+		transitions: ["navigation:mmversion-opened"],
+		outcomes: ["mmversion panel active", "other panels inactive"]
+	},
+	{
 		id: "ui-domain-nav-about",
 		suite: "ui",
 		label: "About domain navigation",
 		description: "Clicking About in topbar activates only the About panel.",
 		transitions: ["navigation:about-opened"],
 		outcomes: ["about panel active", "other panels inactive"]
+	},
+	{
+		id: "ui-mmversion-domain-renders",
+		suite: "ui",
+		label: "MM Version domain renders",
+		description: "MM Version domain section exists in the sidebar DOM.",
+		transitions: ["mmversion:domain-mounted"],
+		outcomes: ["mmversion section present in DOM"]
+	},
+	{
+		id: "ui-mmversion-domain-activates",
+		suite: "ui",
+		label: "MM Version domain activates",
+		description: "Opening mmversion domain sets its panel to data-active=true.",
+		transitions: ["mmversion:domain-opened"],
+		outcomes: ["mmversion panel active"]
+	},
+	{
+		id: "ui-mmversion-sidebar-stays-open",
+		suite: "ui",
+		label: "Sidebar stays open on mmversion navigation",
+		description: "Sidebar stays open and panel is active after opening mmversion.",
+		transitions: ["mmversion:domain-opened"],
+		outcomes: ["sidebar remains open", "mmversion panel active"]
+	},
+	{
+		id: "ui-mmversion-topbar-badge-renders",
+		suite: "ui",
+		label: "MM Version topbar badge renders",
+		description: "Topbar MM version badge is present in the DOM.",
+		transitions: ["mmversion:badge-mounted"],
+		outcomes: ["badge element present"]
+	},
+	{
+		id: "ui-mmversion-topbar-badge-shows-builtin",
+		suite: "ui",
+		label: "MM Version badge shows built-in",
+		description: "Topbar badge shows 'built-in' when no mmvm version is active.",
+		transitions: ["mmversion:badge-loaded"],
+		outcomes: ["badge label is built-in"]
+	},
+	{
+		id: "ui-mmversion-topbar-badge-opens-domain",
+		suite: "ui",
+		label: "MM Version badge opens domain",
+		description:
+			"Clicking topbar badge opens the mmversion domain without closing sidebar.",
+		transitions: ["mmversion:badge-clicked"],
+		outcomes: ["sidebar open", "mmversion panel active"]
+	},
+	{
+		id: "ui-mmversion-active-row-shows-builtin",
+		suite: "ui",
+		label: "MM Version active core shows version without suffix",
+		description: "Active core input shows version number only — no '(built-in)' suffix appended.",
+		transitions: ["mmversion:domain-opened", "mmversion:active-core-loaded"],
+		outcomes: ["active core input has no built-in suffix", "active core input is non-empty"]
+	},
+	{
+		id: "ui-mmversion-version-input-present",
+		suite: "ui",
+		label: "MM Version input present",
+		description: "Version text input is rendered inside the domain.",
+		transitions: ["mmversion:domain-opened"],
+		outcomes: ["version input present"]
+	},
+	{
+		id: "ui-mmversion-activate-button-present",
+		suite: "ui",
+		label: "MM Version activate button present",
+		description: "Activate button is rendered inside the domain.",
+		transitions: ["mmversion:domain-opened"],
+		outcomes: ["activate button present"]
+	},
+	{
+		id: "ui-mmversion-activate-button-disabled-when-empty",
+		suite: "ui",
+		label: "MM Version reset button disabled when using built-in",
+		description: "Reset button is disabled when the active core is already the built-in version.",
+		transitions: ["mmversion:builtin-active"],
+		outcomes: ["reset button disabled"]
+	},
+	{
+		id: "ui-mmversion-activate-button-enabled-when-filled",
+		suite: "ui",
+		label: "MM Version switch version select has bleeding-edge option",
+		description: "Switch version select always contains bleeding-edge (develop) as the first option.",
+		transitions: ["mmversion:domain-opened"],
+		outcomes: ["bleeding-edge option present as first item"]
+	},
+	{
+		id: "ui-mmversion-active-core-version-only",
+		suite: "ui",
+		label: "MM Version active core shows version only",
+		description: "Active core input reflects the version number returned by the server without any UI suffix.",
+		transitions: ["mmversion:active-core-loaded"],
+		outcomes: ["active core value equals raw version string"]
+	},
+	{
+		id: "ui-mmversion-dropdown-bleeding-edge-first",
+		suite: "ui",
+		label: "MM Version dropdown bleeding-edge is first",
+		description: "Switch version dropdown always renders bleeding-edge (develop) as the first option.",
+		transitions: ["mmversion:domain-opened", "mmversion:dropdown-rendered"],
+		outcomes: ["first dropdown option is develop"]
+	},
+	{
+		id: "ui-mmversion-dropdown-includes-builtin-version",
+		suite: "ui",
+		label: "MM Version dropdown includes built-in version",
+		description: "Once releases load, the built-in version appears in the dropdown without '(built-in)' label.",
+		transitions: ["mmversion:releases-loaded"],
+		outcomes: ["builtin version present in dropdown options", "builtin option has no text suffix"]
+	},
+	{
+		id: "ui-mmversion-switch-version-select-present",
+		suite: "ui",
+		label: "MM Version switch version select present",
+		description: "Switch version select element is rendered inside the domain.",
+		transitions: ["mmversion:domain-opened"],
+		outcomes: ["version select present"]
 	},
 	{
 		id: "ui-domain-nav-dropdown-opens",

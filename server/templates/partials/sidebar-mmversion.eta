@@ -1,0 +1,15 @@
+<section id="domain-mmversion" class="sandbox-domain" data-domain="mmversion" data-active="false">
+  <span class="status-pill">MagicMirror core version manager. Switch the active MM core and inspect capability flags per version.</span>
+  <div class="sandbox-section-title">Active core</div>
+  <div class="mmv-input-row">
+    <input class="sandbox-input mmv-version-input" type="text" readonly value="—">
+    <button class="sandbox-button mmv-activate-btn" type="button" disabled title="Already using built-in shims"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Reset</button>
+  </div>
+  <div class="sandbox-section-title">Capabilities</div>
+  <span class="mmv-caps-loading"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…</span>
+  <div class="sandbox-section-title">Switch version</div>
+  <div class="mmv-input-row">
+    <select class="sandbox-input mmv-version-select"><option value="develop" selected>bleeding-edge (develop)</option></select>
+    <button class="sandbox-button mmv-activate-btn" type="button"><i class="fa-solid fa-bolt" aria-hidden="true"></i>Activate</button>
+  </div>
+</section>

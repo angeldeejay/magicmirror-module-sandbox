@@ -15,19 +15,25 @@ and how to use it, while this file explains how it is put together.
   hit the backend
 - **helper-runtime.ts** reloads `node_helper.js` on watch restarts, instantiates
   core-style helper constructors, and injects sandbox helper compat resolution
+- **mm-version-manager.ts** implements the nvm-style MagicMirror version store
+  under `~/.mmvm/`; exposes install, activate, delete, re-download, and
+  capability-introspection operations consumed by the mm-versions API routes
 - **startup-scripts.ts** owns optional consumer startup command lifecycles
 - **watch.ts** exposes two independent watchers: a module watcher (always-on,
   stage scope) and a sandbox watcher (--watch mode only, shell scope), both
   emitting `harness:reload`
-- **Eta templates** under `server/templates/` render the sandbox host HTML
+- **Eta templates** under `server/templates/` render the sandbox host HTML,
+  including `sidebar-mmversion.eta` for the MM Version sidebar partial
 
 ### Browser side
 
 - `client/app/` holds the Vite + Preact shell for the persistent host UI
 - `client/app/harness-state.ts` is the typed shell bootstrap boundary and parses
   `window.__HARNESS__` with Zod
-- `client/app/components/` owns the topbar (including domain navigation dropdown),
-  sidebar (with toggle behavior), sidebar domains, footer, and shell iconography
+- `client/app/components/` owns the topbar (including domain navigation dropdown
+  and `MmVersionBadge` for the active core version), sidebar (with toggle
+  behavior), sidebar domains including `MmVersionDomain`, footer, and shell
+  iconography
 - `client/runtime/*.ts` is the maintained browser-runtime source surface
 - `client/generated/` is the browser-served output built from the shell bundle plus
   runtime/vendor TypeScript sources
@@ -48,7 +54,9 @@ and how to use it, while this file explains how it is put together.
 - `client/vendor/` holds hand-authored TypeScript browser components that ship
   as compiled assets but are not part of the Vite + Preact shell bundle:
   `module-config-editor.ts` is the custom element implementing the config editor;
-  `ace-theme-harness.ts` is the Ace Editor theme definition
+  `ace-theme-harness.ts` is the Ace Editor theme definition;
+  `jsonc-parser-bundle.ts` bundles the `jsonc-parser` library as
+  `window.jsoncParser` for use in the config editor's comment-aware parsing
 
 ### Shims
 

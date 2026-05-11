@@ -14,7 +14,9 @@ node --run build:10-client
 node --run client:shell
 node --run client:runtime
 node --run build:20-node-compat
-node --run build:00-sync-mm-assets
+node --run build:00-sync-mmcore-source
+node --run build:01-sync-mm-assets
+node --run build:02-sync-analyzer
 node --run start
 node --run dev:watch-preview
 node --run dev:start-preview

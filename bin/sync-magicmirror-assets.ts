@@ -44,8 +44,13 @@ function getPackageRoot(): string {
 
 /**
  * Resolves magic mirror root.
+ * Prefers mmcore-source/ (populated by sync-mmcore-source.ts) over devDep.
  */
 function resolveMagicMirrorRoot(packageRoot = getPackageRoot()): string {
+	const mmcoreSourcePath = path.join(packageRoot, "mmcore-source", "node_modules", "magicmirror");
+	if (fs.existsSync(path.join(mmcoreSourcePath, "package.json"))) {
+		return mmcoreSourcePath;
+	}
 	const magicMirrorEntryPath = nodeRequire.resolve("magicmirror", {
 		paths: [packageRoot]
 	});
@@ -161,11 +166,14 @@ function copyReferencedAsset({
 		!fs.existsSync(sourceAssetPath) &&
 		normalizedAssetUrl.startsWith("../node_modules/")
 	) {
-		sourceAssetPath = path.join(
-			packageRoot,
-			"node_modules",
-			normalizedAssetUrl.replace(/^\.\.\/node_modules\//, "")
-		);
+		const packageName = normalizedAssetUrl.replace(/^\.\.\/node_modules\//, "");
+		sourceAssetPath = path.join(packageRoot, "node_modules", packageName);
+		// When MagicMirror comes from mmcore-source/, fonts are in mmcore-source/node_modules/,
+		// not in packageRoot/node_modules/. Try the node_modules/ sibling of the CSS source package.
+		if (!fs.existsSync(sourceAssetPath)) {
+			const siblingNodeModules = path.dirname(path.dirname(sourceDirectory));
+			sourceAssetPath = path.join(siblingNodeModules, packageName);
+		}
 	}
 	if (!fs.existsSync(sourceAssetPath)) {
 		throw new Error(

@@ -27,6 +27,7 @@
  *     debug-helper-log.png          Debug domain, Helper Log tab
  *     debug-console-log.png         Debug domain, Console Log tab
  *     quality.png                   Quality domain
+ *     mmversion.png                 MM Version domain
  *     about.png                     About domain
  *     themes/
  *       theme-switcher.png          Theme picker dropdown open (all options visible)
@@ -204,7 +205,7 @@ async function waitForSidebarOpen(page: Page): Promise<void> {
  *      `display:flex` when `data-active="true"` is set)
  *
  * @param page - Playwright Page.
- * @param domain - Domain id: "runtime" | "config" | "notifications" | "debug" | "quality" | "about"
+ * @param domain - Domain id: "runtime" | "config" | "notifications" | "debug" | "quality" | "mmversion" | "about"
  */
 async function navigateDomain(page: Page, domain: string): Promise<void> {
 	await page.evaluate((d: string) => {
@@ -355,6 +356,12 @@ async function main(): Promise<void> {
 		// Extra wait: quality panel may trigger an analysis fetch on first open.
 		await page.waitForTimeout(800);
 		await shot(page, path.join(screenshotsDir, "quality.png"));
+
+		console.log("MM Version…");
+		await navigateDomain(page, "mmversion");
+		// Extra wait: the domain fetches version state and GitHub releases on open.
+		await page.waitForTimeout(1200);
+		await shot(page, path.join(screenshotsDir, "mmversion.png"));
 
 		console.log("About…");
 		await navigateDomain(page, "about");

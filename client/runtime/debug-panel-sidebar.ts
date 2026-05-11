@@ -25,6 +25,10 @@
 			title: "Debug",
 			copy: "Host diagnostics, browser console output, and helper logs."
 		},
+		mmversion: {
+			title: "MagicMirror Version",
+			copy: "Switch the active MagicMirror core version and inspect capability flags."
+		},
 		about: {
 			title: "About",
 			copy: "Product context, credits, and identity."

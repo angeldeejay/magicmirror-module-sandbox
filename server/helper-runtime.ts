@@ -5,7 +5,13 @@
 import * as fs from "node:fs";
 import Module, { createRequire } from "node:module";
 import * as path from "pathe";
-import { configRoot, harnessRoot, repoRoot, shimsRoot } from "./paths.ts";
+import {
+	configRoot,
+	getActiveShimsRoot,
+	harnessRoot,
+	repoRoot,
+	shimsRoot
+} from "./paths.ts";
 
 const nodeModule = Module as typeof Module & {
 	_initPaths: () => void;
@@ -27,12 +33,20 @@ function ensureTsxCjsRegistered(): void {
 	nodeRequire("tsx/cjs");
 	tsxCjsRegistered = true;
 }
-const compatShimsRoot = path.join(shimsRoot, "generated");
-const compatMagicMirrorRoot = path.join(compatShimsRoot, "magicmirror-core");
-const compatMagicMirrorPackagePath = path.join(
-	compatMagicMirrorRoot,
-	"package.json"
-);
+
+// Dynamic shims root — evaluated at call time to support mm version switching.
+function getCompatShimsRoot(): string {
+	return getActiveShimsRoot();
+}
+function getCompatMagicMirrorRoot(): string {
+	return path.join(getCompatShimsRoot(), "magicmirror-core");
+}
+function getCompatMagicMirrorPackagePath(): string {
+	return path.join(getCompatMagicMirrorRoot(), "package.json");
+}
+
+// Tracks the last injected shims path so NODE_PATH stays clean across version switches.
+let lastInjectedShimsRoot: string | null = null;
 
 type SandboxMagicMirrorGlobals = typeof globalThis & {
 	root_path?: string;
@@ -63,8 +77,14 @@ type HelperModuleExport = HelperInstance | (new () => HelperInstance);
 
 /**
  * Injects shim resolution.
+ * Safe to call multiple times — replaces the previously injected shims path in
+ * NODE_PATH instead of accumulating entries (supports mm version switching).
  */
 function injectShimResolution(): void {
+	const compatShimsRoot = getCompatShimsRoot();
+	const compatMagicMirrorRoot = getCompatMagicMirrorRoot();
+	const compatMagicMirrorPackagePath = getCompatMagicMirrorPackagePath();
+
 	/* v8 ignore next 4 */
 	if (!fs.existsSync(compatShimsRoot)) {
 		throw new Error(
@@ -85,10 +105,17 @@ function injectShimResolution(): void {
 		}
 	}
 
-	process.env.NODE_PATH = [compatShimsRoot, process.env.NODE_PATH]
-		.filter(Boolean)
-		.join(path.delimiter);
+	// Replace the previously injected mmvm shims path instead of accumulating.
+	const existingParts = (process.env.NODE_PATH || "")
+		.split(path.delimiter)
+		.filter(Boolean);
+	const filtered = lastInjectedShimsRoot
+		? existingParts.filter((p) => p !== lastInjectedShimsRoot)
+		: existingParts;
+	process.env.NODE_PATH = [compatShimsRoot, ...filtered].join(path.delimiter);
+	lastInjectedShimsRoot = compatShimsRoot;
 	nodeModule._initPaths();
+
 	const sandboxGlobals = globalThis as SandboxMagicMirrorGlobals;
 	const compatPackage = JSON.parse(
 		fs.readFileSync(compatMagicMirrorPackagePath, "utf8")
@@ -124,6 +151,11 @@ function clearModuleRequireCache(): void {
 
 		/* v8 ignore next 3 */
 		if (normalizedKey.startsWith(configRoot)) {
+			delete nodeRequire.cache[cacheKey];
+		}
+
+		// Clear any mmvm versioned shims so restartHelper picks up the newly active version.
+		if (normalizedKey.includes("/.mmvm/shims/")) {
 			delete nodeRequire.cache[cacheKey];
 		}
 	});

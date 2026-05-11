@@ -28,6 +28,7 @@ const CANONICAL_DOMAIN_ORDER = [
 	"notifications",
 	"debug",
 	"quality",
+	"mmversion",
 	"about"
 ] as const;
 
@@ -258,6 +259,7 @@ const domainNavCases: Array<{ journeyId: string; domain: Domain }> = [
 	{ journeyId: "ui-domain-nav-notifications", domain: "notifications" },
 	{ journeyId: "ui-domain-nav-debug", domain: "debug" },
 	{ journeyId: "ui-domain-nav-quality", domain: "quality" },
+	{ journeyId: "ui-domain-nav-mmversion", domain: "mmversion" },
 	{ journeyId: "ui-domain-nav-about", domain: "about" }
 ];
 

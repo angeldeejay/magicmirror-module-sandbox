@@ -18,7 +18,7 @@ const {
 	writeManagedAssetManifest
 } = syncMagicMirrorAssetsModule;
 
-test("resolveMagicMirrorRoot resolves the installed dev dependency", () => {
+test("resolveMagicMirrorRoot resolves to the magicmirror package directory", () => {
 	assert.equal(path.basename(resolveMagicMirrorRoot()), "magicmirror");
 });
 
