@@ -73,6 +73,9 @@ function clearRuntimeOutputs(): void {
 	fs.rmSync(path.join(generatedRoot, "runtime.js"), {
 		force: true
 	});
+	fs.rmSync(path.join(generatedRoot, "stage-observer.js"), {
+		force: true
+	});
 }
 
 /**
@@ -290,6 +293,23 @@ function buildJsoncParserBundle(): void {
 }
 
 /**
+ * Bundles the real-core stage observer into one classic script
+ * (`generated/stage-observer.js`), injected before the core scripts.
+ */
+function buildStageObserverBundle(): void {
+	ensureDirectory(generatedRoot);
+	buildSync({
+		entryPoints: [path.join(clientRoot, "stage-observer", "index.ts")],
+		outfile: path.join(generatedRoot, "stage-observer.js"),
+		bundle: true,
+		format: "iife",
+		legalComments: "none",
+		logLevel: "silent",
+		target: "es2021"
+	});
+}
+
+/**
  * Builds runtime.
  */
 function buildRuntime(): void {
@@ -308,6 +328,7 @@ function buildRuntime(): void {
 	syncAceVendorFiles();
 	buildJsBeautifyBundle();
 	buildJsoncParserBundle();
+	buildStageObserverBundle();
 }
 
 /**

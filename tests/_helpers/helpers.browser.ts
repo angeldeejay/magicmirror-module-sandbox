@@ -30,6 +30,17 @@ export async function gotoSandbox() {
 }
 
 /**
+ * Reset fixture files and open the sandbox shell of a server booted with the
+ * maintainer flag `--real-core-stage`, until the real core created the module.
+ * A test file must not mix this with `gotoSandbox`.
+ *
+ * @returns {Promise<void>}
+ */
+export async function gotoRealCoreStage() {
+	await commands.sandboxGotoRealCoreStage();
+}
+
+/**
  * Reset fixture state and reload only the stage iframe without re-navigating the shell.
  * Faster than gotoSandbox — use for subsequent resets within the same test file.
  * Falls back to gotoSandbox automatically if the shell is not yet loaded.

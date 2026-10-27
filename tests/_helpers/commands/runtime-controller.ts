@@ -142,7 +142,20 @@ type SandboxSessionRuntime = {
 	stderr?: string;
 	startPromise?: Promise<void> | null;
 	needsHelperReset?: boolean;
+	/** Server booted with the maintainer flag `--real-core-stage`. */
+	realCoreStage: boolean;
 };
+
+/**
+ * Per-session runtime options. Omitted fields keep whatever the session
+ * already booted with (a fresh session defaults to the hand-port stage).
+ */
+type SandboxRuntimeOptions = {
+	realCoreStage?: boolean;
+};
+
+/** Maintainer CLI flag that serves the real MagicMirror core in the stage. */
+const REAL_CORE_STAGE_FLAG = "--real-core-stage";
 
 /**
  * Report whether one suite should boot an isolated sandbox runtime per browser
@@ -188,7 +201,8 @@ function buildSessionMapKey(suiteName, sessionId) {
  */
 function createPerSessionFixtureRuntime(
 	suiteName,
-	sessionId
+	sessionId,
+	realCoreStage = false
 ): SandboxSessionRuntime {
 	const safeSuiteName = sanitizePathSegment(suiteName);
 	const safeSessionId = sanitizePathSegment(sessionId) || "session";
@@ -203,7 +217,8 @@ function createPerSessionFixtureRuntime(
 		sessionId,
 		runtimeRoot,
 		fixtureRoot,
-		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css")
+		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css"),
+		realCoreStage
 	};
 }
 
@@ -303,19 +318,40 @@ async function isServerReady(baseUrl) {
  * @param {string} sessionId
  * @returns {Promise<SandboxSessionRuntime>}
  */
-async function ensureSandboxSessionRuntime(suiteName, sessionId) {
+async function ensureSandboxSessionRuntime(
+	suiteName,
+	sessionId,
+	options: SandboxRuntimeOptions = {}
+) {
 	const runtimeKey = buildSessionMapKey(suiteName, sessionId);
 	const existingRuntime = sandboxSessionRuntimes.get(runtimeKey);
 	if (existingRuntime) {
+		if (
+			options.realCoreStage !== undefined &&
+			options.realCoreStage !== existingRuntime.realCoreStage
+		) {
+			throw new Error(
+				`Sandbox session "${sessionId}" already runs with realCoreStage=${existingRuntime.realCoreStage}; one test file cannot mix stage modes.`
+			);
+		}
 		return existingRuntime;
 	}
+	const realCoreStage = Boolean(options.realCoreStage);
 
-	// Acquire a warm server from the pool to avoid a cold start.
+	// Acquire a warm server from the pool to avoid a cold start. Only servers
+	// booted with the same stage mode are reusable.
 	// Cancel the TTL timer and re-ref the child + pipe handles so the parent
 	// process stays alive while this session is using the server.
 	const pool = getWorkerPool(suiteName);
-	if (pool.length > 0) {
-		const entry = pool.pop()!;
+	let pooledIndex = pool.length - 1;
+	while (
+		pooledIndex >= 0 &&
+		pool[pooledIndex].runtime.realCoreStage !== realCoreStage
+	) {
+		pooledIndex -= 1;
+	}
+	if (pooledIndex !== -1) {
+		const [entry] = pool.splice(pooledIndex, 1);
 		clearTimeout(entry.timer);
 		const { runtime } = entry;
 		if (runtime.child) {
@@ -336,7 +372,11 @@ async function ensureSandboxSessionRuntime(suiteName, sessionId) {
 	}
 
 	// No warm server available — boot a fresh one.
-	const runtime = createPerSessionFixtureRuntime(suiteName, sessionId);
+	const runtime = createPerSessionFixtureRuntime(
+		suiteName,
+		sessionId,
+		realCoreStage
+	);
 	runtime.port = await allocateLoopbackPort();
 	runtime.baseUrl = getSandboxBaseUrl(runtime.port);
 	runtime.child = null;
@@ -391,7 +431,10 @@ async function ensureSandboxSessionServer(runtime) {
 			runtime.stdout = "";
 			runtime.stderr = "";
 			const invocation = getSandboxServerInvocation();
-			runtime.child = spawn(invocation.command, invocation.args, {
+			const serverArgs = runtime.realCoreStage
+				? [...invocation.args, REAL_CORE_STAGE_FLAG]
+				: invocation.args;
+			runtime.child = spawn(invocation.command, serverArgs, {
 				cwd: sandboxRoot,
 				env: {
 					...process.env,
@@ -601,18 +644,33 @@ export function createSandboxRuntimeController(suiteName) {
 		/**
 		 * Gets runtime for context.
 		 */
-		async getRuntimeForContext(context) {
+		async getRuntimeForContext(
+			context,
+			options: SandboxRuntimeOptions = {}
+		) {
 			if (!usesPerSessionRuntime) {
+				if (options.realCoreStage) {
+					throw new Error(
+						`Suite "${suiteName}" shares one sandbox server and cannot boot the real-core stage.`
+					);
+				}
 				return suiteRuntime;
 			}
 
-			return ensureSandboxSessionRuntime(suiteName, context.sessionId);
+			return ensureSandboxSessionRuntime(
+				suiteName,
+				context.sessionId,
+				options
+			);
 		},
 		/**
 		 * Gets live runtime for context.
 		 */
-		async getLiveRuntimeForContext(context) {
-			const runtime = await this.getRuntimeForContext(context);
+		async getLiveRuntimeForContext(
+			context,
+			options: SandboxRuntimeOptions = {}
+		) {
+			const runtime = await this.getRuntimeForContext(context, options);
 			if (!usesPerSessionRuntime) {
 				return runtime;
 			}

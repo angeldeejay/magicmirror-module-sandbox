@@ -186,6 +186,53 @@ test("startModuleWatcher: io.emit scope is always 'stage' for any module file ch
 	assert.equal(payload.scope, "stage");
 });
 
+test("startModuleWatcher: with the real-core stage, every stage harness:reload also sends the core RELOAD", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const order: string[] = [];
+	const io = { emit: vi.fn((name: string) => order.push(name)) };
+	const emitStageReload = vi.fn(() => order.push("RELOAD"));
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		io,
+		emitStageReload
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.js")
+	);
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.css")
+	);
+
+	assert.deepEqual(order, [
+		"harness:reload",
+		"RELOAD",
+		"harness:reload",
+		"RELOAD"
+	]);
+});
+
+test("startModuleWatcher: without the real-core stage, reloads emit only harness:reload", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const io = { emit: vi.fn() };
+	startModuleWatcher({ ...makeModuleWatcherOptions(), io } as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.js")
+	);
+
+	assert.deepEqual(
+		io.emit.mock.calls.map(([name]: [string]) => name),
+		["harness:reload"]
+	);
+});
+
 test("startModuleWatcher: io.emit scope is 'stage' for node_helper.js", async () => {
 	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const io = { emit: vi.fn() };

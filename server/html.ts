@@ -38,6 +38,8 @@ export type HtmlPageOptions = {
 		language: string;
 		locale?: string;
 		packageVersion?: string;
+		/** Maintainer flag `--real-core-stage`: the iframe loads `/__stage/`. */
+		realCoreStage?: boolean;
 	};
 	getModuleConfig: () => Record<string, unknown>;
 	getContract: () => Record<string, unknown>;
@@ -199,7 +201,9 @@ function createHtmlPage({
 
 	return templateEngine.render("page.eta", {
 		sandboxUrl,
-		stageUrl: appendAssetVersion("/__harness/stage", assetVersion),
+		stageUrl: getHarnessConfig().realCoreStage
+			? "/__stage/"
+			: appendAssetVersion("/__harness/stage", assetVersion),
 		runtimeStylesheetUrl: appendAssetVersion(
 			"/__harness/styles/harness.css",
 			assetVersion

@@ -54,6 +54,8 @@ node --run docs:screenshots
 
 Scripts prefixed with `_` (`_server`, `_server:preview`, `_server:watch`, `_server:watch-preview`) are internal; they map to the CLI flags `--preview` and `--watch`.
 
+`--real-core-stage` is a maintainer-only, **temporary** CLI flag (no npm script, no env var): the stage iframe loads the active MagicMirror core itself from `/__stage/` (`server/stage/`), and the helper's module namespace moves to the stage socket server at `/__stage/socket.io`. It exists only while the per-version stage replaces the hand-port in `client/runtime/` and is removed when that default flips. Browser tests opt in per test file with `gotoRealCoreStage()` from `tests/_helpers/helpers.browser.ts`.
+
 ## Product scope
 
 - Single-module MagicMirror sandbox, not a generic MagicMirror replacement

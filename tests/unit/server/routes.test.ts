@@ -11,6 +11,7 @@ import { Readable } from "node:stream";
 import Fastify from "fastify";
 import { afterEach } from "vitest";
 import * as mmVer from "../../../server/mm-version-manager.ts";
+import { registerStageRoutes } from "../../../server/stage/stage-routes.ts";
 
 // ---------------------------------------------------------------------------
 // mm-version-manager mock — no real npm installs or filesystem I/O
@@ -36,6 +37,14 @@ vi.mock("../../../server/mm-version-manager.ts", () => ({
 	sanitizeVersion: vi.fn((v: string) =>
 		v.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-{2,}/g, "-")
 	)
+}));
+
+// ---------------------------------------------------------------------------
+// stage routes mock: the real-core stage has its own unit suite
+// ---------------------------------------------------------------------------
+
+vi.mock("../../../server/stage/stage-routes.ts", () => ({
+	registerStageRoutes: vi.fn(async () => {})
 }));
 
 // ---------------------------------------------------------------------------
@@ -181,7 +190,9 @@ function makeRouteOptions(
 			watchEnabled: flat.watchEnabled,
 			getHelperLogEntries: flat.getHelperLogEntries as () => Array<
 				Record<string, unknown>
-			>
+			>,
+			realCoreStage: flat.realCoreStage as boolean | undefined,
+			emitStageReload: flat.emitStageReload as (() => void) | undefined
 		},
 		analysisService: {
 			getAnalysisResult: flat.getAnalysisResult as () => null,
@@ -654,6 +665,53 @@ test("POST /__harness/restart calls restartHelper and emits harness:reload with 
 // ---------------------------------------------------------------------------
 // Tests — static asset routes
 // ---------------------------------------------------------------------------
+
+test("without the real-core stage flag, reloads emit only harness:reload and no stage routes register", async () => {
+	const emitStageReload = vi.fn();
+	const io = { emit: vi.fn() };
+	const app = await buildApp({ io, emitStageReload });
+
+	await app.inject({ method: "POST", url: "/__harness/restart" });
+
+	assert.equal(io.emit.mock.calls.length, 1);
+	assert.equal(emitStageReload.mock.calls.length, 0);
+	assert.equal(vi.mocked(registerStageRoutes).mock.calls.length, 0);
+});
+
+test("with the real-core stage flag, reloads also send the core RELOAD and the stage routes register", async () => {
+	const emitStageReload = vi.fn();
+	const io = { emit: vi.fn() };
+	const getRuntimeConfig = vi.fn(() => ({ language: "es", locale: "es-ES" }));
+	const app = await buildApp({
+		io,
+		emitStageReload,
+		getRuntimeConfig,
+		realCoreStage: true,
+		watchEnabled: false
+	});
+
+	await app.inject({ method: "POST", url: "/__harness/restart" });
+	await app.inject({
+		method: "POST",
+		url: "/__harness/config/module",
+		payload: { position: "top_left", config: {} }
+	});
+
+	assert.deepEqual(
+		io.emit.mock.calls.map(([name]: [string]) => name),
+		["harness:reload", "harness:reload"]
+	);
+	assert.equal(emitStageReload.mock.calls.length, 2);
+
+	const stageCalls = vi.mocked(registerStageRoutes).mock.calls;
+	assert.equal(stageCalls.length, 1);
+	const [, stageOptions] = stageCalls[0];
+	assert.equal(stageOptions.moduleName, "MMM-TestModule");
+	assert.deepEqual(stageOptions.sources.getRuntimeConfig(), {
+		language: "es",
+		locale: "es-ES"
+	});
+});
 
 test("static asset routes each invoke their resolver function to locate the file", async () => {
 	const resolveMomentPath = vi.fn(() => "/stub/moment.js");

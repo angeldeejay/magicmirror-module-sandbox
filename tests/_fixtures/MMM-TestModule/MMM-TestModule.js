@@ -38,7 +38,7 @@ Module.register("MMM-TestModule", {
 	},
 
 	getScripts() {
-		return ["test-script.js"];
+		return ["test-script.js", "fixture-esm.mjs"];
 	},
 
 	getStyles() {

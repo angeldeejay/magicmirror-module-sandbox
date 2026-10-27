@@ -42,6 +42,10 @@ if (args.includes("--preview")) {
 	);
 }
 
+// Other flags (`--watch`, and the maintainer-only, temporary
+// `--real-core-stage`) reach the server through this same process argv: the
+// server entrypoint is imported or required below, never spawned.
+
 /**
  * Internal helper for main.
  */

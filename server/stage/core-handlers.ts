@@ -144,19 +144,19 @@ function buildModuleEntry(
 }
 
 /**
- * Returns the JSON body of `/config/`: the version's own defaults merged with
- * the sandbox runtime language/locale, the stage `basePath` and the mounted
- * module, redacted and serialized as that version's core does.
+ * Builds the core's two config forms from the version's own defaults, the
+ * sandbox runtime language/locale, the stage `basePath` and the mounted
+ * module.
  *
  * Saved configs hold secrets as `**SECRET_*` placeholders, which is the core's
- * `redactedConf` form; the `fullConf` form restores them from the environment.
+ * `redactedConf` form; the `fullConf` form restores them from the environment
+ * and is what core `js/app.js` assigns to `global.config`.
  */
-export function buildCoreConfig(
+export function buildCoreConfigObjects(
 	core: ActiveCore,
-	variants: CoreVariants,
 	basePath: string,
 	sources: CoreConfigSources = getDefaultSources()
-): string {
+): { redactedConf: JsonObject; fullConf: JsonObject } {
 	const defaults = coreRequire(core)("./js/defaults.js") as JsonObject;
 	const { language, locale } = sources.getRuntimeConfig();
 	const moduleEntry = buildModuleEntry(
@@ -170,7 +170,25 @@ export function buildCoreConfig(
 		basePath,
 		modules: [moduleEntry]
 	});
-	const fullConf = revealSecrets(redactedConf);
+	return { redactedConf, fullConf: revealSecrets(redactedConf) };
+}
+
+/**
+ * Returns the JSON body of `/config/`: the config built by
+ * `buildCoreConfigObjects`, redacted and serialized as that version's core
+ * does.
+ */
+export function buildCoreConfig(
+	core: ActiveCore,
+	variants: CoreVariants,
+	basePath: string,
+	sources: CoreConfigSources = getDefaultSources()
+): string {
+	const { redactedConf, fullConf } = buildCoreConfigObjects(
+		core,
+		basePath,
+		sources
+	);
 
 	// Core js/server.js getConfig: 2.35–2.37 redact only with
 	// hideConfigSecrets; 2.38+ always serve the redacted config.

@@ -9,6 +9,7 @@ declare module "vitest/browser" {
 		sandboxClickAndWaitForStylesRefreshed(selector: string): Promise<void>;
 		sandboxClose(): Promise<void>;
 		sandboxGoto(): Promise<void>;
+		sandboxGotoRealCoreStage(): Promise<void>;
 		sandboxOpenDomain(domain: string): Promise<void>;
 		sandboxOpenSidebarTab(domain: string, tab: string): Promise<void>;
 		sandboxPageAttribute(

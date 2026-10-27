@@ -39,6 +39,7 @@ import {
 } from "./mm-version-manager.ts";
 import { registerRoutes } from "./routes.ts";
 import { createStageSocketServer } from "./stage/stage-socket.ts";
+import { assignCoreGlobalConfig } from "./stage/stage-routes.ts";
 import { runStartupScripts } from "./startup-scripts.ts";
 import { startAnalysisWatcher } from "./analysis-watcher.ts";
 import { startModuleWatcher, startSandboxWatcher } from "./watch.ts";
@@ -395,13 +396,27 @@ async function startServer(): Promise<void> {
 		io,
 		() => getHarnessConfig().moduleName
 	);
+	// With the real-core stage, the helper's module namespace lives on the stage
+	// socket server, where the core page connects.
+	const realCoreStage = harnessConfig.realCoreStage;
 	const helperRuntime = createHelperRuntime({
 		app,
 		io,
-		getHelperIo: () => io,
+		getHelperIo: realCoreStage ? () => stageSocket.io : () => io,
 		getHarnessConfig,
 		getHarnessCacheDir,
-		getModuleConfig
+		getModuleConfig,
+		// Core js/app.js assigns global.config before loading helpers; the
+		// real-core stage does the same before every helper (re)start. Flag
+		// off keeps the `{ hideConfigSecrets: false }` global set above.
+		prepareHelperGlobals: realCoreStage
+			? () =>
+					assignCoreGlobalConfig({
+						getModuleConfig,
+						getRuntimeConfig,
+						getHarnessConfig
+					})
+			: undefined
 	});
 	const clientAssetsScriptPath = path.join(
 		currentDirPath,
@@ -462,7 +477,9 @@ async function startServer(): Promise<void> {
 			injectShimResolution,
 			watchEnabled,
 			getHelperLogEntries,
-			harnessRoot: path.join(currentDirPath, "..")
+			harnessRoot: path.join(currentDirPath, ".."),
+			realCoreStage,
+			emitStageReload: stageSocket.emitReload
 		},
 		analysisService: {
 			getAnalysisResult: getLastAnalysisResult,
@@ -502,11 +519,17 @@ async function startServer(): Promise<void> {
 	console.log(
 		`[module-sandbox] ${watchEnabled ? "watch mode enabled" : "watch mode disabled"}`
 	);
+	if (realCoreStage) {
+		console.log(
+			"[module-sandbox] real-core stage enabled at /__stage/ (experimental, maintainer-only)"
+		);
+	}
 
 	// Module watcher: always-on. Observes repoRoot only. Scope always "stage".
 	const moduleWatcher = startModuleWatcher({
 		io,
-		restartHelper: helperRuntime.restartHelper
+		restartHelper: helperRuntime.restartHelper,
+		emitStageReload: realCoreStage ? stageSocket.emitReload : undefined
 	});
 
 	// Sandbox watcher: active only in --watch mode. Observes harness paths. Scope always "shell".

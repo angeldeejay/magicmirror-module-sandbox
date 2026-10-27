@@ -32,6 +32,10 @@ const sandboxPages = new Map();
 // repeated mid-test calls to waitForStageFrame (stageClick, stageText, …).
 // Invalidated before page.goto() and before any action that triggers a stage reload.
 const stageFrameCache = new WeakMap<object, any>();
+// Pages whose stage iframe runs the real MagicMirror core (`/__stage/`). The
+// real core does not publish the hand-port stage-ready bridge message, so
+// readiness is the observer marker plus the core-created module wrapper.
+const realCoreStagePages = new WeakSet<object>();
 type ModuleConfigEditor = HTMLElement & { json_value: unknown };
 
 /**
@@ -174,6 +178,10 @@ export function createSandboxBrowserCommands(suiteName) {
 			stageFrameCache.delete(page);
 		}
 
+		if (realCoreStagePages.has(page)) {
+			return waitForRealCoreStageFrame(page);
+		}
+
 		// Wait for the stage frame element to be visible first.
 		await page.waitForSelector(stageFrameSelector, { state: "visible" });
 
@@ -233,6 +241,67 @@ export function createSandboxBrowserCommands(suiteName) {
 
 		stageFrameCache.set(page, frame);
 		return frame;
+	}
+
+	/**
+	 * Resolve the stage iframe once the real core page loaded the observer
+	 * (`data-sandbox-stage="core"`) and created the mounted module wrapper.
+	 *
+	 * @param {any} page
+	 * @returns {Promise<any>}
+	 */
+	async function waitForRealCoreStageFrame(page): Promise<any> {
+		const frameElement = await page.waitForSelector(stageFrameSelector, {
+			state: "visible"
+		});
+		const timeoutAt = Date.now() + 20_000;
+		let frame: any = null;
+		while (Date.now() < timeoutAt) {
+			frame = await frameElement.contentFrame();
+			if (frame) break;
+			await sleep(50);
+		}
+		if (!frame) {
+			throw new Error(
+				"Timed out waiting for the real-core stage iframe frame."
+			);
+		}
+		await frame.waitForFunction(
+			() =>
+				globalThis.document.documentElement.dataset.sandboxStage ===
+					"core" &&
+				Boolean(globalThis.document.querySelector(".module")),
+			undefined,
+			{ timeout: 20_000 }
+		);
+		stageFrameCache.set(page, frame);
+		return frame;
+	}
+
+	/**
+	 * Reset mutable fixture state and open the sandbox shell booted with the
+	 * maintainer flag `--real-core-stage`, whose iframe runs the real core.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<void>}
+	 */
+	async function gotoRealCoreStage(context) {
+		const runtime = await runtimeController.getLiveRuntimeForContext(
+			context,
+			{ realCoreStage: true }
+		);
+		writeFixtureStylesheet(runtime.fixtureStylePath);
+		resetPersistedStateForModuleRoot(runtime.fixtureRoot);
+		const page = await getSandboxPage(context);
+		realCoreStagePages.add(page);
+		stageFrameCache.delete(page);
+		if (inspectionOptions.headed) {
+			await page.bringToFront();
+		}
+		await page.goto(runtime.baseUrl, {
+			waitUntil: "domcontentloaded"
+		});
+		await waitForStageFrame(page);
 	}
 
 	/**
@@ -758,6 +827,7 @@ export function createSandboxBrowserCommands(suiteName) {
 		sandboxPageCheck: pageCheck,
 		sandboxPageCount: pageCount,
 		sandboxGoto: gotoSandbox,
+		sandboxGotoRealCoreStage: gotoRealCoreStage,
 		sandboxReset: resetSandbox,
 		sandboxPageDisabled: pageDisabled,
 		sandboxPageEvaluate: pageEvaluate,

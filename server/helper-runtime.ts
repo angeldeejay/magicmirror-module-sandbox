@@ -72,6 +72,12 @@ type HelperRuntimeOptions = {
 	 * 2.38+ reads that global to decide which secrets a helper may restore.
 	 */
 	getModuleConfig?: () => { config?: unknown };
+	/**
+	 * Runs before every helper (re)start, after the previous helper stopped.
+	 * The real-core stage assigns `global.config` here, as core `js/app.js`
+	 * does before loading helpers.
+	 */
+	prepareHelperGlobals?: () => void;
 	/** Override the resolved node_helper path (.ts or .js). Primarily for testing. */
 	helperPath?: string;
 };
@@ -183,6 +189,7 @@ function createHelperRuntime({
 	getHarnessConfig,
 	getHarnessCacheDir,
 	getModuleConfig,
+	prepareHelperGlobals,
 	helperPath: helperPathOverride
 }: HelperRuntimeOptions) {
 	let helperInstance: HelperInstance | null = null;
@@ -206,6 +213,7 @@ function createHelperRuntime({
 		await stopHelper();
 
 		clearModuleRequireCache();
+		prepareHelperGlobals?.();
 		process.env.MM_SANDBOX_CACHE_DIR = getHarnessCacheDir();
 		const harnessConfig = getHarnessConfig();
 		(globalThis as SandboxMagicMirrorGlobals).configRedacted = {

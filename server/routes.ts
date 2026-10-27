@@ -25,6 +25,7 @@ import {
 	sanitizeVersion,
 	setActiveVersion
 } from "./mm-version-manager.ts";
+import { registerStageRoutes } from "./stage/stage-routes.ts";
 
 type ConfigService = {
 	getAvailableLanguages: () => Array<Record<string, unknown>>;
@@ -60,6 +61,10 @@ type RuntimeService = {
 	watchEnabled: boolean;
 	getHelperLogEntries: () => Array<Record<string, unknown>>;
 	harnessRoot: string;
+	/** Maintainer flag `--real-core-stage`: serve the real core at `/__stage/`. */
+	realCoreStage?: boolean;
+	/** Sends the core root-namespace `RELOAD` on the stage socket server. */
+	emitStageReload?: () => void;
 };
 
 type AnalysisService = {
@@ -114,10 +119,23 @@ async function registerRoutes({
 		injectShimResolution,
 		watchEnabled,
 		getHelperLogEntries,
-		harnessRoot: runtimeHarnessRoot
+		harnessRoot: runtimeHarnessRoot,
+		realCoreStage = false,
+		emitStageReload
 	} = runtimeService;
 	const { getAnalysisResult, triggerAnalysis } = analysisService;
 	const harnessConfig = getHarnessConfig();
+
+	/**
+	 * Emits `harness:reload` to the shell; with the real-core stage, also sends
+	 * the core its own root-namespace `RELOAD`.
+	 */
+	const emitHarnessReload = (payload: Record<string, unknown>): void => {
+		io.emit("harness:reload", payload);
+		if (realCoreStage) {
+			emitStageReload?.();
+		}
+	};
 
 	await app.register(fastifyStatic, {
 		root: repoRoot,
@@ -149,6 +167,24 @@ async function registerRoutes({
 			getHelperLogEntries
 		});
 	});
+
+	if (realCoreStage) {
+		await registerStageRoutes(app, {
+			sources: {
+				getModuleConfig,
+				getRuntimeConfig: () => {
+					const runtimeConfig = getRuntimeConfig();
+					return {
+						language: String(runtimeConfig.language),
+						locale: String(runtimeConfig.locale)
+					};
+				},
+				getHarnessConfig
+			},
+			moduleName: harnessConfig.moduleName,
+			moduleRoot: repoRoot
+		});
+	}
 
 	app.get("/__harness/stage", async (_request, reply) => {
 		reply.type("text/html; charset=utf-8");
@@ -236,7 +272,7 @@ async function registerRoutes({
 
 			if (!watchEnabled) {
 				await restartHelper();
-				io.emit("harness:reload", {
+				emitHarnessReload({
 					event: "manual-save",
 					file: relativeModuleConfigPath,
 					scope: "stage",
@@ -277,7 +313,7 @@ async function registerRoutes({
 
 			if (!watchEnabled) {
 				await restartHelper();
-				io.emit("harness:reload", {
+				emitHarnessReload({
 					event: "manual-save",
 					file: relativeConfigPath,
 					scope: "stage",
@@ -318,7 +354,7 @@ async function registerRoutes({
 	app.post("/__harness/restart", async (_request, reply) => {
 		const reloadVersion = Date.now().toString(36);
 		await restartHelper();
-		io.emit("harness:reload", {
+		emitHarnessReload({
 			event: "manual-restart",
 			scope: "stage",
 			version: reloadVersion
@@ -386,7 +422,7 @@ async function registerRoutes({
 			capabilities: getVersionInfo(key).capabilities,
 			reloadVersion
 		});
-		io.emit("harness:reload", {
+		emitHarnessReload({
 			event: "mm-version-change",
 			scope: "stage",
 			version: reloadVersion
@@ -433,7 +469,7 @@ async function registerRoutes({
 				capabilities: getVersionInfo(key).capabilities,
 				reloadVersion
 			});
-			io.emit("harness:reload", {
+			emitHarnessReload({
 				event: "mm-version-change",
 				scope: "stage",
 				version: reloadVersion
@@ -471,7 +507,7 @@ async function registerRoutes({
 			capabilities: deriveCapabilities(getBuiltInMmVersion()),
 			reloadVersion
 		});
-		io.emit("harness:reload", {
+		emitHarnessReload({
 			event: "mm-version-change",
 			scope: "stage",
 			version: reloadVersion

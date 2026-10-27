@@ -206,10 +206,16 @@ function isSandboxWatcherIgnored(filePath: string): boolean {
  */
 function startModuleWatcher({
 	io,
-	restartHelper
+	restartHelper,
+	emitStageReload
 }: {
 	io: import("socket.io").Server;
 	restartHelper: () => Promise<void>;
+	/**
+	 * With the real-core stage (`--real-core-stage`), sends the core its own
+	 * root-namespace `RELOAD` next to every stage `harness:reload`.
+	 */
+	emitStageReload?: () => void;
 }): import("chokidar").FSWatcher {
 	loadModuleGitignore();
 
@@ -274,6 +280,7 @@ function startModuleWatcher({
 						scope: "stage",
 						version: reloadVersion
 					});
+					emitStageReload?.();
 				} catch (err) {
 					console.error("[module-sandbox] module watcher error", err);
 				}
