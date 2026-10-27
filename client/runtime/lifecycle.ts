@@ -352,8 +352,15 @@
 		module,
 		speed,
 		callback,
-		options: { animateOut?: string } = {}
+		options: { animateOut?: string; lockString?: string } = {}
 	) {
+		// main.js hideModule: register the lockString once.
+		if (options.lockString) {
+			if (module.lockStrings.indexOf(options.lockString) === -1) {
+				module.lockStrings.push(options.lockString);
+			}
+		}
+
 		module.hidden = true;
 		core.setLifecycleState({ hidden: true });
 		core.transitionModuleVisibility(module, true, speed, callback, {
@@ -383,15 +390,47 @@
 		module,
 		speed,
 		callback,
-		options: { animateIn?: string } = {}
+		options: {
+			animateIn?: string;
+			lockString?: string;
+			force?: boolean;
+			onError?: (error: Error) => void;
+		} = {}
 	) {
+		// main.js showModule: release the lockString, then refuse to show while
+		// other locks remain unless forced. hidden stays true in that case.
+		if (options.lockString) {
+			const index = module.lockStrings.indexOf(options.lockString);
+			if (index !== -1) {
+				module.lockStrings.splice(index, 1);
+			}
+		}
+
+		if (module.lockStrings.length !== 0 && options.force !== true) {
+			globalScope.Log.log(
+				`Will not show ${module.name}. LockStrings active: ${module.lockStrings.join(",")}`
+			);
+			if (typeof options.onError === "function") {
+				options.onError(new Error("LOCK_STRING_ACTIVE"));
+			}
+			return;
+		}
+
+		// main.js showModule sets hidden=false synchronously, before the
+		// animation starts; only the callback waits for the transition.
+		module.hidden = false;
+		core.setLifecycleState({ hidden: false });
+
+		if (module.lockStrings.length !== 0 && options.force === true) {
+			globalScope.Log.log(`Force show of module: ${module.name}`);
+			module.lockStrings = [];
+		}
+
 		core.transitionModuleVisibility(
 			module,
 			false,
 			speed,
 			() => {
-				module.hidden = false;
-				core.setLifecycleState({ hidden: false });
 				if (typeof callback === "function") {
 					callback();
 				}

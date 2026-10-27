@@ -261,11 +261,15 @@ test("node_helper compat re-exports the synced core helper and preserves sandbox
 		);
 		assert.equal(typeof NodeHelper.checkFetchStatus, "function");
 		assert.equal(typeof NodeHelper.checkFetchError, "function");
+		// The postlude only clears the previous connection listener on the
+		// normalized namespace; registration and emits are the core's own
+		// `io.of(this.name)` calls (socket.io prefixes the "/").
 		assert.deepEqual(namespaceCalls, [
 			"/MMM-TestModule",
 			"remove:connection",
+			"MMM-TestModule",
 			"on:connection",
-			"/MMM-TestModule"
+			"MMM-TestModule"
 		]);
 		assert.deepEqual(receivedNotifications, [
 			{

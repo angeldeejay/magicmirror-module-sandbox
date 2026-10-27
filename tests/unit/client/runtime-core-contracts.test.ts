@@ -11,7 +11,7 @@
  *   These unit tests provide fast, offline coverage for the SAME contracts on
  *   the pure-logic paths:
  *
- *   D5 — module.hidden asymmetry (hideModule / showModule)
+ *   D5 — module.hidden is synchronous on hide and show; lockStrings veto show
  *   D7 — emitNotification passes original payload reference, not a clone
  *   D8 — installGlobals creates a Log object with all required methods
  *   D9 — setSelectionMethodsForModules: filter methods, non-enumerable, chaining
@@ -20,7 +20,7 @@
  *   requiresVersion checks depend on them.
  *
  * Source references:
- *   D5 : main.js:721,729-731  (hideModule / showModule hidden-flag semantics)
+ *   D5 : main.js:268-275,352-388,716-731 (2.36.0; hide/show hidden flag and locks)
  *   D7 : main.js:98-101       (notificationReceived receives original reference)
  *   D8 : logger.js            (Log must expose all twelve methods)
  *   D9 : main.js:501-585      (getModules() filter methods non-enumerable)
@@ -82,9 +82,10 @@ function createMockWindow() {
 type SandboxCore = Record<string, unknown>;
 
 let core: SandboxCore;
+let mockWindow: Record<string, unknown>;
 
 beforeAll(() => {
-	const mockWindow = createMockWindow();
+	mockWindow = createMockWindow();
 
 	const ctx = vm.createContext({
 		window: mockWindow,
@@ -607,10 +608,10 @@ describe("D9 — setSelectionMethodsForModules: filter methods non-enumerable, w
 });
 
 // ---------------------------------------------------------------------------
-// D5 — module.hidden asymmetry (main.js:721,729-731)
+// D5 — module.hidden is synchronous on hide and show (main.js 2.36.0)
 // ---------------------------------------------------------------------------
 
-describe("D5 — module.hidden: true set immediately on hide; false only inside show callback", () => {
+describe("D5 — module.hidden: synchronous on hide and show; lockStrings veto show", () => {
 	/**
 	 * Override transitionModuleVisibility on the core to capture the callback
 	 * without invoking it, so we can observe module.hidden state BEFORE the
@@ -670,27 +671,7 @@ describe("D5 — module.hidden: true set immediately on hide; false only inside 
 		tracker.restore();
 	});
 
-	test("showModule does NOT set module.hidden=false before the callback fires", () => {
-		const { restore } = captureTransition();
-		const showModule = core.showModule as (
-			module: Record<string, unknown>,
-			speed: number,
-			callback: () => void
-		) => void;
-
-		const mockModule: Record<string, unknown> = { hidden: true };
-
-		showModule(mockModule, 0, () => {});
-
-		// hidden must still be true here — showModule must NOT eagerly set hidden=false.
-		// Source: main.js:729-731 sets module.hidden = false only inside the show callback.
-		// DO NOT change to toBe(false) — that would break the D5 contract.
-		expect(mockModule.hidden).toBe(true);
-
-		restore();
-	});
-
-	test("showModule sets module.hidden=false INSIDE the callback (when it fires)", () => {
+	test("showModule sets module.hidden=false synchronously, before the callback fires", () => {
 		// Do NOT destructure capturedCallback — the getter would be evaluated at
 		// destructuring time (returning null). Use the tracker object directly so
 		// the getter is read AFTER showModule has assigned the captured callback.
@@ -701,19 +682,58 @@ describe("D5 — module.hidden: true set immediately on hide; false only inside 
 			callback: () => void
 		) => void;
 
-		const mockModule: Record<string, unknown> = { hidden: true };
+		const mockModule: Record<string, unknown> = {
+			hidden: true,
+			lockStrings: []
+		};
 
 		showModule(mockModule, 0, () => {});
 
-		// Verify hidden is still true before callback fires.
-		expect(mockModule.hidden).toBe(true);
-
-		// Read capturedCallback AFTER showModule has run — tracker getter is fresh.
-		// This is when hidden transitions to false.
-		tracker.capturedCallback?.();
-
-		// Only NOW should hidden be false.
+		// Source: main.js:382 (2.36.0) — the private showModule sets
+		// module.hidden = false before starting the animation.
+		// DO NOT change to toBe(true) — that would break the D5 contract.
 		expect(mockModule.hidden).toBe(false);
+
+		// Still false once the animation callback fires.
+		tracker.capturedCallback?.();
+		expect(mockModule.hidden).toBe(false);
+
+		tracker.restore();
+	});
+
+	test("showModule with an active lockString keeps hidden=true, skips the transition, and reports LOCK_STRING_ACTIVE", () => {
+		const tracker = captureTransition();
+		const showModule = core.showModule as (
+			module: Record<string, unknown>,
+			speed: number,
+			callback: () => void,
+			options: Record<string, unknown>
+		) => void;
+
+		const mockModule: Record<string, unknown> = {
+			name: "MMM-Mock",
+			hidden: true,
+			lockStrings: ["other-owner"]
+		};
+		const errors: string[] = [];
+		const logged: string[] = [];
+		// main.js logs the veto through the global Log.
+		const previousLog = mockWindow.Log;
+		mockWindow.Log = { log: (message: string) => logged.push(message) };
+
+		showModule(mockModule, 0, () => {}, {
+			onError: (error: Error) => errors.push(error.message)
+		});
+
+		// Source: main.js:363-368 — a locked show returns before touching hidden.
+		expect(mockModule.hidden).toBe(true);
+		expect(tracker.capturedCallback).toBeNull();
+		expect(errors).toEqual(["LOCK_STRING_ACTIVE"]);
+		expect(logged).toEqual([
+			"Will not show MMM-Mock. LockStrings active: other-owner"
+		]);
+
+		mockWindow.Log = previousLog;
 
 		tracker.restore();
 	});

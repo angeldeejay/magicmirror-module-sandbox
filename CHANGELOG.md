@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+- **Quality runs the official ESLint pass** — the official MagicMirror-3rd-Party-Modules check now runs two passes: the text analyzer and an ESLint pass driven by `eslint.testconfig.js`. In October 2026 upstream moved ~30 checks (legacy HTTP clients, `node:` protocol, deprecated Node APIs, `XMLHttpRequest`, workflow action/Node versions) into that ESLint pass, so the sandbox had silently stopped reporting them. The sandbox now:
+    - vendors `javascript-check.ts`, `http-import-check.ts`, `workflow-yaml-check.ts` and the full `eslint.testconfig.js` (as `eslint-testconfig.ts`, with only its plugin import path rewritten);
+    - ports `runEslintCheck` from `pipeline/workers/process-module.ts` into `server/official-eslint-check.ts`, with the official defaults (`groups.deep` and `integrations.eslint` both `true`) and the same issue merging;
+    - never executes repository ESLint configs or inline directives;
+    - makes `build:02-sync-analyzer` fail when the ported `runEslintCheck`, its call site or `check-groups.config.json` change upstream (reviewed snapshots in `scripts/upstream-snapshots/`).
+
+    New runtime dependencies, matching upstream ranges: `eslint`, `@eslint/js`, `globals`, `eslint-plugin-n`, `eslint-plugin-yml`, `eslint-plugin-depend`, `eslint-plugin-import-x`, `eslint-plugin-package-json`.
+
+- **Quality analyzer vendoring** — `rule-registry.ts` from MagicMirrorOrg/MagicMirror-3rd-Party-Modules imports `workflow-version-policy.ts`, a file added upstream in October 2026 that the sync did not fetch. Packaged installs crashed at boot with `Cannot find module './workflow-version-policy.cjs'`, which made the `devdep-smoke` e2e fail. The file is now vendored and gitignored. `build:02-sync-analyzer` also fails fast when a vendored file imports an unvendored sibling, instead of breaking at runtime.
+- **MagicMirror 2.37+ and upstream develop shims** — `build-node-compat.ts` treats `class.js` as optional (core removed it in 2.37.0), so shims now build for 2.37.0, 2.38.0 and 2.39.0-develop. Previously they failed with `Required MM source file missing: js/class.js`.
+- **Bundled `ipaddr.js` for helper shims** — `server_functions.js` requires `ipaddr.js` for SSRF protection, but only `express` and `undici` were bundled into the shims' `node_modules`. Built-in shims found it through the sandbox package's own `node_modules`. mmvm shims under `~/.mmvm/shims/<version>/` have no parent `node_modules`, so any mmvm-activated version failed to load `node_helper`. The three packages now go through one `bundleCoreDependency` helper.
+- **`node_helper` postlude delegates to core** — the postlude no longer replaces `setSocketIO`/`sendSocketNotification` with a 2.36-era copy. It clears the previous helper instance's `connection` listener (needed for in-process restarts) and calls the core `setSocketIO`, so the 2.38.0 per-module secret allowlist applies. The helper runtime now seeds `global.configRedacted` from the mounted module config, which 2.38.0 reads to decide which `**SECRET_*` placeholders a helper may restore.
+- **mmvm bleeding edge tracks upstream** — the "develop" entry installs `github:MagicMirrorOrg/MagicMirror#develop` instead of the stale `angeldeejay/MagicMirror#develop` fork (128 commits behind, still 2.37.0-develop). Git specs get `--allow-git=root`, because npm 12 defaults to `allow-git=none` and rejected the download with `EALLOWGIT`.
+- **Core fidelity: `module.hidden` on show (D5)** — `MM.showModule` now sets `module.hidden = false` synchronously, before the show animation, as MagicMirror's `main.js` has done since at least 2.30.0. Previously the sandbox deferred it to the animation callback. A module reading `this.hidden` right after `this.show()`, or during the transition, now sees the same value as in core.
+- **Core fidelity: lockStrings** — lock handling moved from `module.hide`/`module.show` (`client/runtime/module.ts`) into `core.hideModule`/`core.showModule` (`client/runtime/lifecycle.ts`), where core keeps it. The move also fills three gaps:
+    - duplicate lockStrings are registered once;
+    - `options.force` shows the module and clears every lock;
+    - `options.onError` receives `LOCK_STRING_ACTIVE` when a lock vetoes the show.
+
+    Direct `MM.showModule` calls now honour locks too.
+
+- **D5 test corrected and extended** — with maintainer approval, the D5 assertion now expects the synchronous show and its comment quotes the real core source. Two new tests cover lockStrings: one through `MM.*` (dedup, veto, `onError`, `force`) and one through `module.hide/show` (lock ownership). The unit mirror in `tests/unit/client/runtime-core-contracts.test.ts` was updated the same way, adding a locked-show case that checks hidden state, the skipped transition, `onError` and the `Log` message.
+- **`AGENTS.md` audit and rewrite** — corrected drift against the v3.0.0 codebase:
+    - `npm install` instead of the non-existent `install` script, and the full script list in pipeline order;
+    - config precedence (`config.sandbox.json` > `package.json#sandbox.moduleConfig` > temp file) and the `package.json#sandbox` keys;
+    - MagicMirror core sourced from `mmcore-source/` rather than a `magicmirror` devDependency;
+    - trusted-publishing wording, `tests/<suite>/helpers.ts`, and the `MM_SANDBOX_HOST`/`MM_SANDBOX_PORT` overrides;
+    - the esbuild/sass split next to Vite, the generated-paths list, and the postlude rule;
+    - core-fidelity sources cited by function instead of drifting line numbers;
+    - the config editor marked complete, with its known residual issues listed.
+- **Docs alignment** — `README.md` and `ARCHITECTURE.md` describe the v3.0.0 config precedence and `mmcore-source/`. `.github/CONTRIBUTING.md` lists the `test-headed*` scripts and `ARCHITECTURE.md` among the docs to keep aligned. The `core-fidelity.browser.test.ts` header comment points at `mmcore-source/`.
+- **Analyzer script name** — `.gitignore` and the `scripts/sync-module-analyzer.ts` log prefixes and vendored-file headers now say `build:02-sync-analyzer`. They previously said `sync:module-analyzer` and `build:01-sync-analyzer`.
+- **Removed `jiti`** — the devDependency was unused because the ESLint config is still `eslint.config.mjs`.
+- **v2.0.0 entry corrected** — it no longer claims an `eslint.config.ts` migration that never happened.
+
 ## v3.0.0
 
 - **MM Version domain** — new sidebar domain for nvm-style MagicMirror core version management. Displays the active core version, a list of locally cached installations, and available GitHub releases. Per-version actions: activate, re-download, and delete. A capability table surfaces runtime flags for the active version (Express version, default modules directory, config loading strategy, hook support, CORS proxy, and more).
@@ -20,14 +57,14 @@
 
 ## v2.0.0
 
-- **Toolchain modernization** — replaced `--experimental-strip-types` with the stable `--strip-types` flag across all scripts and npm run commands. `eslint.config.mjs` migrated to `eslint.config.ts`; `vite.config.mjs` migrated to `vite.config.ts`; `bin/install-guard.js` migrated to `bin/install-guard.ts`. All build scripts (`build-client-assets`, `sync-module-analyzer`, `magicmirror-module-sandbox`) now run under `tsx`. Added `.prettierignore`.
+- **Toolchain modernization** — replaced `--experimental-strip-types` with the stable `--strip-types` flag across all scripts and npm run commands. `vite.config.mjs` migrated to `vite.config.ts`; `bin/install-guard.js` migrated to `bin/install-guard.ts`. All build scripts (`build-client-assets`, `sync-module-analyzer`, `magicmirror-module-sandbox`) now run under `tsx`. Added `.prettierignore`.
 - **TypeScript configuration restructure** — added `client/tsconfig.json` and aligned `client/tsconfig.runtime.json` for the client build surface; added `tests/tsconfig.testfiles.json` and `tsconfig.config.json` for test and config roots. Removed `tsconfig.client-runtime.json`. Tightened path references in `tsconfig.json` and `tsconfig.node.json`.
 - **Sidebar toggle** — clicking the active sidebar tab now closes the sidebar panel; clicking any tab while the sidebar is closed opens it. Toggle state is handled through `.harness-sidebar-tab` events without extra state management.
 - **Domain navigation dropdown** — the topbar now exposes a domain navigation dropdown that opens on click, closes on outside click or selection, and reflects the active domain label. Replaces the previous always-visible tab row for switching sidebar areas.
 - **CSS fix: sidebar panel scroll** — `.harness-sidebar` was missing `min-height: 0`, which caused the flex item to grow to full content height (overflowing its CSS grid row) and disabled `overflow-y: auto` on `.harness-sidebar-scroll`. Fixed with `min-height: 0`.
 - **Fix: `SANDBOX_VERSION` path resolution from installed package** — the `SANDBOX_VERSION` IIFE now detects when running from a `dist/server/` context and resolves `../../package.json` instead of `../package.json`, so the version string is correctly read in consumer installs.
 - **Fix: e2e build environment isolation** — `buildCurrentRepo` in `tests/e2e/helpers.ts` now strips `NODE_ENV`, `VITEST`, `VITEST_POOL_ID`, and `VITEST_WORKER_ID` before spawning the build subprocess. This prevents `@preact/preset-vite`'s CJS variant from loading `zimmerframe` via `require()` (ESM-only package) under rolldown `optimizeDeps` when the test environment is active.
-- **`jiti` devDependency** — added `jiti@^2.6.1` to support ESLint 10+ loading TypeScript config files (`eslint.config.ts`).
+- **`jiti` devDependency** — added `jiti@^2.6.1`, intended for ESLint 10+ TypeScript config loading. The ESLint config itself stayed `eslint.config.mjs`, so nothing loads it yet.
 - **Journey coverage expanded** — added 6 new journey IDs (`ui-domain-nav-dropdown-opens`, `ui-domain-nav-dropdown-closes-on-outside-click`, `ui-domain-nav-trigger-reflects-active-domain`, `ui-domain-nav-dropdown-closes-on-selection`, `ui-sidebar-toggle-opens`, `ui-sidebar-toggle-closes`). Total journey coverage catalog: 15 → 21 entries.
 - **Test suite hardening** — expanded `startup-scripts`, `shell-hydration-parity`, and `runtime-core-contracts` unit tests; fixed `pageClick` browser command to use `el.click()` via `evaluate` to bypass Playwright coordinate routing intercepted by a positioned footer element.
 - **Dependabot configuration updated** — bumped and regrouped update schedule entries.

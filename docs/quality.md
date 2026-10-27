@@ -37,7 +37,14 @@ Open Quality when you want to:
 
 - Analysis runs against the mounted module's source files, not a built bundle.
 - Results reflect the criteria from the MagicMirror 3rd-party module
-  repository at the time the sandbox was built.
+  repository at the time the sandbox was built. The sandbox runs the same two
+  passes as the official module check: the text/README/package analyzer and
+  the official ESLint pass (`eslint.testconfig.js`), with the official
+  defaults. The built-in MagicMirror rules always run; general ESLint
+  findings appear grouped under **ESLint issues**.
+- The ESLint pass uses only the official configuration. ESLint configs in the
+  module repository are never loaded, and inline `eslint-disable` comments
+  are ignored, exactly as in the official check.
 - Quality is a diagnostic aid, not a strict pass/fail gate. Errors are
   worth fixing; warnings and recommendations are worth reviewing.
 - The panel shows results for one module at a time — whichever module is

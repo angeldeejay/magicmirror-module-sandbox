@@ -113,7 +113,7 @@ npm run test-headed:integration
 npm run test:40-e2e
 ```
 
-The `*:headed` browser scripts are for maintainer inspection, not CI: they open
+The `test-headed*` browser scripts are for maintainer inspection, not CI: they open
 headed Chromium, serialize browser-backed execution to one file at a time, add
 slow motion, and keep a visible cursor overlay so you can evaluate whether a
 spec really matches the UI flow you intended. Append `-- <path-to-spec>` to
@@ -134,6 +134,7 @@ Keep the test layout contributor-friendly:
 Keep these files aligned when the product surface changes:
 
 - `README.md`
+- `ARCHITECTURE.md`
 - `docs/`
 - `.github/CONTRIBUTING.md`
 - `AGENTS.md`

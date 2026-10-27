@@ -34,15 +34,17 @@ MagicMirror replacement.
 
 - **Fastify host** for the local HTTP surface and config APIs
 - **Vite + Preact shell** for the persistent sandbox UI
-- **Backend-owned persistence** in temp files keyed to the mounted module
-  identity, without writing sandbox-owned config into the mounted module tree
+- **Backend-owned persistence** that prefers the module's own
+  `config.sandbox.json`, promotes `package.json#sandbox.moduleConfig` to that
+  file on first save, and otherwise falls back to temp files keyed to the
+  mounted module identity
 - **Dist-first packaging** so consumer installs run packaged runtime artifacts
 - **Core-coupled helper compatibility wrappers** for `require("logger")` and
   `require("node_helper")`
 - **A synced MagicMirror compatibility root** under helper-side
   `global.root_path` so core-style path-based requires can reach
-  `js/class.js`, `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
-  `js/server_functions.js`
+  `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
+  `js/server_functions.js` (plus `js/class.js` on cores before 2.37.0)
 - **Template/runtime compatibility guards** for browser-side Nunjucks plus
   `getDom()` overrides that call `this._super()` and expect a wrapper
   immediately

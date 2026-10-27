@@ -379,9 +379,6 @@
 				usedOptions = callback;
 				usedCallback = function () {};
 			}
-			if (usedOptions.lockString) {
-				this.lockStrings.push(usedOptions.lockString);
-			}
 			const self = this;
 			return globalScope.MM.hideModule(
 				this,
@@ -404,15 +401,6 @@
 				);
 				usedOptions = callback;
 				usedCallback = function () {};
-			}
-			if (usedOptions.lockString) {
-				const index = this.lockStrings.indexOf(usedOptions.lockString);
-				if (index !== -1) {
-					this.lockStrings.splice(index, 1);
-				}
-			}
-			if (this.lockStrings.length !== 0) {
-				return;
 			}
 			const self = this;
 			return globalScope.MM.showModule(

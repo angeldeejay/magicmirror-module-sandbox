@@ -28,8 +28,10 @@ type MagicMirrorCompatTarget = {
 };
 const magicMirrorCompatTargets = [
 	{
+		// Removed in MagicMirror 2.37.0, when node_helper became an ES6 class.
 		sourceName: "class.js",
-		destinationPath: path.join("js", "class.js")
+		destinationPath: path.join("js", "class.js"),
+		optional: true
 	},
 	{
 		sourceName: "logger.js",
@@ -119,47 +121,36 @@ function adaptCoreNodeHelperSource(source: string): string {
 }
 
 /**
- * Bundles Express from the magicmirror package's own dependency tree into
- * <outputRoot>/node_modules/express/index.js so that node_helper.js can
- * require('express') via standard Node module resolution without any source patch.
+ * Third-party packages the copied core files require at runtime: `express`
+ * (node_helper.js), `undici` and `ipaddr.js` (server_functions.js).
  */
-function bundleExpressForNodeHelper(
-	magicMirrorRoot: string,
-	outputRoot: string
-): void {
-	const expressEntry = nodeRequire.resolve("express", {
-		paths: [magicMirrorRoot]
-	});
-	const outFile = path.join(outputRoot, "node_modules", "express", "index.js");
-	ensureDirectory(path.dirname(outFile));
-	buildSync({
-		entryPoints: [expressEntry],
-		outfile: outFile,
-		bundle: true,
-		format: "cjs",
-		platform: "node",
-		target: "node22",
-		logLevel: "silent"
-	});
-}
+const coreRuntimeDependencies = ["express", "undici", "ipaddr.js"];
 
 /**
- * Bundles undici from the magicmirror package's own dependency tree into
- * <outputRoot>/node_modules/undici/index.js so that server_functions.js can
- * require('undici') via standard Node module resolution without any source patch
- * and without adding undici as a sandbox dependency.
+ * Bundles one package from the magicmirror package's own dependency tree into
+ * <outputRoot>/node_modules/<name>/index.js, so the copied core files can
+ * require it through standard Node module resolution without any source patch
+ * and without adding it as a sandbox dependency. This matters for mmvm shims
+ * under ~/.mmvm/shims/<version>/, which have no parent node_modules to fall
+ * back on.
  */
-function bundleUndiciForNodeHelper(
+function bundleCoreDependency(
+	packageName: string,
 	magicMirrorRoot: string,
 	outputRoot: string
 ): void {
-	const undiciEntry = nodeRequire.resolve("undici", {
+	const entry = nodeRequire.resolve(packageName, {
 		paths: [magicMirrorRoot]
 	});
-	const outFile = path.join(outputRoot, "node_modules", "undici", "index.js");
+	const outFile = path.join(
+		outputRoot,
+		"node_modules",
+		packageName,
+		"index.js"
+	);
 	ensureDirectory(path.dirname(outFile));
 	buildSync({
-		entryPoints: [undiciEntry],
+		entryPoints: [entry],
 		outfile: outFile,
 		bundle: true,
 		format: "cjs",
@@ -251,7 +242,9 @@ function syncMagicMirrorCompatFiles(
 
 	const importsMap: Record<string, { default: string }> = {};
 	if (copiedTargets.includes("server_functions.js")) {
-		importsMap["#server_functions"] = { default: "./js/server_functions.js" };
+		importsMap["#server_functions"] = {
+			default: "./js/server_functions.js"
+		};
 	}
 	if (copiedTargets.includes("http_fetcher.js")) {
 		importsMap["#http_fetcher"] = { default: "./js/http_fetcher.js" };
@@ -289,8 +282,7 @@ export type BuildNodeCompatOptions = {
  * support the mmvm version manager (multiple MM versions in ~/.mmvm/).
  */
 export function buildNodeCompat(options: BuildNodeCompatOptions = {}): void {
-	const effectiveMmRoot =
-		options.mmRoot ?? resolveMagicMirrorRoot(root);
+	const effectiveMmRoot = options.mmRoot ?? resolveMagicMirrorRoot(root);
 	const effectiveOutputRoot = options.outputRoot ?? generatedRoot;
 	const effectiveCompatRoot = path.join(
 		effectiveOutputRoot,
@@ -299,8 +291,9 @@ export function buildNodeCompat(options: BuildNodeCompatOptions = {}): void {
 
 	clearDirectory(effectiveOutputRoot);
 	ensureDirectory(effectiveOutputRoot);
-	bundleExpressForNodeHelper(effectiveMmRoot, effectiveOutputRoot);
-	bundleUndiciForNodeHelper(effectiveMmRoot, effectiveOutputRoot);
+	for (const packageName of coreRuntimeDependencies) {
+		bundleCoreDependency(packageName, effectiveMmRoot, effectiveOutputRoot);
+	}
 	buildSync({
 		entryPoints,
 		outdir: effectiveOutputRoot,

@@ -8,48 +8,20 @@ if (
 		"__moduleSandboxSocketPatched"
 	)
 ) {
-	__moduleSandboxCoreNodeHelper.prototype.sendSocketNotification = function (
-		notification,
-		payload
-	) {
-		this.io.of(`/${this.name}`).emit(notification, payload);
-	};
+	// The sandbox restarts helpers in-process against the same socket.io
+	// server, so the module namespace outlives each helper instance. Drop the
+	// previous instance's connection listener, then defer to the core
+	// setSocketIO so socket semantics (including secret restoration) always
+	// match the active MagicMirror version.
+	const __moduleSandboxCoreSetSocketIO =
+		__moduleSandboxCoreNodeHelper.prototype.setSocketIO;
 
 	__moduleSandboxCoreNodeHelper.prototype.setSocketIO = function (io) {
-		this.io = io;
-		Log.log(`Connecting socket for: ${this.name}`);
 		const namespace = io.of(`/${this.name}`);
-		if (typeof namespace.removeAllListeners === "function") {
+		if (namespace && typeof namespace.removeAllListeners === "function") {
 			namespace.removeAllListeners("connection");
 		}
-		namespace.on("connection", (socket) => {
-			socket.onAny((notification, payload) => {
-				if (
-					typeof config !== "undefined" &&
-					config.hideConfigSecrets &&
-					payload &&
-					typeof payload === "object"
-				) {
-					try {
-						const payloadStr = replaceSecretPlaceholder(
-							JSON.stringify(payload)
-						);
-						this.socketNotificationReceived(
-							notification,
-							JSON.parse(payloadStr)
-						);
-					} catch (e) {
-						Log.error(
-							"Error substituting variables in payload: ",
-							e
-						);
-						this.socketNotificationReceived(notification, payload);
-					}
-				} else {
-					this.socketNotificationReceived(notification, payload);
-				}
-			});
-		});
+		return __moduleSandboxCoreSetSocketIO.call(this, io);
 	};
 
 	Object.defineProperty(

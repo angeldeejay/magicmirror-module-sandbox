@@ -148,3 +148,53 @@ test("undici bundle: resolves from shims/generated/node_modules when required fr
 		`undici resolved from unexpected path: ${resolvedPath}`
 	);
 });
+
+// ── ipaddr.js bundle ──────────────────────────────────────────────────────────
+// server_functions.js requires "ipaddr.js" for SSRF protection. mmvm shims
+// under ~/.mmvm/shims/<version>/ have no parent node_modules, so the package
+// must be bundled next to express and undici.
+
+const EXPECTED_IPADDR_BUNDLE = path.join(
+	shimsGenerated,
+	"node_modules",
+	"ipaddr.js",
+	"index.js"
+);
+
+test("ipaddr.js bundle: shims/generated/node_modules/ipaddr.js/index.js exists after build", () => {
+	assert.equal(
+		fs.existsSync(EXPECTED_IPADDR_BUNDLE),
+		true,
+		`ipaddr.js bundle not found at ${EXPECTED_IPADDR_BUNDLE}`
+	);
+});
+
+test("ipaddr.js bundle: exports parse and isValid", () => {
+	const ipaddr = nodeRequire(EXPECTED_IPADDR_BUNDLE) as Record<
+		string,
+		unknown
+	>;
+	assert.equal(
+		typeof ipaddr.parse,
+		"function",
+		"ipaddr.parse is not a function"
+	);
+	assert.equal(
+		typeof ipaddr.isValid,
+		"function",
+		"ipaddr.isValid is not a function"
+	);
+});
+
+test("ipaddr.js bundle: resolves from shims/generated/node_modules when required from magicmirror-core context", () => {
+	const magicMirrorCoreRoot = path.join(shimsGenerated, "magicmirror-core");
+	const resolvedPath = nodeRequire
+		.resolve("ipaddr.js", { paths: [magicMirrorCoreRoot] })
+		.split("\\")
+		.join("/");
+	assert.equal(
+		resolvedPath.includes("/shims/generated/"),
+		true,
+		`ipaddr.js resolved from unexpected path: ${resolvedPath}`
+	);
+});

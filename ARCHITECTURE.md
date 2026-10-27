@@ -63,15 +63,22 @@ and how to use it, while this file explains how it is put together.
 - `shims/logger.ts` and `shims/node_helper.ts` are thin bare-module wrappers that
   resolve the synced core compatibility artifacts
 - `shims/generated/magicmirror-core/` mirrors the current MagicMirror helper-side
-  `js/class.js`, `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
-  `js/server_functions.js` files without source patches; `logger.js` and
-  `node_helper.js` receive sandbox postludes appended after sync; a package-scoped
-  imports map keeps helper-side path-based requires aligned with current core
-- `shims/generated/node_modules/express/` and `shims/generated/node_modules/undici/`
-  bundle the dependencies from MagicMirror's own `node_modules` so `node_helper.js`
-  can `require("express")` and `server_functions.js` can `require("undici")` via
-  standard Node module resolution, without source patches and without adding them
-  as sandbox dependencies
+  `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
+  `js/server_functions.js` files (plus `js/class.js` for cores before 2.37.0)
+  without source patches; `logger.js` and `node_helper.js` receive sandbox
+  postludes appended after sync; a package-scoped imports map keeps helper-side
+  path-based requires aligned with current core
+- the `node_helper` postlude only clears the previous helper instance's
+  `connection` listener before delegating to the core `setSocketIO`, so socket
+  semantics (including the per-module secret allowlist that 2.38.0 reads from
+  `global.configRedacted`, which the helper runtime seeds from the mounted
+  module config) always come from the active core version
+- `shims/generated/node_modules/{express,undici,ipaddr.js}/` bundle the
+  dependencies from MagicMirror's own `node_modules` so the copied core files
+  resolve them via standard Node module resolution, without source patches and
+  without adding them as sandbox dependencies; mmvm shims under
+  `~/.mmvm/shims/<version>/` rely on this because they have no parent
+  `node_modules`
 
 ### TypeScript configuration
 
@@ -261,7 +268,9 @@ the package is installed without source files.
 ## Browser runtime contract
 
 The sandbox browser runtime (`client/runtime/`) is a faithful port of
-`node_modules/magicmirror/js/module.js` and `main.js`. Every behavioral
+`mmcore-source/node_modules/magicmirror/js/module.js`, `main.js`, and
+`logger.js` (the pinned core version recorded in `mmcore-source/version.json`).
+Every behavioral
 decision is anchored to the upstream source. Known deviations from a full
 MagicMirror deployment that cannot be resolved without a real MM server:
 
@@ -287,7 +296,8 @@ MagicMirror iframe-facing CSS and font assets are synchronized through
 - copied asset cleanup is driven by a manifest under `client/fonts/` instead of
   filename heuristics
 - published installs consume the generated assets; maintainers refresh them from
-  the local `magicmirror` devDependency
+  `mmcore-source/`, which `build:00-sync-mmcore-source` fills with the pinned
+  MagicMirror release
 
 ## Mounted-module autodiscovery
 

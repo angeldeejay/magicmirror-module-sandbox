@@ -5,9 +5,9 @@
  * -------
  * These tests lock in every behavioral divergence that was corrected in v1.2.0.
  * Each test asserts a contract derived directly from the MagicMirror source:
- *   - node_modules/magicmirror/js/module.js  (module base class)
- *   - node_modules/magicmirror/js/main.js    (MM global, hide/show, notifications)
- *   - node_modules/magicmirror/js/logger.js  (Log global)
+ *   - mmcore-source/node_modules/magicmirror/js/module.js  (module base class)
+ *   - mmcore-source/node_modules/magicmirror/js/main.js    (MM global, hide/show, notifications)
+ *   - mmcore-source/node_modules/magicmirror/js/logger.js  (Log global)
  *
  * NON-NEGOTIABLE RULE
  * -------------------
@@ -148,26 +148,32 @@ describe("D1 — base getDom returns Promise<HTMLElement>", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D5 — module.hidden asymmetry between hide and show
+// D5 — module.hidden is set synchronously on hide and on show; lockStrings
+// gate the show
 //
-// Source: main.js:721 (hideModule) and main.js:729-731 (showModule callback)
-//   hideModule: function(module, ...) {
-//     module.hidden = true;     ← set IMMEDIATELY before animation starts
-//     ...animate...
-//   }
-//   showModule: function(module, ...) {
-//     ...animate...
-//     callback: function() {
-//       module.hidden = false;  ← set INSIDE callback, AFTER animation
+// Source: MagicMirror 2.36.0 main.js (same behavior since at least 2.30.0)
+//   MM.hideModule (public, main.js:716-719):
+//     module.hidden = true;            ← set IMMEDIATELY before animation
+//     hideModule(...);                 ← private: registers options.lockString
+//   MM.showModule (public, main.js:728-731):
+//     // do not change module.hidden yet, only if we really show it later
+//     showModule(...);
+//   showModule (private, main.js:352-388):
+//     remove options.lockString from module.lockStrings
+//     if (lockStrings.length !== 0 && !options.force) {
+//       options.onError?.(new Error("LOCK_STRING_ACTIVE"));
+//       return;                        ← hidden stays true, callback never runs
 //     }
-//   }
+//     module.hidden = false;           ← set SYNCHRONOUSLY, before animation
+//     ...animate..., then callback()
 //
-// The asymmetry is intentional. hide sets hidden=true immediately so that
-// concurrent render calls see the correct state. show sets hidden=false only
-// after the transition completes so partial-show states are not exposed.
+// What is deferred on show is the DECISION to show (a lock can veto it), not
+// the hidden flag. Corrected on 2026-10-27: the previous version of this test
+// asserted hidden=false only inside the show callback, which no core release
+// does.
 // ---------------------------------------------------------------------------
-describe("D5 — module.hidden asymmetry: immediate on hide, deferred on show", () => {
-	test("MM.hideModule sets module.hidden=true immediately; MM.showModule sets false only inside callback", async () => {
+describe("D5 — module.hidden is synchronous on hide and show; lockStrings veto show", () => {
+	test("MM.hideModule and MM.showModule both update module.hidden synchronously", async () => {
 		await resetSandbox();
 
 		const result = await stageEvaluate(async () => {
@@ -177,7 +183,7 @@ describe("D5 — module.hidden asymmetry: immediate on hide, deferred on show", 
 			// --- hide phase ---
 			// Capture hidden state synchronously right after the call.
 			// At speed=0 the timer fires asynchronously — the SYNCHRONOUS
-			// assignment of module.hidden = true (main.js:721) must already
+			// assignment of module.hidden = true (main.js:717) must already
 			// be visible here.
 			globalThis.MM.hideModule(instance, 0, function () {}, {});
 			const hiddenSynchronouslyAfterHide = instance.hidden;
@@ -188,48 +194,163 @@ describe("D5 — module.hidden asymmetry: immediate on hide, deferred on show", 
 			});
 
 			// --- show phase ---
-			let hiddenSynchronouslyAfterShowCall = false;
-			let hiddenInsideShowCallback = false;
+			let hiddenSynchronouslyAfterShowCall = true;
+			let hiddenInsideShowCallback = true;
 
 			await new Promise(function (resolve) {
 				globalThis.MM.showModule(
 					instance,
 					0,
 					function () {
-						// Inside the callback, hidden must now be false.
-						// main.js:729-731: hidden=false set inside callback, before it fires.
 						hiddenInsideShowCallback = instance.hidden;
 						resolve();
 					},
 					{}
 				);
 
-				// Immediately after the call, before callback fires — must still be true.
-				// main.js:729 only sets hidden=false inside the callback.
+				// Immediately after the call, before the callback fires.
+				// The private showModule (main.js:382) already set hidden=false.
 				hiddenSynchronouslyAfterShowCall = instance.hidden;
 			});
 
 			return {
 				hiddenBefore,
-				// MUST be true — main.js:721 sets hidden=true before animation.
+				// MUST be true — main.js:717 sets hidden=true before animation.
 				hiddenSynchronouslyAfterHide,
-				// MUST be true — main.js:729 defers hidden=false to inside callback.
+				// MUST be false — main.js:382 sets hidden=false before animation.
 				hiddenSynchronouslyAfterShowCall,
-				// MUST be false — inside callback hidden is already set.
+				// MUST be false — still false when the callback fires.
 				hiddenInsideShowCallback
 			};
 		});
 
 		expect(result.hiddenBefore).toBe(false);
 
-		// DO NOT change to false — hidden=true is set immediately (main.js:721).
+		// DO NOT change to false — hidden=true is set immediately (main.js:717).
 		expect(result.hiddenSynchronouslyAfterHide).toBe(true);
 
-		// DO NOT change to false — hidden=false is deferred until callback (main.js:729).
-		expect(result.hiddenSynchronouslyAfterShowCall).toBe(true);
+		// DO NOT change to true — hidden=false is set synchronously (main.js:382).
+		expect(result.hiddenSynchronouslyAfterShowCall).toBe(false);
 
-		// Inside the callback, hidden must already be false.
 		expect(result.hiddenInsideShowCallback).toBe(false);
+	});
+
+	test("an active lockString vetoes MM.showModule: hidden stays true, onError fires, callback never runs; force overrides", async () => {
+		await resetSandbox();
+
+		const result = await stageEvaluate(async () => {
+			const instance = globalThis.__moduleSandboxModule;
+
+			await new Promise(function (resolve) {
+				globalThis.MM.hideModule(instance, 0, resolve, {
+					lockString: "fidelity-lock"
+				});
+			});
+			// main.js:271 registers each lockString once.
+			globalThis.MM.hideModule(instance, 0, function () {}, {
+				lockString: "fidelity-lock"
+			});
+			const lockCountAfterDuplicateHide = instance.lockStrings.length;
+
+			let lockedCallbackRan = false;
+			let lockedErrorMessage = null;
+			globalThis.MM.showModule(
+				instance,
+				0,
+				function () {
+					lockedCallbackRan = true;
+				},
+				{
+					onError(error) {
+						lockedErrorMessage = error.message;
+					}
+				}
+			);
+			const hiddenWhileLocked = instance.hidden;
+			// Give a speed=0 timer the chance to fire if it was (wrongly) armed.
+			await new Promise(function (resolve) {
+				setTimeout(resolve, 20);
+			});
+
+			let forcedCallbackRan = false;
+			await new Promise(function (resolve) {
+				globalThis.MM.showModule(
+					instance,
+					0,
+					function () {
+						forcedCallbackRan = true;
+						resolve();
+					},
+					{ force: true }
+				);
+			});
+
+			return {
+				lockCountAfterDuplicateHide,
+				hiddenWhileLocked,
+				lockedCallbackRan,
+				lockedErrorMessage,
+				forcedCallbackRan,
+				hiddenAfterForce: instance.hidden,
+				lockCountAfterForce: instance.lockStrings.length
+			};
+		});
+
+		expect(result.lockCountAfterDuplicateHide).toBe(1);
+		// main.js:363-368 — locked show returns before touching hidden.
+		expect(result.hiddenWhileLocked).toBe(true);
+		expect(result.lockedCallbackRan).toBe(false);
+		expect(result.lockedErrorMessage).toBe("LOCK_STRING_ACTIVE");
+		// main.js:385-388 — force shows and clears every lockString.
+		expect(result.forcedCallbackRan).toBe(true);
+		expect(result.hiddenAfterForce).toBe(false);
+		expect(result.lockCountAfterForce).toBe(0);
+	});
+
+	test("module.hide/show forward lockString to MM: a foreign lock keeps the module hidden until its owner releases it", async () => {
+		await resetSandbox();
+
+		const result = await stageEvaluate(async () => {
+			const instance = globalThis.__moduleSandboxModule;
+
+			await new Promise(function (resolve) {
+				instance.hide(0, resolve, { lockString: "owner-a" });
+			});
+
+			// A different lock owner cannot show the module.
+			let wrongOwnerCallbackRan = false;
+			instance.show(
+				0,
+				function () {
+					wrongOwnerCallbackRan = true;
+				},
+				{ lockString: "owner-b" }
+			);
+			await new Promise(function (resolve) {
+				setTimeout(resolve, 20);
+			});
+			const hiddenAfterWrongOwner = instance.hidden;
+			const locksAfterWrongOwner = instance.lockStrings.slice();
+
+			// The owner releases its lock and the show proceeds.
+			await new Promise(function (resolve) {
+				instance.show(0, resolve, { lockString: "owner-a" });
+			});
+
+			return {
+				wrongOwnerCallbackRan,
+				hiddenAfterWrongOwner,
+				locksAfterWrongOwner,
+				hiddenAfterOwnerShow: instance.hidden,
+				locksAfterOwnerShow: instance.lockStrings.length
+			};
+		});
+
+		expect(result.wrongOwnerCallbackRan).toBe(false);
+		expect(result.hiddenAfterWrongOwner).toBe(true);
+		expect(result.locksAfterWrongOwner).toEqual(["owner-a"]);
+		expect(result.hiddenAfterOwnerShow).toBe(false);
+		expect(result.locksAfterOwnerShow).toBe(0);
 	});
 });
 

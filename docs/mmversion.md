@@ -37,6 +37,12 @@ custom version causes unexpected behavior.
 Click **Download** next to any available release to fetch and cache it locally.
 Downloaded versions appear in the installed list and can then be activated.
 
+The **bleeding-edge (develop)** entry installs the current `develop` branch of
+the official repository (`github:MagicMirrorOrg/MagicMirror#develop`). npm 12
+refuses git specs by default, so the sandbox passes `--allow-git=root` for this
+download only; transitive git dependencies stay blocked. Re-download it to pick
+up newer upstream commits.
+
 ### Re-download a cached version
 
 Click the re-download icon (↻) on an installed version to fetch a fresh copy
@@ -53,19 +59,19 @@ storage. The active version cannot be deleted.
 When a version is active and its capabilities are loaded, the sandbox surfaces a
 read-only table:
 
-| Capability | What it means |
-| --- | --- |
-| `loaded()` hook | Whether the version supports the `helperLoadedHook` lifecycle callback |
-| `stop()` hook | Whether the version supports the `helperStopHook` lifecycle callback |
-| Class extend system | Whether `Class.extend()` is available for inheritance |
-| ES6 node helper | Whether the helper is authored as an ES6 class (may require extra compat) |
-| HTTP fetcher | Whether `http_fetcher.js` is included in the core |
-| CORS proxy | Whether a built-in CORS proxy is available |
-| Express version | The Express.js major version bundled with the core |
-| Default modules dir | The path used as the default modules directory |
-| Config loading | How the core reads its configuration (`filesystem` or other strategy) |
-| Config functions | Whether configuration allows function values |
-| Socket namespace | The Socket.IO namespace the core expects |
+| Capability          | What it means                                                             |
+| ------------------- | ------------------------------------------------------------------------- |
+| `loaded()` hook     | Whether the version supports the `helperLoadedHook` lifecycle callback    |
+| `stop()` hook       | Whether the version supports the `helperStopHook` lifecycle callback      |
+| Class extend system | Whether `Class.extend()` is available for inheritance                     |
+| ES6 node helper     | Whether the helper is authored as an ES6 class (may require extra compat) |
+| HTTP fetcher        | Whether `http_fetcher.js` is included in the core                         |
+| CORS proxy          | Whether a built-in CORS proxy is available                                |
+| Express version     | The Express.js major version bundled with the core                        |
+| Default modules dir | The path used as the default modules directory                            |
+| Config loading      | How the core reads its configuration (`filesystem` or other strategy)     |
+| Config functions    | Whether configuration allows function values                              |
+| Socket namespace    | The Socket.IO namespace the core expects                                  |
 
 A warning indicator (⚠) on a capability entry means the value may require
 attention — for example, `es6NodeHelper: true` signals that the helper is

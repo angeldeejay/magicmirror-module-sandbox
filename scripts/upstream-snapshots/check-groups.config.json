@@ -1,0 +1,11 @@
+{
+  "groups": {
+    "fast": true,
+    "deep": true
+  },
+  "integrations": {
+    "npmCheckUpdates": true,
+    "npmDeprecatedCheck": true,
+    "eslint": true
+  }
+}

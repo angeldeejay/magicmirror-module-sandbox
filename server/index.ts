@@ -28,11 +28,7 @@ import {
 	getLastAnalysisResult,
 	setAnalysisResult
 } from "./module-analysis.ts";
-import {
-	fromOS,
-	getActiveShimsRoot,
-	resolveRepoRoot
-} from "./paths.ts";
+import { fromOS, getActiveShimsRoot, resolveRepoRoot } from "./paths.ts";
 import {
 	downloadVersion,
 	buildShimsForVersion,
@@ -315,7 +311,9 @@ async function applyPinnedMmVersion(repoRoot: string): Promise<void> {
 		const active = getActiveVersion();
 		if (active === key) return;
 
-		console.log(`[module-sandbox] mmvm: activating pinned version "${pinned}"`);
+		console.log(
+			`[module-sandbox] mmvm: activating pinned version "${pinned}"`
+		);
 
 		const harnessRoot = path.join(currentDirPath, "..");
 		const info = getVersionInfo(key);
@@ -324,13 +322,17 @@ async function applyPinnedMmVersion(repoRoot: string): Promise<void> {
 			console.log(`[module-sandbox] mmvm: downloading "${pinned}"…`);
 			const dl = downloadVersion(pinned);
 			if (!dl.ok) {
-				console.error(`[module-sandbox] mmvm: download failed — ${dl.error}`);
+				console.error(
+					`[module-sandbox] mmvm: download failed — ${dl.error}`
+				);
 				return;
 			}
 		}
 
 		if (!info.shimsBuilt) {
-			console.log(`[module-sandbox] mmvm: building shims for "${pinned}"…`);
+			console.log(
+				`[module-sandbox] mmvm: building shims for "${pinned}"…`
+			);
 			const built = await buildShimsForVersion(key, harnessRoot);
 			if (!built.ok) {
 				console.error(
@@ -343,7 +345,10 @@ async function applyPinnedMmVersion(repoRoot: string): Promise<void> {
 		setActiveVersion(pinned);
 		console.log(`[module-sandbox] mmvm: active version set to "${pinned}"`);
 	} catch (err) {
-		console.warn("[module-sandbox] mmvm: could not apply pinned version", err);
+		console.warn(
+			"[module-sandbox] mmvm: could not apply pinned version",
+			err
+		);
 	}
 }
 
@@ -385,7 +390,8 @@ async function startServer(): Promise<void> {
 		app,
 		io,
 		getHarnessConfig,
-		getHarnessCacheDir
+		getHarnessCacheDir,
+		getModuleConfig
 	});
 	const clientAssetsScriptPath = path.join(
 		currentDirPath,

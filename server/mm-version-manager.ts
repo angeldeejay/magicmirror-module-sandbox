@@ -15,7 +15,9 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import * as path from "pathe";
 
 const _serverDir = path.dirname(
-	typeof __filename === "string" ? __filename.replace(/\\/g, "/") : fileURLToPath(import.meta.url)
+	typeof __filename === "string"
+		? __filename.replace(/\\/g, "/")
+		: fileURLToPath(import.meta.url)
 );
 const _projectRoot = path.resolve(_serverDir, "..");
 
@@ -49,7 +51,7 @@ export function sanitizeVersion(version: string): string {
 /**
  * Resolves the npm install spec for a version string.
  * "2.35.0" → "magicmirror@2.35.0"
- * "develop" → fork develop branch
+ * "develop" → upstream MagicMirrorOrg develop branch (bleeding edge)
  * "github:..." → passed through
  */
 export function resolveNpmSpec(version: string): string {
@@ -57,7 +59,7 @@ export function resolveNpmSpec(version: string): string {
 		return version;
 	}
 	if (version === "develop") {
-		return "github:angeldeejay/MagicMirror#develop";
+		return "github:MagicMirrorOrg/MagicMirror#develop";
 	}
 	return `magicmirror@${version}`;
 }
@@ -125,7 +127,13 @@ export function listCachedVersions(): string[] {
 				(e) =>
 					e.isDirectory() &&
 					fs.existsSync(
-						path.join(VERSIONS_ROOT, e.name, "node_modules", "magicmirror", "package.json")
+						path.join(
+							VERSIONS_ROOT,
+							e.name,
+							"node_modules",
+							"magicmirror",
+							"package.json"
+						)
 					)
 			)
 			.map((e) => e.name);
@@ -138,9 +146,7 @@ export function listCachedVersions(): string[] {
  * Returns true if the MM package is installed for the given version key.
  */
 export function isVersionInstalled(version: string): boolean {
-	return fs.existsSync(
-		path.join(getMmVersionRoot(version), "package.json")
-	);
+	return fs.existsSync(path.join(getMmVersionRoot(version), "package.json"));
 }
 
 /**
@@ -153,9 +159,7 @@ export function areShimsBuilt(version: string): boolean {
 	);
 }
 
-export type VersionActionResult =
-	| { ok: true }
-	| { ok: false; error: string };
+export type VersionActionResult = { ok: true } | { ok: false; error: string };
 
 /**
  * Deletes the cached install and shims for a version key so it can be re-downloaded.
@@ -180,13 +184,27 @@ export function downloadVersion(version: string): VersionActionResult {
 	const installDir = getVersionInstallDir(version);
 	ensureDir(installDir);
 
+	const npmArgs = [
+		"install",
+		"--prefix",
+		installDir,
+		spec,
+		"--no-save",
+		"--ignore-scripts"
+	];
+	// npm 12 refuses git specs by default (allow-git=none); allow only the
+	// top-level spec so transitive git dependencies stay blocked.
+	if (spec.startsWith("github:") || spec.startsWith("git+")) {
+		npmArgs.push("--allow-git=root");
+	}
+
 	const result =
 		process.platform === "win32"
-			? spawnSync("cmd.exe", ["/c", "npm", "install", "--prefix", installDir, spec, "--no-save", "--ignore-scripts"], {
+			? spawnSync("cmd.exe", ["/c", "npm", ...npmArgs], {
 					stdio: "pipe",
 					encoding: "utf8"
 				})
-			: spawnSync("npm", ["install", "--prefix", installDir, spec, "--no-save", "--ignore-scripts"], {
+			: spawnSync("npm", npmArgs, {
 					stdio: "pipe",
 					encoding: "utf8"
 				});
@@ -197,7 +215,11 @@ export function downloadVersion(version: string): VersionActionResult {
 	if (result.status !== 0) {
 		return {
 			ok: false,
-			error: (result.stderr || result.stdout || "npm install failed").trim()
+			error: (
+				result.stderr ||
+				result.stdout ||
+				"npm install failed"
+			).trim()
 		};
 	}
 	return { ok: true };
@@ -219,7 +241,11 @@ export async function buildShimsForVersion(
 	const outputDir = getVersionShimsDir(version);
 
 	try {
-		const scriptPath = path.join(harnessRoot, "scripts", "build-node-compat.ts");
+		const scriptPath = path.join(
+			harnessRoot,
+			"scripts",
+			"build-node-compat.ts"
+		);
 		const { buildNodeCompat } = await import(
 			/* @vite-ignore */ pathToFileURL(scriptPath).href
 		);
@@ -254,13 +280,21 @@ export function getInstalledMmVersion(versionKey: string): string | null {
  */
 export function getBuiltInMmVersion(): string | null {
 	const candidates = [
-		path.join(_projectRoot, "mmcore-source", "node_modules", "magicmirror", "package.json"),
+		path.join(
+			_projectRoot,
+			"mmcore-source",
+			"node_modules",
+			"magicmirror",
+			"package.json"
+		),
 		path.join(_projectRoot, "node_modules", "magicmirror", "package.json")
 	];
 	for (const pkgPath of candidates) {
 		try {
 			if (!fs.existsSync(pkgPath)) continue;
-			const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { version?: unknown };
+			const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+				version?: unknown;
+			};
 			if (typeof pkg.version === "string") return pkg.version;
 		} catch {
 			// try next candidate
@@ -385,7 +419,9 @@ export function deriveCapabilities(mmVersion: string | null): MmCapabilities {
 		hideConfigSecrets: gte(semver, [2, 28, 0]),
 		getUserAgent: gte(semver, [2, 30, 0]),
 		expressVersion: hasExpressV5 ? "5" : "4",
-		defaultModulesDir: hasDefaultModulesDir ? "/defaultmodules" : "/modules/default",
+		defaultModulesDir: hasDefaultModulesDir
+			? "/defaultmodules"
+			: "/modules/default",
 		configLoading: hasConfigEndpoint ? "endpoint" : "filesystem",
 		configFunctions: hasConfigFunctions,
 		socketNamespace: "name"

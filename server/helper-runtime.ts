@@ -53,6 +53,7 @@ type SandboxMagicMirrorGlobals = typeof globalThis & {
 	version?: string;
 	mmTestMode?: string;
 	config?: Record<string, unknown>;
+	configRedacted?: { modules: Array<{ module: string; config: unknown }> };
 };
 
 type HelperRuntimeOptions = {
@@ -60,6 +61,12 @@ type HelperRuntimeOptions = {
 	io: import("socket.io").Server;
 	getHarnessConfig: () => { moduleName: string };
 	getHarnessCacheDir: () => string;
+	/**
+	 * Mounted-module config envelope. Its `config` block, with secret
+	 * placeholders as written, seeds `global.configRedacted`. MagicMirror
+	 * 2.38+ reads that global to decide which secrets a helper may restore.
+	 */
+	getModuleConfig?: () => { config?: unknown };
 	/** Override the resolved node_helper path (.ts or .js). Primarily for testing. */
 	helperPath?: string;
 };
@@ -169,6 +176,7 @@ function createHelperRuntime({
 	io,
 	getHarnessConfig,
 	getHarnessCacheDir,
+	getModuleConfig,
 	helperPath: helperPathOverride
 }: HelperRuntimeOptions) {
 	let helperInstance: HelperInstance | null = null;
@@ -194,6 +202,14 @@ function createHelperRuntime({
 		clearModuleRequireCache();
 		process.env.MM_SANDBOX_CACHE_DIR = getHarnessCacheDir();
 		const harnessConfig = getHarnessConfig();
+		(globalThis as SandboxMagicMirrorGlobals).configRedacted = {
+			modules: [
+				{
+					module: harnessConfig.moduleName,
+					config: getModuleConfig?.().config ?? {}
+				}
+			]
+		};
 		const tsHelperPath = path.join(repoRoot, "node_helper.ts");
 		const helperPath =
 			helperPathOverride ??
