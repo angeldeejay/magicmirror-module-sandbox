@@ -67,7 +67,22 @@ async function bootWith(
 	}
 	// A disabled module never reaches stage-ready, so wait on the document
 	// attributes the observer sets before the core boots.
+	// Mark the current stage document so the reload Save triggers can be told
+	// apart from it: when the saved values equal the booted ones (for example
+	// middle_center), the attributes below already match on the old document.
+	await stageEvaluate(() => {
+		(globalThis as Record<string, unknown>).__isolationPreSave = true;
+	});
 	await pageClick("#module-config-save");
+	await expect
+		.poll(() =>
+			stageEvaluate(
+				() =>
+					(globalThis as Record<string, unknown>)
+						.__isolationPreSave === undefined
+			)
+		)
+		.toBe(true);
 	await expect
 		.poll(() =>
 			stageEvaluate(() => {
@@ -83,11 +98,7 @@ async function bootWith(
 			disabled: String(settings.disabled === true)
 		});
 	if (settings.disabled !== true) {
-		await expect
-			.poll(() =>
-				stageEvaluate(moduleCount)
-			)
-			.toBeGreaterThan(0);
+		await expect.poll(() => stageEvaluate(moduleCount)).toBeGreaterThan(0);
 	}
 }
 
@@ -230,12 +241,11 @@ describe.each(cores)("core $version", ({ version, key }) => {
 
 			// Ancestor bar and module wrapper too: a sub-region is absolutely
 			// positioned against its bar, so only the bar's own rect would show
-			// a stretched container.
-			const read = (selectors: {
-				region: string;
-				ancestor: string | null;
-			}) =>
-				stageEvaluate((targets) => {
+			// a stretched container. Both states are read synchronously inside
+			// one task, after fonts and animations settle, so a late font load,
+			// opacity transition or module re-render cannot land between them.
+			const { withSheet, withoutSheet } = await stageEvaluate(
+				async (targets) => {
 					const describe = (selector: string | null) => {
 						const element = selector
 							? (globalThis.document.querySelector(
@@ -259,22 +269,53 @@ describe.each(cores)("core $version", ({ version, key }) => {
 							rect: [rect.x, rect.y, rect.width, rect.height]
 						};
 					};
-					return {
+					const read = () => ({
 						region: describe(targets.region),
 						ancestor: describe(targets.ancestor),
 						wrapper: describe(`${targets.region} .module`)
-					};
-				}, selectors);
-			const selectors = { region, ancestor };
-			const withSheet = await read(selectors);
-			await stageEvaluate(() => {
-				for (const link of globalThis.document.querySelectorAll(
-					'link[href*="stage-isolation.css"]'
-				)) {
-					(link as HTMLLinkElement).disabled = true;
-				}
-			});
-			const withoutSheet = await read(selectors);
+					});
+					const nextFrame = () =>
+						new Promise((resolve) =>
+							globalThis.requestAnimationFrame(resolve)
+						);
+					await globalThis.document.fonts.ready;
+					// Let pending transitions/animations finish, then two frames.
+					for (let attempt = 0; attempt < 50; attempt += 1) {
+						const running = globalThis.document
+							.getAnimations()
+							.filter(
+								(animation) =>
+									animation.pendingFinish === false &&
+									animation.playState === "running"
+							);
+						if (running.length === 0) {
+							break;
+						}
+						await Promise.allSettled(
+							running.map((animation) => animation.finished)
+						);
+					}
+					await nextFrame();
+					await nextFrame();
+
+					const links = Array.from(
+						globalThis.document.querySelectorAll<HTMLLinkElement>(
+							'link[href*="stage-isolation.css"]'
+						)
+					);
+					// No await below: reads force layout back to back.
+					const on = read();
+					for (const link of links) {
+						link.disabled = true;
+					}
+					const off = read();
+					for (const link of links) {
+						link.disabled = false;
+					}
+					return { withSheet: on, withoutSheet: off };
+				},
+				{ region, ancestor }
+			);
 			expect(withSheet).toEqual(withoutSheet);
 			expect(withSheet.region?.position).toBe("absolute");
 			expect(Boolean(withSheet.ancestor)).toBe(ancestor !== null);
@@ -312,7 +353,10 @@ describe.each(cores)("core $version", ({ version, key }) => {
 		await bootWith(key, { position: "top_left", disabled: true });
 
 		const state = await stageEvaluate(() => {
-			const before = getComputedStyle(globalThis.document.body, "::before");
+			const before = getComputedStyle(
+				globalThis.document.body,
+				"::before"
+			);
 			const after = getComputedStyle(globalThis.document.body, "::after");
 			return {
 				disabled:
