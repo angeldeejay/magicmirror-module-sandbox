@@ -10,6 +10,7 @@ import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
 import { buildNodeCompat } from "./build-node-compat.ts";
+import { distCopyTargets } from "./dist-layout.ts";
 import { ensureDirectory, fromOS } from "./shared.ts";
 
 const __filename = fromOS(fileURLToPath(import.meta.url));
@@ -18,14 +19,6 @@ const root: string = path.resolve(__dirname, "..");
 const distRoot: string = path.join(root, "dist");
 const distClientRoot: string = path.join(distRoot, "client");
 
-const copyTargets: string[] = [
-	path.join("server", "templates"),
-	path.join("client", "fonts"),
-	path.join("client", "generated"),
-	path.join("client", "styles"),
-	path.join("client", "webfonts"),
-	path.join("shims", "generated")
-];
 const nodeEntryTargets: string[] = [
 	path.join("bin", "magicmirror-module-sandbox.ts"),
 	path.join("bin", "install-guard.ts"),
@@ -233,7 +226,7 @@ function buildNodeEntrypoints(): void {
 buildNodeCompat();
 clearDirectory(distRoot);
 
-copyTargets.forEach(copyTarget);
+distCopyTargets.forEach(copyTarget);
 transpileNodeSourceTrees();
 buildNodeEntrypoints();
 minifyClientJavaScript();

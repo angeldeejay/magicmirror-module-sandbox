@@ -35,6 +35,9 @@ tests/**/__screenshots__/
 # Vendored upstream (auto-synced)
 server/vendor/
 
+# Verbatim MagicMirror core files extracted from release tags
+tests/_fixtures/core-snippets/
+
 # CodeQL
 codeql-db/
 codeql-results.sarif

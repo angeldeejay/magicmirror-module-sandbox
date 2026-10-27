@@ -7,9 +7,13 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("node:fs");
 vi.mock("node:child_process");
+vi.mock("../../../server/stage/core-variants.ts", () => ({
+	detectCoreVariants: vi.fn()
+}));
 
 import * as fs from "node:fs";
 import * as childProcess from "node:child_process";
+import { detectCoreVariants } from "../../../server/stage/core-variants.ts";
 import {
 	areShimsBuilt,
 	deleteVersionCache,
@@ -544,18 +548,49 @@ test("getVersionInfo returns full info for an installed version with all shims",
 	vi.mocked(fs.readFileSync).mockReturnValue(
 		JSON.stringify({ version: "2.35.0" }) as unknown as Buffer
 	);
+	vi.mocked(detectCoreVariants).mockReturnValue({
+		config: "plain",
+		redaction: "whenHidden",
+		basepath: "classic",
+		positions: "classic",
+		unreviewed: []
+	});
 	const info = getVersionInfo("2.35.0");
 	expect(info.key).toBe("2.35.0");
 	expect(info.installed).toBe(true);
 	expect(info.shimsBuilt).toBe(true);
 	expect(info.displayVersion).toBe("2.35.0");
 	expect(info.capabilities.configLoading).toBe("endpoint");
+	expect(info.unreviewedCoreChanges).toEqual([]);
+});
+
+test("getVersionInfo reports unreviewed core changes of an installed version", () => {
+	vi.mocked(fs.existsSync).mockReturnValue(true);
+	vi.mocked(fs.readFileSync).mockReturnValue(
+		JSON.stringify({ version: "2.39.0-develop" }) as unknown as Buffer
+	);
+	vi.mocked(detectCoreVariants).mockReturnValue({
+		config: "mmFunction",
+		redaction: "always",
+		basepath: "global",
+		positions: "global",
+		unreviewed: ["config", "positions"]
+	});
+	const info = getVersionInfo("develop");
+	expect(info.unreviewedCoreChanges).toEqual(["config", "positions"]);
+	expect(detectCoreVariants).toHaveBeenCalledWith({
+		root: getMmVersionRoot("develop"),
+		version: "2.39.0-develop",
+		key: "develop"
+	});
 });
 
 test("getVersionInfo returns not-installed when version dir is absent", () => {
 	vi.mocked(fs.existsSync).mockReturnValue(false);
 	const info = getVersionInfo("9.99.99");
 	expect(info.installed).toBe(false);
+	expect(info.unreviewedCoreChanges).toEqual([]);
+	expect(detectCoreVariants).not.toHaveBeenCalled();
 	expect(info.displayVersion).toBeNull();
 	expect(info.shimsBuilt).toBe(false);
 	expect(info.capabilities.expressVersion).toBe("unknown");

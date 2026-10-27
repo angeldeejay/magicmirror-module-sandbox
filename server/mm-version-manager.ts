@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import * as path from "pathe";
+import { detectCoreVariants } from "./stage/core-variants.ts";
 
 const _serverDir = path.dirname(
 	typeof __filename === "string"
@@ -437,6 +438,8 @@ export type MmVersionInfo = {
 	installed: boolean;
 	shimsBuilt: boolean;
 	capabilities: MmCapabilities;
+	/** Ported core pieces whose source matches no reviewed snapshot. */
+	unreviewedCoreChanges: string[];
 };
 
 export function getVersionInfo(versionKey: string): MmVersionInfo {
@@ -448,6 +451,13 @@ export function getVersionInfo(versionKey: string): MmVersionInfo {
 		displayVersion,
 		installed,
 		shimsBuilt,
-		capabilities: deriveCapabilities(displayVersion)
+		capabilities: deriveCapabilities(displayVersion),
+		unreviewedCoreChanges: installed
+			? detectCoreVariants({
+					root: getMmVersionRoot(versionKey),
+					version: displayVersion ?? versionKey,
+					key: versionKey
+				}).unreviewed
+			: []
 	};
 }
