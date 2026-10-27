@@ -51,9 +51,27 @@
 			helperLog: Array.isArray(core.helperLog)
 				? core.helperLog.slice()
 				: [],
-			lifecycleState: Object.assign({}, core.lifecycleState || {})
+			lifecycleState: Object.assign({}, core.lifecycleState || {}),
+			observationGaps: readObservationGaps()
 		});
 	};
+
+	/**
+	 * Hook points and notifications the stage cannot observe. Only the
+	 * real-core facade reports any; the hand-port core has neither list.
+	 *
+	 * @returns {{unavailableHooks: string[], unobservedNotifications: string[]}}
+	 */
+	function readObservationGaps() {
+		return {
+			unavailableHooks: Array.isArray(core.unavailableHooks)
+				? core.unavailableHooks.slice()
+				: [],
+			unobservedNotifications: Array.isArray(core.unobservedNotifications)
+				? core.unobservedNotifications.slice()
+				: []
+		};
+	}
 
 	globalScope.addEventListener(
 		"module-sandbox:notifications-updated",
@@ -87,6 +105,15 @@
 		(event) => {
 			postToShell(
 				"helper-log-updated",
+				(event as CustomEvent).detail || {}
+			);
+		}
+	);
+	globalScope.addEventListener(
+		"module-sandbox:observation-gaps-updated",
+		(event) => {
+			postToShell(
+				"observation-gaps-updated",
 				(event as CustomEvent).detail || {}
 			);
 		}

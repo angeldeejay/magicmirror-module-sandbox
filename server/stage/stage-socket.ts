@@ -18,8 +18,9 @@ export const STAGE_SOCKET_PATH = "/__stage/socket.io";
 export const WEBSOCKET_LOG_EVENT = "harness:websocket-log";
 
 /**
- * `sent` is server to module, `received` is module to server, matching the
- * WebSocket panel semantics.
+ * Directions are from the module's side, as the hand-port stage records them
+ * (`client/runtime/module.ts`): `sent` is module to server, `received` is
+ * server to module.
  */
 export const WebsocketLogEntry = z.object({
 	direction: z.enum(["sent", "received"]),
@@ -76,10 +77,10 @@ export function createStageSocketServer(
 		}
 		namespace.use((socket, next) => {
 			socket.onAny((event: string, ...args: unknown[]) =>
-				record("received", event, args)
+				record("sent", event, args)
 			);
 			socket.onAnyOutgoing((event: string, ...args: unknown[]) =>
-				record("sent", event, args)
+				record("received", event, args)
 			);
 			next();
 		});

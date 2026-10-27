@@ -123,6 +123,13 @@ export function NotificationsDomain() {
 			>
 				<div class="sandbox-section-title">Log</div>
 				<div
+					id="notification-observation-notice"
+					class="sandbox-status sandbox-observation-notice"
+					data-state="warning"
+					role="note"
+					hidden
+				></div>
+				<div
 					id="notification-log"
 					class="notification-log notification-log--padded"
 				></div>

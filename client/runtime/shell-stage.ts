@@ -204,6 +204,69 @@
 		);
 	}
 
+	/**
+	 * Store the stage's observation gaps and tell the panels. Missing or
+	 * malformed lists count as empty, which is what the hand-port stage sends.
+	 *
+	 * @param {{unavailableHooks?: unknown, unobservedNotifications?: unknown}} [detail]
+	 * @returns {void}
+	 */
+	function applyObservationGaps(detail) {
+		const readNames = (value) =>
+			Array.isArray(value)
+				? value.filter((name) => typeof name === "string")
+				: [];
+		core.observationGaps = {
+			unavailableHooks: readNames(detail && detail.unavailableHooks),
+			unobservedNotifications: readNames(
+				detail && detail.unobservedNotifications
+			)
+		};
+		globalScope.dispatchEvent(
+			new CustomEvent("module-sandbox:observation-gaps-updated", {
+				detail: {
+					unavailableHooks:
+						core.observationGaps.unavailableHooks.slice(),
+					unobservedNotifications:
+						core.observationGaps.unobservedNotifications.slice()
+				}
+			})
+		);
+	}
+
+	/**
+	 * Whether the stage iframe runs the real MagicMirror core (maintainer flag
+	 * `--real-core-stage`, served under `/__stage/`).
+	 *
+	 * @returns {boolean}
+	 */
+	function isRealCoreStage() {
+		const frame = core.getStageFrame();
+		const src = frame ? frame.getAttribute("src") || "" : "";
+		return src.startsWith("/__stage/");
+	}
+
+	/**
+	 * Whether the stage iframe already finished loading its own document (not
+	 * the initial `about:blank`, which is also "complete").
+	 *
+	 * @param {HTMLIFrameElement} frame
+	 * @returns {boolean}
+	 */
+	function isStageDocumentLoaded(frame) {
+		try {
+			const stageDocument = frame.contentDocument;
+			return Boolean(
+				stageDocument &&
+				stageDocument.readyState === "complete" &&
+				stageDocument.URL !== "about:blank"
+			);
+		} catch {
+			// Not same-origin; the load listener is the only signal then.
+			return false;
+		}
+	}
+
 	globalScope.addEventListener("message", (event) => {
 		const frame = core.getStageFrame();
 		const message = event.data;
@@ -247,6 +310,9 @@
 				applyLifecycleState(
 					message.detail && message.detail.lifecycleState
 				);
+				applyObservationGaps(
+					message.detail && message.detail.observationGaps
+				);
 				globalScope.dispatchEvent(
 					new CustomEvent("module-sandbox:stage-ready", {
 						detail: message.detail || {}
@@ -288,6 +354,9 @@
 			case "lifecycle-updated":
 				applyLifecycleState(message.detail && message.detail.state);
 				return;
+			case "observation-gaps-updated":
+				applyObservationGaps(message.detail);
+				return;
 			case "styles-refreshed":
 				globalScope.dispatchEvent(
 					new CustomEvent("module-sandbox:styles-refreshed")
@@ -325,7 +394,8 @@
 			rootSocket.on("harness:websocket-log", (entry) => {
 				if (
 					!entry ||
-					(entry.direction !== "sent" && entry.direction !== "received") ||
+					(entry.direction !== "sent" &&
+						entry.direction !== "received") ||
 					typeof entry.notification !== "string" ||
 					typeof entry.at !== "number"
 				) {
@@ -343,6 +413,22 @@
 							payload: core.serializeLogValue(entry.payload)
 						}
 					}
+				);
+			});
+
+			// The hand-port stage runtime records helper logs from its own root
+			// socket and mirrors them here. The real core has no such listener,
+			// so under it the shell records them itself; the stage facade reads
+			// them back from this copy (see `mirroredShellLog`).
+			rootSocket.on("harness:helper-log", (entry) => {
+				if (!isRealCoreStage() || !entry || typeof entry !== "object") {
+					return;
+				}
+				applyMirroredUpdate(
+					"helperLog",
+					"maxHelperLogEntries",
+					core.publishHelperLog,
+					{ entry }
 				);
 			});
 
@@ -389,6 +475,20 @@
 					core.requestStageSnapshot();
 				}, 0);
 			});
+			// The stage document can finish loading before this listener
+			// exists: the shell's deferred scripts delay DOMContentLoaded, and
+			// a small stage page (the real core under `--real-core-stage`)
+			// loads first. Its `load` event is then gone, so ask for the
+			// snapshot now. Without this, only a stage that publishes
+			// stage-ready on its own (the hand-port boot, or the real core's
+			// DOM_OBJECTS_CREATED) clears the backdrop, and a module whose
+			// getDom fails never does. Same task as the listener above, so no
+			// load can fall between the two.
+			if (isStageDocumentLoaded(frame)) {
+				globalScope.setTimeout(() => {
+					core.requestStageSnapshot();
+				}, 0);
+			}
 		}
 
 		core.initializeDebugPanel();

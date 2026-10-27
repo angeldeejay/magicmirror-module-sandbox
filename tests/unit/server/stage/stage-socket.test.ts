@@ -37,7 +37,11 @@ const cleanups: Array<() => Promise<void> | void> = [];
 async function boot(): Promise<Rig> {
 	const httpServer = http.createServer();
 	const shellIo = new Server(httpServer, { serveClient: true });
-	const stage = createStageSocketServer(httpServer, shellIo, () => MODULE_NAME);
+	const stage = createStageSocketServer(
+		httpServer,
+		shellIo,
+		() => MODULE_NAME
+	);
 	await new Promise<void>((resolve) => httpServer.listen(0, resolve));
 	const logs: Array<unknown> = [];
 	shellIo.on("connection", () => {});
@@ -99,7 +103,7 @@ describe("stage socket server", () => {
 		expect(client.connected).toBe(true);
 	});
 
-	test("records both directions on the module namespace", async () => {
+	test("records both directions on the module namespace, from the module's side", async () => {
 		const { port, stage, logs } = await boot();
 		stage.io.of(`/${MODULE_NAME}`).on("connection", (socket) => {
 			socket.on("PING", (payload) => socket.emit("PONG", payload));
@@ -117,12 +121,12 @@ describe("stage socket server", () => {
 		const entries = logs.map((entry) => WebsocketLogEntry.parse(entry));
 		expect(entries).toHaveLength(2);
 		expect(entries[0]).toMatchObject({
-			direction: "received",
+			direction: "sent",
 			notification: "PING",
 			payload: { n: 1 }
 		});
 		expect(entries[1]).toMatchObject({
-			direction: "sent",
+			direction: "received",
 			notification: "PONG",
 			payload: { n: 1 }
 		});
@@ -152,7 +156,9 @@ describe("stage socket server", () => {
 			transports: ["websocket"]
 		});
 		cleanups.push(() => void client.close());
-		await new Promise<void>((resolve) => client.on("connect", () => resolve()));
+		await new Promise<void>((resolve) =>
+			client.on("connect", () => resolve())
+		);
 		const reload = new Promise((resolve) => client.on("RELOAD", resolve));
 		stage.emitReload();
 		await reload;
@@ -160,7 +166,11 @@ describe("stage socket server", () => {
 
 	test("WebsocketLogEntry rejects malformed entries", () => {
 		expect(() =>
-			WebsocketLogEntry.parse({ direction: "up", notification: "x", at: 1 })
+			WebsocketLogEntry.parse({
+				direction: "up",
+				notification: "x",
+				at: 1
+			})
 		).toThrow();
 	});
 });

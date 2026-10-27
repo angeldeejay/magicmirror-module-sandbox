@@ -491,6 +491,26 @@ describe("createStageFacade", () => {
 		expect(other.core.unavailableHooks).toEqual([]);
 	});
 
+	test("attaching the instance publishes the observation gaps for the panels", () => {
+		const { instanceCallbacks, attachInstance, events } =
+			createFacadeFixture();
+		const instance: Record<string, any> = { notificationReceived() {} };
+		attachInstance(instance, hookInstance(instance, instanceCallbacks));
+
+		const published = events.filter(
+			(event) => event.type === "module-sandbox:observation-gaps-updated"
+		);
+		expect(published).toEqual([
+			{
+				type: "module-sandbox:observation-gaps-updated",
+				detail: {
+					unavailableHooks: ["hide", "show", "suspend", "resume"],
+					unobservedNotifications: ["ALL_MODULES_STARTED"]
+				}
+			}
+		]);
+	});
+
 	test("the payload is logged as delivered, even when the module mutates it", () => {
 		const { core, instanceCallbacks, attachInstance } =
 			createFacadeFixture();

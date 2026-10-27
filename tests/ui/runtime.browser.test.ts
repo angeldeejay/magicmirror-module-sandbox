@@ -8,6 +8,7 @@ import {
 	openDomain,
 	pageClick,
 	pageEvaluate,
+	pageCount,
 	pageUrl
 } from "../_helpers/helpers.browser.ts";
 import { createJourneyTest } from "../_helpers/journey-coverage.ts";
@@ -74,5 +75,9 @@ journeyTest(
 			.toContain("Running");
 
 		await expect.poll(() => pageText("#lifecycle-started")).toBe("Yes");
+		// The hand-port stage reports no observation gaps.
+		expect(await pageCount("#lifecycle-observation-notice[hidden]")).toBe(
+			1
+		);
 	}
 );

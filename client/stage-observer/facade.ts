@@ -11,7 +11,8 @@
  * - `emitNotification`, `suspendModule`, `resumeModule`,
  *   `reloadModuleStyles`; the bridge adds `publishStageReady`;
  * - observation gaps for the panels: `unobservedNotifications`,
- *   `unavailableHooks`.
+ *   `unavailableHooks`, published as `module-sandbox:observation-gaps-updated`
+ *   when the instance is attached.
  *
  * Every control calls the real core API on the created instance: emit is
  * `instance.notificationReceived(notification, payload, undefined)`, as the
@@ -375,6 +376,12 @@ export function createStageFacade(
 		core.moduleInstance = instance;
 		core.unavailableHooks = [...unavailableHooks];
 		core.unobservedNotifications = [...NOTIFICATIONS_SENT_BEFORE_DISCOVERY];
+		// The panels live in the shell; the bridge forwards this event and the
+		// stage-ready snapshot carries the same lists.
+		dispatch("module-sandbox:observation-gaps-updated", {
+			unavailableHooks: [...core.unavailableHooks],
+			unobservedNotifications: [...core.unobservedNotifications]
+		});
 		setLifecycleState({ started: true, hidden: Boolean(instance.hidden) });
 	}
 

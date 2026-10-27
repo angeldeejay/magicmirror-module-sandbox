@@ -7,6 +7,7 @@ import {
 	gotoSandbox,
 	openDomain,
 	pageClick,
+	pageCount,
 	pageEvaluate,
 	pageFill
 } from "../_helpers/helpers.browser.ts";
@@ -48,5 +49,9 @@ journeyTest(
 		await expect
 			.poll(() => pageText("#notification-log"))
 			.toContain("SANDBOX_SMOKE");
+		// The hand-port stage observes every notification it delivers.
+		expect(
+			await pageCount("#notification-observation-notice[hidden]")
+		).toBe(1);
 	}
 );

@@ -25,6 +25,7 @@
   </section>
   <section class="sandbox-tabpanel sandbox-tabpanel--stack" data-domain="notifications" data-tab-panel="log" data-active="false">
     <div class="sandbox-section-title">Log</div>
+    <div id="notification-observation-notice" class="sandbox-status sandbox-observation-notice" data-state="warning" role="note" hidden></div>
     <div id="notification-log" class="notification-log notification-log--padded"></div>
     <div class="sandbox-button-row sandbox-button-row--full">
       <button id="notification-clear" class="sandbox-button sandbox-button--full" type="button"><i class="fa-solid fa-trash" aria-hidden="true"></i> Clear log</button>
