@@ -8,8 +8,11 @@ declare module "vitest/browser" {
 		sandboxClickAndWaitForStageReady(selector: string): Promise<void>;
 		sandboxClickAndWaitForStylesRefreshed(selector: string): Promise<void>;
 		sandboxClose(): Promise<void>;
+		sandboxConsoleMessages(): Promise<string[]>;
 		sandboxGoto(): Promise<void>;
-		sandboxGotoRealCoreStage(): Promise<void>;
+		sandboxGotoRealCoreStage(options?: {
+			coreKey?: string | null;
+		}): Promise<void>;
 		sandboxOpenDomain(domain: string): Promise<void>;
 		sandboxOpenSidebarTab(domain: string, tab: string): Promise<void>;
 		sandboxPageAttribute(

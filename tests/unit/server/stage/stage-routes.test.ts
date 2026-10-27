@@ -24,8 +24,9 @@ import type { ActiveCore } from "../../../../server/stage/core-root.ts";
 import { detectCoreVariants } from "../../../../server/stage/core-variants.ts";
 import {
 	assignCoreGlobalConfig,
+	getStageState,
 	registerStageRoutes,
-	STAGE_INJECTION
+	renderStageInjection
 } from "../../../../server/stage/stage-routes.ts";
 
 const MODULE_NAME = "MMM-TestModule";
@@ -87,11 +88,38 @@ describe("stage page", () => {
 		expect(response.statusCode).toBe(200);
 		expect(response.headers["content-type"]).toContain("text/html");
 		expect(response.body).toBe(
-			renderStageHtml(core, detectCoreVariants(core), STAGE_INJECTION)
+			renderStageHtml(
+				core,
+				detectCoreVariants(core),
+				renderStageInjection({ position: "top_left", disabled: false })
+			)
 		);
-		expect(STAGE_INJECTION).toBe(
-			'<!-- module-sandbox:stage --><link rel="stylesheet" href="/__harness/generated/stage-isolation.css"><script src="/__harness/generated/stage-observer.js"></script><!-- /module-sandbox:stage -->'
+		expect(
+			renderStageInjection({ position: "top_left", disabled: false })
+		).toBe(
+			'<!-- module-sandbox:stage --><link rel="stylesheet" href="/__harness/generated/stage-isolation.css"><script type="application/json" id="module-sandbox-stage-state">{"position":"top_left","disabled":false}</script><script src="/__harness/generated/stage-observer.js"></script><!-- /module-sandbox:stage -->'
 		);
+	});
+
+	test("the stage state follows the saved envelope and cannot close its element", () => {
+		expect(
+			getStageState({
+				...sources,
+				getModuleConfig: () => ({ disabled: true })
+			})
+		).toEqual({ position: "", disabled: true });
+		expect(
+			getStageState({
+				...sources,
+				getModuleConfig: () => ({ position: 3, disabled: "yes" })
+			})
+		).toEqual({ position: "", disabled: false });
+		expect(
+			renderStageInjection({
+				position: "</script><script>alert(1)</script>",
+				disabled: false
+			})
+		).not.toContain("</script><script>alert");
 	});
 
 	test("GET /__stage redirects to the prefix so relative core paths resolve", async () => {

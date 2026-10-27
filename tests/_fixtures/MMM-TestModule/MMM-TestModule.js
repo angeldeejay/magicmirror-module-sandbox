@@ -128,7 +128,22 @@ Module.register("MMM-TestModule", {
 		});
 	},
 
-	notificationReceived(notification, payload) {
+	notificationReceived(notification, payload, sender) {
+		// Transparency probes for the real-core stage observer: the echo returns
+		// its payload synchronously and records how it was called; the throw
+		// rethrows through any wrapper.
+		if (notification === "TEST_MODULE_ECHO") {
+			this.lastEcho = {
+				argumentCount: arguments.length,
+				senderIsUndefined: sender === undefined
+			};
+			return payload;
+		}
+
+		if (notification === "TEST_MODULE_THROW") {
+			throw new Error(String(payload));
+		}
+
 		if (notification === "ALL_MODULES_STARTED") {
 			this.coreNotificationCounts.allModulesStarted += 1;
 			return;

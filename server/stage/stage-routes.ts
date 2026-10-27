@@ -19,6 +19,10 @@ import fastifyStatic from "@fastify/static";
 import type { FastifyInstance } from "fastify";
 import * as path from "pathe";
 import {
+	STAGE_STATE_ELEMENT_ID,
+	type StageState
+} from "../../config/stage-state.ts";
+import {
 	buildCoreConfig,
 	buildCoreConfigObjects,
 	type CoreConfigSources,
@@ -34,16 +38,31 @@ import {
 	resolveCoreStaticPath
 } from "./core-root.ts";
 import { detectCoreVariants } from "./core-variants.ts";
+import { serializeStageState } from "./stage-state-schema.ts";
 
 /** Stage prefix, also the `basePath` served to the core. */
 export const STAGE_PREFIX = "/__stage/";
 
 /**
  * The single sandbox injection point placed before the first core `<script>`:
- * the isolation stylesheet and the browser observer.
+ * the isolation stylesheet, the sandbox stage state (inline JSON, read by the
+ * observer) and the browser observer.
  */
-export const STAGE_INJECTION =
-	'<!-- module-sandbox:stage --><link rel="stylesheet" href="/__harness/generated/stage-isolation.css"><script src="/__harness/generated/stage-observer.js"></script><!-- /module-sandbox:stage -->';
+export function renderStageInjection(state: StageState): string {
+	return `<!-- module-sandbox:stage --><link rel="stylesheet" href="/__harness/generated/stage-isolation.css"><script type="application/json" id="${STAGE_STATE_ELEMENT_ID}">${serializeStageState(state)}</script><script src="/__harness/generated/stage-observer.js"></script><!-- /module-sandbox:stage -->`;
+}
+
+/**
+ * Reads the stage state from the saved module envelope.
+ */
+export function getStageState(sources: CoreConfigSources): StageState {
+	const envelope = sources.getModuleConfig();
+	return {
+		position:
+			typeof envelope.position === "string" ? envelope.position : "",
+		disabled: envelope.disabled === true
+	};
+}
 
 /**
  * Endpoints answered by the version's `js/server_functions.js`, keyed by the
@@ -202,7 +221,11 @@ export async function registerStageRoutes(
 		const core = getCore();
 		reply.type("text/html; charset=utf-8");
 		reply.header("Cache-Control", "no-store");
-		return renderStageHtml(core, detectCoreVariants(core), STAGE_INJECTION);
+		return renderStageHtml(
+			core,
+			detectCoreVariants(core),
+			renderStageInjection(getStageState(sources))
+		);
 	});
 
 	for (const url of [`${STAGE_PREFIX}config`, `${STAGE_PREFIX}config/`]) {

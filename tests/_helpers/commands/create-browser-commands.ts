@@ -32,10 +32,13 @@ const sandboxPages = new Map();
 // repeated mid-test calls to waitForStageFrame (stageClick, stageText, …).
 // Invalidated before page.goto() and before any action that triggers a stage reload.
 const stageFrameCache = new WeakMap<object, any>();
-// Pages whose stage iframe runs the real MagicMirror core (`/__stage/`). The
-// real core does not publish the hand-port stage-ready bridge message, so
+// Pages whose stage iframe runs the real MagicMirror core (`/__stage/`). Its
+// observer publishes bootComplete only once the core sends
+// DOM_OBJECTS_CREATED, which a module failing in getDom never gets, so
 // readiness is the observer marker plus the core-created module wrapper.
 const realCoreStagePages = new WeakSet<object>();
+// Page → console messages (shell and stage frames), in arrival order.
+const pageConsoleMessages = new WeakMap<object, string[]>();
 type ModuleConfigEditor = HTMLElement & { json_value: unknown };
 
 /**
@@ -107,6 +110,11 @@ export function createSandboxBrowserCommands(suiteName) {
 		}
 
 		const page = await context.context.newPage();
+		const consoleMessages: string[] = [];
+		pageConsoleMessages.set(page, consoleMessages);
+		page.on("console", (message) => {
+			consoleMessages.push(message.text());
+		});
 		if (inspectionOptions.showCursor) {
 			await page.addInitScript({
 				content: browserInspectionCursorInitScript
@@ -285,10 +293,15 @@ export function createSandboxBrowserCommands(suiteName) {
 	 * @param {SandboxCommandContext} context
 	 * @returns {Promise<void>}
 	 */
-	async function gotoRealCoreStage(context) {
+	async function gotoRealCoreStage(
+		context,
+		options: { coreKey?: string | null } = {}
+	) {
 		const runtime = await runtimeController.getLiveRuntimeForContext(
 			context,
-			{ realCoreStage: true }
+			"coreKey" in options
+				? { realCoreStage: true, coreKey: options.coreKey }
+				: { realCoreStage: true }
 		);
 		writeFixtureStylesheet(runtime.fixtureStylePath);
 		resetPersistedStateForModuleRoot(runtime.fixtureRoot);
@@ -801,6 +814,15 @@ export function createSandboxBrowserCommands(suiteName) {
 	}
 
 	/**
+	 * Returns the console messages the sandbox page (shell and stage frames)
+	 * printed so far.
+	 */
+	async function consoleMessages(context): Promise<string[]> {
+		const page = await getSandboxPage(context);
+		return (pageConsoleMessages.get(page) ?? []).slice();
+	}
+
+	/**
 	 * Closes sandbox.
 	 */
 	async function closeSandbox(context) {
@@ -823,6 +845,7 @@ export function createSandboxBrowserCommands(suiteName) {
 		sandboxClickAndWaitForStageReady: clickAndWaitForStageReady,
 		sandboxClickAndWaitForStylesRefreshed: clickAndWaitForStylesRefreshed,
 		sandboxClose: closeSandbox,
+		sandboxConsoleMessages: consoleMessages,
 		sandboxPageAttribute: pageAttribute,
 		sandboxPageCheck: pageCheck,
 		sandboxPageCount: pageCount,

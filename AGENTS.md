@@ -54,7 +54,7 @@ node --run docs:screenshots
 
 Scripts prefixed with `_` (`_server`, `_server:preview`, `_server:watch`, `_server:watch-preview`) are internal; they map to the CLI flags `--preview` and `--watch`.
 
-`--real-core-stage` is a maintainer-only, **temporary** CLI flag (no npm script, no env var): the stage iframe loads the active MagicMirror core itself from `/__stage/` (`server/stage/`), and the helper's module namespace moves to the stage socket server at `/__stage/socket.io`. It exists only while the per-version stage replaces the hand-port in `client/runtime/` and is removed when that default flips. Browser tests opt in per test file with `gotoRealCoreStage()` from `tests/_helpers/helpers.browser.ts`.
+`--real-core-stage` is a maintainer-only, **temporary** CLI flag (no npm script, no env var): the stage iframe loads the active MagicMirror core itself from `/__stage/` (`server/stage/`), and the helper's module namespace moves to the stage socket server at `/__stage/socket.io`. It exists only while the per-version stage replaces the hand-port in `client/runtime/` and is removed when that default flips. Browser tests opt in per test file with `gotoRealCoreStage()` from `tests/_helpers/helpers.browser.ts`. Cross-version stage tests run once per core from `availableCores()` (`tests/_helpers/core-matrix.ts`): the built-in core, plus the version in the test-only env var `MM_SANDBOX_TEST_CORE_VERSION` when it is installed in mmvm; `gotoRealCoreStage({ coreKey })` pins that core through an isolated home under `.runtime-cache/core-homes/`, leaving `~/.mmvm/active` untouched.
 
 ## Product scope
 

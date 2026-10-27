@@ -3,6 +3,7 @@
  */
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout } from "node:timers";
@@ -144,6 +145,11 @@ type SandboxSessionRuntime = {
 	needsHelperReset?: boolean;
 	/** Server booted with the maintainer flag `--real-core-stage`. */
 	realCoreStage: boolean;
+	/**
+	 * Core the server runs: an mmvm version key, null for the built-in core,
+	 * or undefined to follow the maintainer's own `~/.mmvm/active`.
+	 */
+	coreKey?: string | null;
 };
 
 /**
@@ -152,10 +158,61 @@ type SandboxSessionRuntime = {
  */
 type SandboxRuntimeOptions = {
 	realCoreStage?: boolean;
+	/**
+	 * Pin the core (mmvm key, or null for built-in). A different value than
+	 * the running server's restarts it; omitted keeps the current one.
+	 */
+	coreKey?: string | null;
 };
 
 /** Maintainer CLI flag that serves the real MagicMirror core in the stage. */
 const REAL_CORE_STAGE_FLAG = "--real-core-stage";
+
+const coreHomesRoot = path.join(sandboxRoot, ".runtime-cache", "core-homes");
+
+/**
+ * Prepare an isolated home directory whose `.mmvm/active` pins one core, so a
+ * server can run a given core without touching the maintainer's own
+ * `~/.mmvm/active`. Installed versions and shims are junctions to the real
+ * store; `fs.rmSync` removes junctions without following them.
+ *
+ * @param {string|null} coreKey - mmvm key, or null for the built-in core
+ * @returns {string} the directory to use as HOME/USERPROFILE
+ */
+function ensureIsolatedCoreHome(coreKey: string | null): string {
+	const home = path.join(coreHomesRoot, coreKey ?? "built-in");
+	const mmvmRoot = path.join(home, ".mmvm");
+	const realMmvmRoot = path.join(os.homedir(), ".mmvm");
+	fs.mkdirSync(mmvmRoot, { recursive: true });
+	for (const entry of ["versions", "shims"]) {
+		const target = path.join(realMmvmRoot, entry);
+		const link = path.join(mmvmRoot, entry);
+		if (fs.existsSync(target) && !fs.existsSync(link)) {
+			fs.symlinkSync(target, link, "junction");
+		}
+	}
+	const activeFile = path.join(mmvmRoot, "active");
+	if (coreKey) {
+		fs.writeFileSync(activeFile, coreKey, "utf8");
+	} else {
+		fs.rmSync(activeFile, { force: true });
+	}
+	return home;
+}
+
+/**
+ * Environment overrides that pin the core of one runtime, if it pins one.
+ *
+ * @param {SandboxSessionRuntime} runtime
+ * @returns {NodeJS.ProcessEnv}
+ */
+function getCoreHomeEnv(runtime: SandboxSessionRuntime): NodeJS.ProcessEnv {
+	if (runtime.coreKey === undefined) {
+		return {};
+	}
+	const home = ensureIsolatedCoreHome(runtime.coreKey);
+	return { HOME: home, USERPROFILE: home };
+}
 
 /**
  * Report whether one suite should boot an isolated sandbox runtime per browser
@@ -202,7 +259,8 @@ function buildSessionMapKey(suiteName, sessionId) {
 function createPerSessionFixtureRuntime(
 	suiteName,
 	sessionId,
-	realCoreStage = false
+	realCoreStage = false,
+	coreKey: string | null | undefined = undefined
 ): SandboxSessionRuntime {
 	const safeSuiteName = sanitizePathSegment(suiteName);
 	const safeSessionId = sanitizePathSegment(sessionId) || "session";
@@ -218,7 +276,8 @@ function createPerSessionFixtureRuntime(
 		runtimeRoot,
 		fixtureRoot,
 		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css"),
-		realCoreStage
+		realCoreStage,
+		coreKey
 	};
 }
 
@@ -334,9 +393,24 @@ async function ensureSandboxSessionRuntime(
 				`Sandbox session "${sessionId}" already runs with realCoreStage=${existingRuntime.realCoreStage}; one test file cannot mix stage modes.`
 			);
 		}
+		if (
+			"coreKey" in options &&
+			options.coreKey !== existingRuntime.coreKey
+		) {
+			// Switching cores restarts the server under the other core's home.
+			await terminateChildProcess(existingRuntime.child, {
+				timeoutMs: 5_000
+			});
+			existingRuntime.child?.stdout?.destroy();
+			existingRuntime.child?.stderr?.destroy();
+			existingRuntime.child = null;
+			existingRuntime.needsHelperReset = false;
+			existingRuntime.coreKey = options.coreKey;
+		}
 		return existingRuntime;
 	}
 	const realCoreStage = Boolean(options.realCoreStage);
+	const coreKey = "coreKey" in options ? options.coreKey : undefined;
 
 	// Acquire a warm server from the pool to avoid a cold start. Only servers
 	// booted with the same stage mode are reusable.
@@ -346,7 +420,8 @@ async function ensureSandboxSessionRuntime(
 	let pooledIndex = pool.length - 1;
 	while (
 		pooledIndex >= 0 &&
-		pool[pooledIndex].runtime.realCoreStage !== realCoreStage
+		(pool[pooledIndex].runtime.realCoreStage !== realCoreStage ||
+			pool[pooledIndex].runtime.coreKey !== coreKey)
 	) {
 		pooledIndex -= 1;
 	}
@@ -375,7 +450,8 @@ async function ensureSandboxSessionRuntime(
 	const runtime = createPerSessionFixtureRuntime(
 		suiteName,
 		sessionId,
-		realCoreStage
+		realCoreStage,
+		coreKey
 	);
 	runtime.port = await allocateLoopbackPort();
 	runtime.baseUrl = getSandboxBaseUrl(runtime.port);
@@ -441,7 +517,8 @@ async function ensureSandboxSessionServer(runtime) {
 					...createSandboxServerEnv({
 						port: runtime.port,
 						moduleRoot: runtime.fixtureRoot
-					})
+					}),
+					...getCoreHomeEnv(runtime)
 				},
 				stdio: ["ignore", "pipe", "pipe"],
 				windowsHide: true

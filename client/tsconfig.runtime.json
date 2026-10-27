@@ -16,6 +16,7 @@
 		"runtime/**/*.ts",
 		"vendor/**/*.ts",
 		"stage-observer/**/*.ts",
+		"../config/stage-state.ts",
 		"types/**/*.d.ts"
 	],
 	"exclude": ["node_modules", "../node_modules"]

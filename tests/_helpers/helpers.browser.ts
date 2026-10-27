@@ -34,10 +34,27 @@ export async function gotoSandbox() {
  * maintainer flag `--real-core-stage`, until the real core created the module.
  * A test file must not mix this with `gotoSandbox`.
  *
+ * `coreKey` pins the core (an mmvm version key, or null for the built-in
+ * core; see `tests/_helpers/core-matrix.ts`) and restarts the server when it
+ * differs from the running one. Omitted, the server follows the maintainer's
+ * own `~/.mmvm/active`.
+ *
+ * @param {{ coreKey?: string | null }} [options]
  * @returns {Promise<void>}
  */
-export async function gotoRealCoreStage() {
-	await commands.sandboxGotoRealCoreStage();
+export async function gotoRealCoreStage(
+	options: { coreKey?: string | null } = {}
+) {
+	await commands.sandboxGotoRealCoreStage(options);
+}
+
+/**
+ * Console messages the sandbox page (shell and stage frames) printed so far.
+ *
+ * @returns {Promise<string[]>}
+ */
+export function consoleMessages(): Promise<string[]> {
+	return commands.sandboxConsoleMessages();
 }
 
 /**

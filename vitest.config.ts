@@ -8,6 +8,7 @@ import {
     getBrowserInspectionOptions,
     getBrowserWorkerConfig
 } from "./tests/_helpers/browser-inspection.ts";
+import { availableCores } from "./tests/_helpers/core-matrix.ts";
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const knownProjects = new Set(["unit", "e2e", "integration", "ui"]);
@@ -151,6 +152,10 @@ export default defineConfig(async () => {
 					extends: true,
 					test: {
 						name: "integration",
+						// Cores the cross-version real-core stage tests run on.
+						provide: {
+							stageCoreMatrix: availableCores()
+						},
 						include: [
 							path.posix.join(
 								"tests",

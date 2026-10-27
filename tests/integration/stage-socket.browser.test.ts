@@ -30,8 +30,7 @@ const pageText = (selector: string) => {
 test("websocket log reaches the shell from the server side", async () => {
 	await gotoRealCoreStage();
 	// The panel content is read from the DOM, so the domain does not need to be
-	// opened: the shell loading backdrop stays up until the real-core observer
-	// publishes stage readiness, which a later stage task adds.
+	// opened.
 
 	await expect
 		.poll(() => stageText("#test-module-helper-ping"))
