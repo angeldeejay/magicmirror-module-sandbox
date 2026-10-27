@@ -77,9 +77,6 @@
 		"test-ci": "run-s test-ci:*",
 		"test-ci:act": "tsx scripts/run-pipeline-test.ts"
 	},
-	"lint-staged": {
-		"*.{ts,tsx,js,mjs,cjs,json}": "node node_modules/eslint/bin/eslint.js --fix"
-	},
 	"engines": {
 		"node": ">=24"
 	},

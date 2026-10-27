@@ -1,0 +1,29 @@
+{
+	"_comment": "sha256 of verbatim MagicMirror core files from tags v<version>. Never reformat; restore with git show v<version>:<path>.",
+	"files": {
+		"2.35.0/index.html": "123c4e5cdd72e21dfb8e8f270f91298f904a813810a2758704e0132cd5b50557",
+		"2.35.0/js/defaults.js": "9a3921be31c904740f0e6397c5cbe1cd47500cffd58f3664ee9bdc9a678d7c70",
+		"2.35.0/js/server.js": "2ff38fff448a9ebbec677faa03e5aab6c435c1404614f910906cb461ccb97b7a",
+		"2.35.0/js/server_functions.js": "02347cf79f75cd2b76f0bf54d08e88ad1cce76a304734226992a713866b47c56",
+		"2.35.0/js/utils.js": "d02cccec8ae18b563d48eada25f397fcca0bacae715b5ad28191f5f2515971ac",
+		"2.35.0/package.json": "1645a366133847c70bfacd78033ff3a8e6181f3785bf0b7c2a61ea82a15a83d0",
+		"2.36.0/index.html": "123c4e5cdd72e21dfb8e8f270f91298f904a813810a2758704e0132cd5b50557",
+		"2.36.0/js/defaults.js": "b1f217d31c01f7bcea2eb9df0a7a4f60b1097f6d77fd40558dbc0fd5edb35283",
+		"2.36.0/js/server.js": "7dcfe1bff681d266dccff92e67206ef593e68f938cf5f2ae0e650219a08b3798",
+		"2.36.0/js/server_functions.js": "d41673fdc3806ffe54b69ba4e69fce76e47bccc13c6eb7d21ce2cfd075a21dd5",
+		"2.36.0/js/utils.js": "f330a21e6c262eb1453c5bb1ea88e0174d312e2419518c0bdf1e59327a0d71ed",
+		"2.36.0/package.json": "4975ad370c7eed53d634f9d629f70d7bbc2bc7a2dc2b5b19593a3b20d73e4585",
+		"2.37.0/index.html": "7b73d0d6752dda4a9770913203825f843a12bfd05d86c9e29518a0a40eed1b3e",
+		"2.37.0/js/defaults.js": "29ce711fa3c8a4a8bb529ede86959b0fbff48bc0276eb2415da44dc590a0b123",
+		"2.37.0/js/server.js": "6b9f3c5d5af3f681d3e3c31a82d78ebe40cfbc1ade786de554ffc9add958531e",
+		"2.37.0/js/server_functions.js": "af6b72b53692845983a69e8e755795dc5f87128a77e7346d5b4a268152cea24a",
+		"2.37.0/js/utils.js": "aa470a6c2f274db58f829e00f971fd4dc7f71fa873f4461189a62e5245208eea",
+		"2.37.0/package.json": "bdaf04ad43a418a303d7dd20a8d43262217e72d25954433829ffec3d4242b424",
+		"2.38.0/index.html": "e66493f80063ac2b620dd769135f30d604a90fd3e4409af84de4bd0d6e40bb88",
+		"2.38.0/js/defaults.js": "9bd0417f52b3997436de0fdfb13bf0afdb680d1da9ff49e193959cfbfa71225c",
+		"2.38.0/js/server.js": "d629a396de66127b69ff64bc8a1c8c52dfdbf353dcfed2934cfc26e16e735dc2",
+		"2.38.0/js/server_functions.js": "4edcfc3da6ae0d7f4c9edfbfd7e4e03a9130b746b74147bf72f1e8c8baf1f537",
+		"2.38.0/js/utils.js": "f47711152ded876ce55b880c03dfd990e245485f8adf082be291cf6c0bbde4aa",
+		"2.38.0/package.json": "24313410da4e838b233fe68ebe58a820f4b7e58d3d912f75c0aec3fe5a837130"
+	}
+}
