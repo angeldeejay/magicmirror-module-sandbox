@@ -42,6 +42,13 @@ Open Quality when you want to:
   the official ESLint pass (`eslint.testconfig.js`), with the official
   defaults. The built-in MagicMirror rules always run; general ESLint
   findings appear grouped under **ESLint issues**.
+- Like the official check, Quality also runs `npm-check-updates` and
+  `npm-deprecated-check` when the module has few enough other findings (the
+  official issue budget). Both need network access; when it is unavailable
+  they are skipped without failing the analysis.
+- Files your repository ignores (per `.gitignore`, `.git/info/exclude` and
+  your global git excludes) are not analyzed. The official check never sees
+  them because it analyzes a fresh clone.
 - The ESLint pass uses only the official configuration. ESLint configs in the
   module repository are never loaded, and inline `eslint-disable` comments
   are ignored, exactly as in the official check.

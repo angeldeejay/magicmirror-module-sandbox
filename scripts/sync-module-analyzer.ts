@@ -58,27 +58,86 @@ VENDORED_FILES.push({
 const VENDORED_FILE_NAMES = VENDORED_FILES.map((file) => file.fileName);
 
 /**
+ * Extracts top-level upstream declarations (each from its signature to the
+ * first column-0 closing brace) plus single matching lines, failing loudly
+ * when any of them is gone.
+ */
+function extractUpstreamPieces(
+	source: string,
+	sourceName: string,
+	{ blocks = [], lines = [] }: { blocks?: string[]; lines?: RegExp[] }
+): string {
+	const pieces: string[] = [];
+	for (const signature of blocks) {
+		const start = source.indexOf(signature);
+		if (start === -1) {
+			throw new Error(
+				`"${signature}" is gone from upstream ${sourceName}`
+			);
+		}
+		const end = source.indexOf("\n}", start);
+		pieces.push(source.slice(start, end + 2));
+	}
+	for (const pattern of lines) {
+		const match = source.match(pattern);
+		if (!match) {
+			throw new Error(
+				`${pattern} no longer matches upstream ${sourceName}`
+			);
+		}
+		pieces.push(match[0].trim());
+	}
+	return `${pieces.join("\n\n")}\n`;
+}
+
+/**
  * Upstream code the sandbox ports instead of vendoring (the surrounding worker
  * pulls in git, sharp and the pipeline cache). The sync fails when upstream
- * changes, so server/official-eslint-check.ts gets reviewed against it.
+ * changes, so server/official-eslint-check.ts and
+ * server/official-dependency-integrations.ts get reviewed against it.
  */
 const PORTED_SNAPSHOTS = [
 	{
 		source: "pipeline/workers/process-module.ts",
 		snapshot: "run-eslint-check.txt",
-		extract: (source: string): string => {
-			const start = source.indexOf(
-				"export async function runEslintCheck("
-			);
-			const callSite = source.match(/^.*await runEslintCheck\(.*$/m);
-			if (start === -1 || !callSite) {
-				throw new Error(
-					"runEslintCheck or its call site is gone from upstream pipeline/workers/process-module.ts"
-				);
-			}
-			const end = source.indexOf("\n}\n", start);
-			return `${source.slice(start, end + 2)}\n// call site\n${callSite[0].trim()}\n`;
-		}
+		extract: (source: string): string =>
+			extractUpstreamPieces(
+				source,
+				"pipeline/workers/process-module.ts",
+				{
+					blocks: ["export async function runEslintCheck("],
+					lines: [/^.*await runEslintCheck\(.*$/m]
+				}
+			)
+	},
+	{
+		source: "pipeline/workers/process-module.ts",
+		snapshot: "dependency-integrations.txt",
+		extract: (source: string): string =>
+			extractUpstreamPieces(
+				source,
+				"pipeline/workers/process-module.ts",
+				{
+					blocks: [
+						"function mergeUniqueIssues(",
+						"async function runNpmCheckUpdates(",
+						"async function runDeprecatedCheck(",
+						"async function applyDependencyIntegrations("
+					],
+					lines: [
+						/^export const NCU_COOLDOWN = .*$/m,
+						/^.*await applyDependencyIntegrations\(.*$/m
+					]
+				}
+			)
+	},
+	{
+		source: "scripts/parallel-processing.ts",
+		snapshot: "default-analysis-config.txt",
+		extract: (source: string): string =>
+			extractUpstreamPieces(source, "scripts/parallel-processing.ts", {
+				lines: [/^const DEFAULT_ANALYSIS_CONFIG = [^;]*;/ms]
+			})
 	},
 	{
 		source: "scripts/check-modules/check-groups.config.json",

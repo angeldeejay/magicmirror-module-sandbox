@@ -18,6 +18,8 @@ import {
 import { MISSING_DEPENDENCY_RULE_ID } from "./vendor/check-modules/missing-dependency-rule.ts";
 import { analyzeModule } from "./vendor/check-modules/module-analyzer.ts";
 import { runOfficialEslintCheck } from "./official-eslint-check.ts";
+import { resolveRepositoryIgnoredPaths } from "./module-ignored-paths.ts";
+import { applyOfficialDependencyIntegrations } from "./official-dependency-integrations.ts";
 
 // ---------------------------------------------------------------------------
 // IModuleAnalyzer interface
@@ -195,7 +197,13 @@ export class VendorModuleAnalyzer implements IModuleAnalyzer {
 			}
 
 			// Step 2 — Walk files (forward-slash normalized for vendor compat)
-			const rawFiles = walkDirectory(moduleRoot);
+			// Local deviation: skip what the module repository ignores, since the
+			// official check analyzes a clean clone that never contains it.
+			const ignoredPaths = resolveRepositoryIgnoredPaths(moduleRoot);
+			const rawFiles = walkDirectory(moduleRoot).filter(
+				(absFile) =>
+					!ignoredPaths.isIgnored(path.relative(moduleRoot, absFile))
+			);
 			const files = rawFiles.map((f) => f); // pathe already uses forward slashes
 
 			// Step 3 — First pass via vendor analyzeModule
@@ -210,12 +218,20 @@ export class VendorModuleAnalyzer implements IModuleAnalyzer {
 			// mergeUniqueIssues (process-module.ts): append unseen issues only.
 			const issues = [...vendorResult.issues];
 			const seenIssues = new Set(issues);
-			for (const issue of await runOfficialEslintCheck(moduleRoot)) {
+			for (const issue of await runOfficialEslintCheck(
+				moduleRoot,
+				undefined,
+				ignoredPaths.eslintIgnores
+			)) {
 				if (!seenIssues.has(issue)) {
 					seenIssues.add(issue);
 					issues.push(issue);
 				}
 			}
+
+			// Step 3c — Official dependency integrations (npm-check-updates,
+			// npm-deprecated-check), after the ESLint pass as upstream does.
+			await applyOfficialDependencyIntegrations(moduleRoot, issues);
 
 			const findings: AnalysisFinding[] = issues.map((issue, index) =>
 				parseIssueString(issue, index)

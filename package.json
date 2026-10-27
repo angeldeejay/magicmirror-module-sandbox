@@ -21,6 +21,7 @@
 	"files": [
 		"bin/install-guard.ts",
 		"docs",
+		"!docs/superpowers",
 		"dist",
 		"README.md"
 	],
@@ -108,6 +109,8 @@
 		"jsonc-parser": "^3.3.1",
 		"moment": "^2.30.1",
 		"moment-timezone": "^0.6.1",
+		"npm-check-updates": "^23.1.1",
+		"npm-deprecated-check": "^2.1.1",
 		"pathe": "^2.0.3",
 		"preact": "^10.29.1",
 		"semver": "^7.8.0",

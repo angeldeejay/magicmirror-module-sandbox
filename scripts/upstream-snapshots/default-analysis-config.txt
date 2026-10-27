@@ -1,0 +1,7 @@
+const DEFAULT_ANALYSIS_CONFIG = normalizeModuleAnalysisCheckGroups({
+  fast: true,
+  deep: true,
+  eslint: true,
+  ncu: true,
+  npmDeprecatedCheck: true
+});

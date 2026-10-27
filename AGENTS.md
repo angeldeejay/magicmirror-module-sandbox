@@ -68,7 +68,7 @@ Scripts prefixed with `_` (`_server`, `_server:preview`, `_server:watch`, `_serv
 
 ## Architecture
 
-- `server/`: Fastify HTTP host, routes, watch loop, helper lifecycle, startup scripts, Eta-rendered HTML shell (`server/templates/`), config persistence with Zod payload parsing, the nvm-style MagicMirror version manager (`mm-version-manager.ts`, store under `~/.mmvm/`), Quality analysis (the vendored analyzer in `server/vendor/check-modules/` plus `official-eslint-check.ts`, a port of the official ESLint pass guarded by `scripts/upstream-snapshots/`)
+- `server/`: Fastify HTTP host, routes, watch loop, helper lifecycle, startup scripts, Eta-rendered HTML shell (`server/templates/`), config persistence with Zod payload parsing, the nvm-style MagicMirror version manager (`mm-version-manager.ts`, store under `~/.mmvm/`), Quality analysis (the vendored analyzer in `server/vendor/check-modules/` plus `official-eslint-check.ts` and `official-dependency-integrations.ts`, ports of the official worker guarded by `scripts/upstream-snapshots/`; repository-ignored paths are excluded as the one documented local deviation)
 - `client/`: Preact shell app (`client/app/`), TypeScript browser runtime (`client/runtime/`), SCSS sources (`client/scss/`) compiled into `client/styles/`, generated bundles (`client/generated/`), hand-written editor and bundle components (`client/vendor/`), and fonts
 - `config/`: contract, harness bootstrap config, MagicMirror language and module-option metadata, and default module/runtime JSON
 - `docs/`: sandbox operator manuals, one per sidebar domain plus themes

@@ -66,3 +66,6 @@ TODO.md
 
 # IDE-specific files
 .vscode/
+# Superpowers working files (brainstorm sessions, specs, plans): local only
+.superpowers/
+docs/superpowers/

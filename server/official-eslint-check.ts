@@ -14,6 +14,10 @@
  * config file by path, while the sandbox passes the imported config array
  * with `overrideConfigFile: true`. Both disable config lookup in the module
  * repository, so repository-owned ESLint configs never run.
+ *
+ * Local deviation: `localIgnores` excludes paths the module repository
+ * ignores (see module-ignored-paths.ts). The official check lints a clean
+ * clone, which never contains them.
  */
 
 import * as path from "node:path";
@@ -41,7 +45,8 @@ export const OFFICIAL_CHECK_GROUP_DEFAULTS: Readonly<{
 export async function runOfficialEslintCheck(
 	moduleDir: string,
 	includeGeneralChecks = OFFICIAL_CHECK_GROUP_DEFAULTS.eslint !== false &&
-		OFFICIAL_CHECK_GROUP_DEFAULTS.deep !== false
+		OFFICIAL_CHECK_GROUP_DEFAULTS.deep !== false,
+	localIgnores: string[] = []
 ): Promise<string[]> {
 	const moduleOverrides: Linter.Config[] = path
 		.basename(path.resolve(moduleDir))
@@ -62,7 +67,8 @@ export async function runOfficialEslintCheck(
 		overrideConfigFile: true,
 		overrideConfig: [
 			...(officialTestConfig as Linter.Config[]),
-			...moduleOverrides
+			...moduleOverrides,
+			...(localIgnores.length > 0 ? [{ ignores: localIgnores }] : [])
 		],
 		allowInlineConfig: false,
 		errorOnUnmatchedPattern: false,

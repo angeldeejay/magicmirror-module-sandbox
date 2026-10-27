@@ -45,5 +45,5 @@ export async function runEslintCheck(moduleDir: string, includeGeneralChecks = t
   }
   return issues;
 }
-// call site
+
 const eslintIssues = await runEslintCheck(cloneDir, analysisConfig.eslint !== false && analysisConfig.deep !== false);
