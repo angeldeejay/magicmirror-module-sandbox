@@ -38,6 +38,7 @@ import {
 	setActiveVersion
 } from "./mm-version-manager.ts";
 import { registerRoutes } from "./routes.ts";
+import { createStageSocketServer } from "./stage/stage-socket.ts";
 import { runStartupScripts } from "./startup-scripts.ts";
 import { startAnalysisWatcher } from "./analysis-watcher.ts";
 import { startModuleWatcher, startSandboxWatcher } from "./watch.ts";
@@ -60,6 +61,7 @@ function resolveTsxCli(): string {
 type ShutdownOptions = {
 	app: import("fastify").FastifyInstance;
 	io: import("socket.io").Server;
+	stageSocket: { dispose: () => void };
 	moduleWatcher: import("chokidar").FSWatcher | null;
 	sandboxWatcher: import("chokidar").FSWatcher | null;
 	analysisWatcher: import("chokidar").FSWatcher | null;
@@ -222,6 +224,7 @@ async function rebuildNodeCompat(): Promise<void> {
 function registerShutdownHandlers({
 	app,
 	io,
+	stageSocket,
 	moduleWatcher,
 	sandboxWatcher,
 	analysisWatcher,
@@ -256,6 +259,7 @@ function registerShutdownHandlers({
 			}
 			await helperRuntime.stopHelper();
 			await startupController.stopAll();
+			stageSocket.dispose();
 			app.server.closeAllConnections();
 			await new Promise<void>((resolve, reject) => {
 				io.close((error?: Error) => {
@@ -386,9 +390,15 @@ async function startServer(): Promise<void> {
 		serveClient: true
 	});
 	attachSocketServer(io);
+	const stageSocket = createStageSocketServer(
+		app.server,
+		io,
+		() => getHarnessConfig().moduleName
+	);
 	const helperRuntime = createHelperRuntime({
 		app,
 		io,
+		getHelperIo: () => io,
 		getHarnessConfig,
 		getHarnessCacheDir,
 		getModuleConfig
@@ -533,6 +543,7 @@ async function startServer(): Promise<void> {
 	registerShutdownHandlers({
 		app,
 		io,
+		stageSocket,
 		moduleWatcher,
 		sandboxWatcher,
 		analysisWatcher,

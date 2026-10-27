@@ -59,6 +59,11 @@ type SandboxMagicMirrorGlobals = typeof globalThis & {
 type HelperRuntimeOptions = {
 	app: { use?: Function };
 	io: import("socket.io").Server;
+	/**
+	 * Socket server handed to node_helper via setSocketIO. Defaults to the
+	 * shell `io`; the per-version stage flag returns the stage server instead.
+	 */
+	getHelperIo?: () => import("socket.io").Server;
 	getHarnessConfig: () => { moduleName: string };
 	getHarnessCacheDir: () => string;
 	/**
@@ -174,6 +179,7 @@ function clearModuleRequireCache(): void {
 function createHelperRuntime({
 	app,
 	io,
+	getHelperIo = () => io,
 	getHarnessConfig,
 	getHarnessCacheDir,
 	getModuleConfig,
@@ -239,7 +245,7 @@ function createHelperRuntime({
 		} else {
 			helper.expressApp = app;
 		}
-		helper.setSocketIO(io);
+		helper.setSocketIO(getHelperIo());
 		if (typeof helper.start === "function") {
 			await helper.start();
 		}

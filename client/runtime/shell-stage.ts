@@ -319,6 +319,33 @@
 
 			core.rootSocket = rootSocket;
 
+			// Server-side stage traffic log (real core). Zod validates the entry on
+			// the server before emitting; the runtime scripts are not bundled, so
+			// only the shape needed for rendering is checked here.
+			rootSocket.on("harness:websocket-log", (entry) => {
+				if (
+					!entry ||
+					(entry.direction !== "sent" && entry.direction !== "received") ||
+					typeof entry.notification !== "string" ||
+					typeof entry.at !== "number"
+				) {
+					return;
+				}
+				applyMirroredUpdate(
+					"websocketLog",
+					"maxWebsocketLogEntries",
+					core.publishWebsocketLog,
+					{
+						entry: {
+							timestamp: new Date(entry.at).toISOString(),
+							direction: entry.direction,
+							notification: entry.notification,
+							payload: core.serializeLogValue(entry.payload)
+						}
+					}
+				);
+			});
+
 			rootSocket.on("harness:reload", (payload) => {
 				const scope =
 					payload && typeof payload.scope === "string"
