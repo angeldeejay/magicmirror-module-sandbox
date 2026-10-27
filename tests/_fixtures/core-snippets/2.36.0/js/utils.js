@@ -53,14 +53,10 @@ const getModulePositions = () => {
 			}
 		});
 		try {
-			fs.writeFileSync(
-				discoveredPositionsJSFilename,
-				`const modulePositions=${JSON.stringify(modulePositions)}`
-			);
-		} catch {
-			Log.error(
-				"unable to write js/positions.js with the discovered module positions\nmake the MagicMirror/js folder writeable by the user starting MagicMirror"
-			);
+			fs.writeFileSync(discoveredPositionsJSFilename, `const modulePositions=${JSON.stringify(modulePositions)}`);
+		}
+		catch {
+			Log.error("unable to write js/positions.js with the discovered module positions\nmake the MagicMirror/js folder writeable by the user starting MagicMirror");
 		}
 	}
 	// return the list to the caller
@@ -77,29 +73,18 @@ const checkDeprecatedOptions = (userConfig) => {
 
 	// check for deprecated core options
 	const deprecatedOptions = deprecated.configs;
-	const usedDeprecated = deprecatedOptions.filter((option) =>
-		userConfig.hasOwnProperty(option)
-	);
+	const usedDeprecated = deprecatedOptions.filter((option) => userConfig.hasOwnProperty(option));
 	if (usedDeprecated.length > 0) {
-		Log.warn(
-			`WARNING! Your config is using deprecated option(s): ${usedDeprecated.join(", ")}. Check README and Documentation for more up-to-date ways of getting the same functionality.`
-		);
+		Log.warn(`WARNING! Your config is using deprecated option(s): ${usedDeprecated.join(", ")}. Check README and Documentation for more up-to-date ways of getting the same functionality.`);
 	}
 
 	// check for deprecated module options
 	for (const element of userConfig.modules) {
-		if (
-			deprecated[element.module] !== undefined &&
-			element.config !== undefined
-		) {
+		if (deprecated[element.module] !== undefined && element.config !== undefined) {
 			const deprecatedModuleOptions = deprecated[element.module];
-			const usedDeprecatedModuleOptions = deprecatedModuleOptions.filter(
-				(option) => element.config.hasOwnProperty(option)
-			);
+			const usedDeprecatedModuleOptions = deprecatedModuleOptions.filter((option) => element.config.hasOwnProperty(option));
 			if (usedDeprecatedModuleOptions.length > 0) {
-				Log.warn(
-					`WARNING! Your config for module ${element.module} is using deprecated option(s): ${usedDeprecatedModuleOptions.join(", ")}. Check README and Documentation for more up-to-date ways of getting the same functionality.`
-				);
+				Log.warn(`WARNING! Your config for module ${element.module} is using deprecated option(s): ${usedDeprecatedModuleOptions.join(", ")}. Check README and Documentation for more up-to-date ways of getting the same functionality.`);
 			}
 		}
 	}
@@ -125,9 +110,7 @@ const loadConfig = () => {
 	// check if templateFile exists
 	try {
 		fs.accessSync(templateFile, fs.constants.F_OK);
-		Log.warn(
-			"config.js.template files are deprecated and not used anymore. You can use variables inside config.js so copy the template file content into config.js if needed."
-		);
+		Log.warn("config.js.template files are deprecated and not used anymore. You can use variables inside config.js so copy the template file content into config.js if needed.");
 	} catch {
 		// no action
 	}
@@ -146,85 +129,50 @@ const loadConfig = () => {
 	// Load config.js and catch errors if not accessible
 	try {
 		let configContent = fs.readFileSync(configFilename, "utf-8");
-		const hideConfigSecrets = configContent.match(
-			/^\s*hideConfigSecrets: true.*$/m
-		);
+		const hideConfigSecrets = configContent.match(/^\s*hideConfigSecrets: true.*$/m);
 		let configContentFull = configContent;
-		let configContentRedacted = hideConfigSecrets
-			? configContent
-			: undefined;
+		let configContentRedacted = hideConfigSecrets ? configContent : undefined;
 		Object.keys(process.env).forEach((env) => {
-			configContentFull = configContentFull.replaceAll(
-				`\${${env}}`,
-				process.env[env]
-			);
+			configContentFull = configContentFull.replaceAll(`\${${env}}`, process.env[env]);
 			if (hideConfigSecrets) {
 				if (env.startsWith("SECRET_")) {
-					configContentRedacted = configContentRedacted.replaceAll(
-						`"\${${env}}"`,
-						`"**${env}**"`
-					);
-					configContentRedacted = configContentRedacted.replaceAll(
-						`\${${env}}`,
-						`**${env}**`
-					);
+					configContentRedacted = configContentRedacted.replaceAll(`"\${${env}}"`, `"**${env}**"`);
+					configContentRedacted = configContentRedacted.replaceAll(`\${${env}}`, `**${env}**`);
 				} else {
-					configContentRedacted = configContentRedacted.replaceAll(
-						`\${${env}}`,
-						process.env[env]
-					);
+					configContentRedacted = configContentRedacted.replaceAll(`\${${env}}`, process.env[env]);
 				}
 			}
 		});
-		configContentRedacted = configContentRedacted
-			? configContentRedacted
-			: configContentFull;
+		configContentRedacted = configContentRedacted ? configContentRedacted : configContentFull;
 		const configObj = {
 			configFilename: configFilename,
 			configContentFull: configContentFull,
 			configContentRedacted: configContentRedacted,
-			redactedConf: Object.assign(
-				{},
-				defaults,
-				requireFromString(configContentRedacted)
-			),
-			fullConf: Object.assign(
-				{},
-				defaults,
-				requireFromString(configContentFull)
-			)
+			redactedConf: Object.assign({}, defaults, requireFromString(configContentRedacted)),
+			fullConf: Object.assign({}, defaults, requireFromString(configContentFull))
 		};
 
 		if (Object.keys(configObj.fullConf).length === 0) {
-			Log.error(
-				"WARNING! Config file appears empty, maybe missing module.exports last line?"
-			);
+			Log.error("WARNING! Config file appears empty, maybe missing module.exports last line?");
 		}
 		checkDeprecatedOptions(configObj.fullConf);
 
 		try {
 			const cfg = `let config = { basePath: "${configObj.fullConf.basePath}"};`;
-			fs.writeFileSync(
-				`${global.root_path}/config/basepath.js`,
-				cfg,
-				"utf-8"
-			);
+			fs.writeFileSync(`${global.root_path}/config/basepath.js`, cfg, "utf-8");
 		} catch (error) {
-			Log.error(
-				`Could not write config/basepath.js file: ${error.message}`
-			);
+			Log.error(`Could not write config/basepath.js file: ${error.message}`);
 		}
 
 		return configObj;
+
 	} catch (error) {
 		if (error.code === "ENOENT") {
 			Log.error(`Could not find config file: ${configFilename}`);
 		} else if (error.code === "EACCES") {
 			Log.error(`No permission to read config file: ${configFilename}`);
 		} else {
-			Log.error(
-				`Cannot access config file: ${configFilename}\n${error.message}`
-			);
+			Log.error(`Cannot access config file: ${configFilename}\n${error.message}`);
 		}
 		process.exit(1);
 	}
@@ -265,12 +213,7 @@ const checkConfigFile = (configObject) => {
 	);
 
 	if (errors.length === 0) {
-		Log.info(
-			styleText(
-				"green",
-				"Your configuration file doesn't contain syntax errors :)"
-			)
-		);
+		Log.info(styleText("green", "Your configuration file doesn't contain syntax errors :)"));
 		validateModulePositions(configObj.fullConf);
 	} else {
 		let errorMessage = "Your configuration file contains syntax errors :(";
@@ -320,23 +263,13 @@ const validateModulePositions = (data) => {
 
 	const valid = validate(data);
 	if (valid) {
-		Log.info(
-			styleText(
-				"green",
-				"Your modules structure configuration doesn't contain errors :)"
-			)
-		);
+		Log.info(styleText("green", "Your modules structure configuration doesn't contain errors :)"));
 
 		// Check for unknown positions (warning only, not an error)
 		if (data.modules) {
 			for (const [index, module] of data.modules.entries()) {
-				if (
-					module.position &&
-					!positionList.includes(module.position)
-				) {
-					Log.warn(
-						`Module ${index} ("${module.module}") uses unknown position: "${module.position}"`
-					);
+				if (module.position && !positionList.includes(module.position)) {
+					Log.warn(`Module ${index} ("${module.module}") uses unknown position: "${module.position}"`);
 					Log.warn(`Known positions are: ${positionList.join(", ")}`);
 				}
 			}
@@ -357,10 +290,4 @@ const validateModulePositions = (data) => {
 	}
 };
 
-module.exports = {
-	loadConfig,
-	getModulePositions,
-	moduleHasValidPosition,
-	getAvailableModulePositions,
-	checkConfigFile
-};
+module.exports = { loadConfig, getModulePositions, moduleHasValidPosition, getAvailableModulePositions, checkConfigFile };

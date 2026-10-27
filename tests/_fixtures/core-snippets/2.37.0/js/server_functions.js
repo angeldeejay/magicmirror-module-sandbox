@@ -12,7 +12,7 @@ const startUp = new Date();
  * @param {Request} req - the request
  * @param {Response} res - the result
  */
-function getStartup(req, res) {
+function getStartup (req, res) {
 	res.send(startUp);
 }
 
@@ -26,27 +26,22 @@ function getStartup(req, res) {
  * @param {Set<string>} [allowedSecrets] - Secret names that may be restored.
  * @returns {string} The input with the allowed placeholders replaced.
  */
-function replaceSecretPlaceholder(input, allowedSecrets) {
+function replaceSecretPlaceholder (input, allowedSecrets) {
 	if (global.config.cors === "allowAll") {
 		if (input.includes("**SECRET_")) {
-			Log.error(
-				"Replacing secrets doesn't work with CORS `allowAll`, you need to set `cors` to `disabled` or `allowWhitelist` in `config.js`"
-			);
+			Log.error("Replacing secrets doesn't work with CORS `allowAll`, you need to set `cors` to `disabled` or `allowWhitelist` in `config.js`");
 		}
 		return input;
 	}
-	return input.replaceAll(
-		/\*\*(SECRET_[^*]+)\*\*/g,
-		(placeholder, secretName) => {
-			// Block replacing secrets that are not explicitly allowed.
-			if (allowedSecrets && !allowedSecrets.has(secretName)) {
-				return placeholder;
-			}
-
-			// Load the real value from the environment. Fallback to placeholder if missing.
-			return process.env[secretName] || placeholder;
+	return input.replaceAll(/\*\*(SECRET_[^*]+)\*\*/g, (placeholder, secretName) => {
+		// Block replacing secrets that are not explicitly allowed.
+		if (allowedSecrets && !allowedSecrets.has(secretName)) {
+			return placeholder;
 		}
-	);
+
+		// Load the real value from the environment. Fallback to placeholder if missing.
+		return process.env[secretName] || placeholder;
+	});
 }
 
 /**
@@ -59,11 +54,9 @@ function replaceSecretPlaceholder(input, allowedSecrets) {
  * @param {Response} res - the result
  * @returns {Promise<void>} A promise that resolves when the response is sent
  */
-async function cors(req, res) {
+async function cors (req, res) {
 	if (global.config.cors === "disabled") {
-		Log.error(
-			"CORS is disabled, you need to enable it in `config.js` by setting `cors` to `allowAll` or `allowWhitelist`"
-		);
+		Log.error("CORS is disabled, you need to enable it in `config.js` by setting `cors` to `allowAll` or `allowWhitelist`");
 		return res.status(403).json({ error: "CORS proxy is disabled" });
 	}
 	let url;
@@ -89,44 +82,23 @@ async function cors(req, res) {
 				parsed = new URL(url);
 			} catch {
 				Log.warn(`SSRF blocked (invalid URL): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
 				Log.warn(`SSRF blocked (protocol): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 
 			// Block localhost by hostname before even creating the dispatcher (no DNS needed).
 			if (parsed.hostname.toLowerCase() === "localhost") {
 				Log.warn(`SSRF blocked (localhost): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 
 			// Whitelist check: if enabled, only allow explicitly listed domains
-			if (
-				global.config.cors === "allowWhitelist" &&
-				!global.config.corsDomainWhitelist.includes(
-					parsed.hostname.toLowerCase()
-				)
-			) {
+			if (global.config.cors === "allowWhitelist" && !global.config.corsDomainWhitelist.includes(parsed.hostname.toLowerCase())) {
 				Log.warn(`CORS blocked (not in whitelist): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: domain not in corsDomainWhitelist"
-					});
+				return res.status(403).json({ error: "Forbidden: domain not in corsDomainWhitelist" });
 			}
 
 			const headersToSend = getHeadersToSend(req.url);
@@ -136,34 +108,23 @@ async function cors(req, res) {
 			// Resolve DNS once and validate the IP. The validated IP is then pinned
 			// for the actual connection so fetch() cannot re-resolve to a different
 			// address. This prevents DNS rebinding / TOCTOU attacks (GHSA-xhvw-r95j-xm4v).
-			const { address, family } = await dns.promises.lookup(
-				parsed.hostname
-			);
+			const { address, family } = await dns.promises.lookup(parsed.hostname);
 			if (ipaddr.process(address).range() !== "unicast") {
 				Log.warn(`SSRF blocked: ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 
 			// Pin the validated IP — fetch() reuses it instead of doing its own DNS lookup
 			const dispatcher = new undici.Agent({
 				connect: {
 					lookup: (_h, _o, cb) => {
-						const addresses = [
-							{ address: address, family: family }
-						];
+						const addresses = [{ address: address, family: family }];
 						process.nextTick(() => cb(null, addresses));
 					}
 				}
 			});
 
-			const response = await undici.fetch(url, {
-				dispatcher,
-				headers: headersToSend
-			});
+			const response = await undici.fetch(url, { dispatcher, headers: headersToSend });
 			if (response.ok) {
 				for (const header of expectedReceivedHeaders) {
 					const headerValue = response.headers.get(header);
@@ -188,11 +149,9 @@ async function cors(req, res) {
  * @param {string} url - The url containing the headers and values to send.
  * @returns {object} An object specifying name and value of the headers.
  */
-function getHeadersToSend(url) {
+function getHeadersToSend (url) {
 	const headersToSend = { "User-Agent": getUserAgent() };
-	const headersToSendMatch = new RegExp("sendheaders=(.+?)(&|$)", "g").exec(
-		url
-	);
+	const headersToSendMatch = new RegExp("sendheaders=(.+?)(&|$)", "g").exec(url);
 	if (headersToSendMatch) {
 		const headers = headersToSendMatch[1].split(",");
 		for (const header of headers) {
@@ -211,12 +170,9 @@ function getHeadersToSend(url) {
  * @param {string} url - The url containing the expected headers from the response.
  * @returns {string[]} headers - The name of the expected headers.
  */
-function geExpectedReceivedHeaders(url) {
+function geExpectedReceivedHeaders (url) {
 	const expectedReceivedHeaders = ["Content-Type"];
-	const expectedReceivedHeadersMatch = new RegExp(
-		"expectedheaders=(.+?)(&|$)",
-		"g"
-	).exec(url);
+	const expectedReceivedHeadersMatch = new RegExp("expectedheaders=(.+?)(&|$)", "g").exec(url);
 	if (expectedReceivedHeadersMatch) {
 		const headers = expectedReceivedHeadersMatch[1].split(",");
 		for (const header of headers) {
@@ -231,10 +187,8 @@ function geExpectedReceivedHeaders(url) {
  * @param {Request} req - the request
  * @param {Response} res - the result
  */
-function getHtml(req, res) {
-	let html = fs.readFileSync(path.resolve(`${global.root_path}/index.html`), {
-		encoding: "utf8"
-	});
+function getHtml (req, res) {
+	let html = fs.readFileSync(path.resolve(`${global.root_path}/index.html`), { encoding: "utf8" });
 	html = html.replace("#VERSION#", global.version);
 	html = html.replace("#TESTMODE#", global.mmTestMode);
 
@@ -246,7 +200,7 @@ function getHtml(req, res) {
  * @param {Request} req - the request
  * @param {Response} res - the result
  */
-function getVersion(req, res) {
+function getVersion (req, res) {
 	res.send(global.version);
 }
 
@@ -254,7 +208,7 @@ function getVersion(req, res) {
  * Gets the preferred `User-Agent`
  * @returns {string} `User-Agent` to be used
  */
-function getUserAgent() {
+function getUserAgent () {
 	const defaultUserAgent = `Mozilla/5.0 (Node.js ${Number(process.version.match(/^v(\d+\.\d+)/)[1])}) MagicMirror/${global.version}`;
 
 	if (typeof global.config === "undefined") {
@@ -275,23 +229,13 @@ function getUserAgent() {
  * Gets environment variables needed in the browser.
  * @returns {object} environment variables key: values
  */
-function getEnvVarsAsObj() {
-	const obj = {
-		modulesDir: `${global.config.foreignModulesDir}`,
-		defaultModulesDir: `${global.config.defaultModulesDir}`,
-		customCss: `${global.config.customCss}`
-	};
+function getEnvVarsAsObj () {
+	const obj = { modulesDir: `${global.config.foreignModulesDir}`, defaultModulesDir: `${global.config.defaultModulesDir}`, customCss: `${global.config.customCss}` };
 	if (process.env.MM_MODULES_DIR) {
-		obj.modulesDir = process.env.MM_MODULES_DIR.replace(
-			`${global.root_path}/`,
-			""
-		);
+		obj.modulesDir = process.env.MM_MODULES_DIR.replace(`${global.root_path}/`, "");
 	}
 	if (process.env.MM_CUSTOMCSS_FILE) {
-		obj.customCss = process.env.MM_CUSTOMCSS_FILE.replace(
-			`${global.root_path}/`,
-			""
-		);
+		obj.customCss = process.env.MM_CUSTOMCSS_FILE.replace(`${global.root_path}/`, "");
 	}
 
 	return obj;
@@ -302,7 +246,7 @@ function getEnvVarsAsObj() {
  * @param {Request} req - the request
  * @param {Response} res - the result
  */
-function getEnvVars(req, res) {
+function getEnvVars (req, res) {
 	const obj = getEnvVarsAsObj();
 	res.send(obj);
 }
@@ -311,7 +255,7 @@ function getEnvVars(req, res) {
  * Get the config file path from environment or default location
  * @returns {string} The absolute config file path
  */
-function getConfigFilePath() {
+function getConfigFilePath () {
 	// Ensure root_path is set (for standalone contexts like watcher)
 	if (!global.root_path) {
 		global.root_path = path.resolve(`${__dirname}/../`);
@@ -322,19 +266,7 @@ function getConfigFilePath() {
 		global.configuration_file = process.env.MM_CONFIG_FILE;
 	}
 
-	return path.resolve(
-		global.configuration_file || `${global.root_path}/config/config.js`
-	);
+	return path.resolve(global.configuration_file || `${global.root_path}/config/config.js`);
 }
 
-module.exports = {
-	cors,
-	getHtml,
-	getVersion,
-	getStartup,
-	getEnvVars,
-	getEnvVarsAsObj,
-	getUserAgent,
-	getConfigFilePath,
-	replaceSecretPlaceholder
-};
+module.exports = { cors, getHtml, getVersion, getStartup, getEnvVars, getEnvVarsAsObj, getUserAgent, getConfigFilePath, replaceSecretPlaceholder };

@@ -1,6 +1,7 @@
 // Files under these prefixes are verbatim copies of MagicMirror core files
 // (and their sha256 manifest). Any formatter or autofixer would change their
 // bytes and break the reviewed hashes, so they never reach eslint --fix.
+// The pre-commit hook passes --config to this file because the fixtures contain MagicMirror's own package.json with a lint-staged block, which lint-staged would otherwise apply to them as the closest config.
 const PROTECTED_PREFIX = "/tests/_fixtures/core-snippets/";
 
 /**

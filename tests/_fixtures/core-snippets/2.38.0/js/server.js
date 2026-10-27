@@ -7,20 +7,11 @@ const helmet = require("helmet");
 const socketio = require("socket.io");
 const Log = require("logger");
 
-const {
-	ipAccessControl,
-	socketIpAccessControl
-} = require("./ip_access_control");
+const { ipAccessControl, socketIpAccessControl } = require("./ip_access_control");
 
 const vendor = require("./vendor");
 
-const {
-	getHtml,
-	getVersion,
-	getEnvVars,
-	getServerPort,
-	cors
-} = require("#server_functions");
+const { getHtml, getVersion, getEnvVars, getServerPort, cors } = require("#server_functions");
 
 /**
  * Server
@@ -41,7 +32,7 @@ class Server {
 	/**
 	 * @param {object} configObj The MM config full and redacted
 	 */
-	constructor(configObj) {
+	constructor (configObj) {
 		this.#configObj = configObj;
 		this.#config = configObj.fullConf;
 		this.#app = express();
@@ -52,7 +43,7 @@ class Server {
 	 * Opens the server for incoming connections
 	 * @returns {Promise} A promise that is resolved when the server listens to connections
 	 */
-	open() {
+	open () {
 		const config = this.#config;
 		const app = this.#app;
 		const port = this.#port;
@@ -70,10 +61,7 @@ class Server {
 				this.#server = http.Server(app);
 			}
 			const io = socketio(this.#server, {
-				allowRequest: socketIpAccessControl(
-					config.ipWhitelist,
-					config.trustedProxies
-				),
+				allowRequest: socketIpAccessControl(config.ipWhitelist, config.trustedProxies),
 				allowEIO3: true,
 				pingInterval: 120000, // server → client ping every 2 mins
 				pingTimeout: 120000 // wait up to 2 mins for client pong
@@ -112,13 +100,8 @@ class Server {
 
 			this.#server.listen(port, config.address || "localhost");
 
-			if (
-				config.ipWhitelist instanceof Array &&
-				config.ipWhitelist.length === 0
-			) {
-				Log.warn(
-					"You're using a full whitelist configuration to allow for all IPs"
-				);
+			if (config.ipWhitelist instanceof Array && config.ipWhitelist.length === 0) {
+				Log.warn("You're using a full whitelist configuration to allow for all IPs");
 			}
 
 			app.use(ipAccessControl(config.ipWhitelist, config.trustedProxies));
@@ -132,32 +115,15 @@ class Server {
 			app.get("/config/config.env", getConfigFileError("config.env"));
 			app.get("/config/config.js", getConfigFileError("config.js"));
 
-			const directories = [
-				"/config",
-				"/css",
-				"/favicon.svg",
-				"/defaultmodules",
-				"/modules",
-				"/node_modules/animate.css",
-				"/node_modules/@fontsource",
-				"/node_modules/@fortawesome",
-				"/node_modules/suncalc",
-				"/translations",
-				"/tests/configs",
-				"/tests/mocks"
-			];
+			const directories = ["/config", "/css", "/favicon.svg", "/defaultmodules", "/modules", "/node_modules/animate.css", "/node_modules/@fontsource", "/node_modules/@fortawesome", "/node_modules/suncalc", "/translations", "/tests/configs", "/tests/mocks"];
 			for (const value of Object.values(vendor)) {
 				const dirArr = value.split("/");
-				if (dirArr[0] === "node_modules")
-					directories.push(`/${dirArr[0]}/${dirArr[1]}`);
+				if (dirArr[0] === "node_modules") directories.push(`/${dirArr[0]}/${dirArr[1]}`);
 			}
 			const uniqDirs = [...new Set(directories)];
 
 			for (const directory of uniqDirs) {
-				app.use(
-					directory,
-					express.static(path.resolve(global.root_path + directory))
-				);
+				app.use(directory, express.static(path.resolve(global.root_path + directory)));
 			}
 
 			const startUp = new Date();
@@ -211,7 +177,7 @@ class Server {
 	 * Closes the server and destroys all lingering connections to it.
 	 * @returns {Promise} A promise that resolves when server has successfully shut down
 	 */
-	close() {
+	close () {
 		return new Promise((resolve) => {
 			for (const socket of this.#serverSockets.values()) {
 				socket.destroy();

@@ -23,13 +23,7 @@ const defaults = {
 	hideConfigSecrets: false,
 	// httpHeaders used by helmet, see https://helmetjs.github.io/. You can add other/more object values by overriding this in config.js,
 	// e.g. you need to add `frameguard: false` for embedding MagicMirror in another website, see https://github.com/MagicMirrorOrg/MagicMirror/issues/2847
-	httpHeaders: {
-		contentSecurityPolicy: false,
-		crossOriginOpenerPolicy: false,
-		crossOriginEmbedderPolicy: false,
-		crossOriginResourcePolicy: false,
-		originAgentCluster: false
-	},
+	httpHeaders: { contentSecurityPolicy: false, crossOriginOpenerPolicy: false, crossOriginEmbedderPolicy: false, crossOriginResourcePolicy: false, originAgentCluster: false },
 
 	// properties for checking if server is alive and has same startup-timestamp, the check is per default enabled
 	// (interval 30 seconds). If startup-timestamp has changed the client reloads the magicmirror webpage.
@@ -69,10 +63,7 @@ const defaults = {
 			position: "middle_center",
 			classes: "xsmall",
 			config: {
-				text:
-					"If you get this message while your config file is already created,<br>" +
-					"it probably contains an error. To validate your config file run in your MagicMirror² directory<br>" +
-					"<pre>node --run config:check</pre>"
+				text: "If you get this message while your config file is already created,<br>" + "it probably contains an error. To validate your config file run in your MagicMirror² directory<br>" + "<pre>node --run config:check</pre>"
 			}
 		},
 		{

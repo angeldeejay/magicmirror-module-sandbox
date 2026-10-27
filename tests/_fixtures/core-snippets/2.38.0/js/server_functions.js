@@ -29,24 +29,19 @@ const getStartup = (req, res) => {
 const replaceSecretPlaceholder = (input, allowedSecrets) => {
 	if (global.config.cors === "allowAll") {
 		if (input.includes("**SECRET_")) {
-			Log.error(
-				"Replacing secrets doesn't work with CORS `allowAll`, you need to set `cors` to `disabled` or `allowWhitelist` in `config.js`"
-			);
+			Log.error("Replacing secrets doesn't work with CORS `allowAll`, you need to set `cors` to `disabled` or `allowWhitelist` in `config.js`");
 		}
 		return input;
 	}
-	return input.replaceAll(
-		/\*\*(SECRET_[^*]+)\*\*/g,
-		(placeholder, secretName) => {
-			// Block replacing secrets that are not explicitly allowed.
-			if (allowedSecrets && !allowedSecrets.has(secretName)) {
-				return placeholder;
-			}
-
-			// Load the real value from the environment. Fallback to placeholder if missing.
-			return process.env[secretName] || placeholder;
+	return input.replaceAll(/\*\*(SECRET_[^*]+)\*\*/g, (placeholder, secretName) => {
+		// Block replacing secrets that are not explicitly allowed.
+		if (allowedSecrets && !allowedSecrets.has(secretName)) {
+			return placeholder;
 		}
-	);
+
+		// Load the real value from the environment. Fallback to placeholder if missing.
+		return process.env[secretName] || placeholder;
+	});
 };
 
 /**
@@ -61,9 +56,7 @@ const replaceSecretPlaceholder = (input, allowedSecrets) => {
  */
 const cors = async (req, res) => {
 	if (global.config.cors === "disabled") {
-		Log.error(
-			"CORS is disabled, you need to enable it in `config.js` by setting `cors` to `allowAll` or `allowWhitelist`"
-		);
+		Log.error("CORS is disabled, you need to enable it in `config.js` by setting `cors` to `allowAll` or `allowWhitelist`");
 		return res.status(403).json({ error: "CORS proxy is disabled" });
 	}
 	let url;
@@ -77,8 +70,7 @@ const cors = async (req, res) => {
 			return res.status(400).send(url);
 		} else {
 			url = match[1];
-			if (typeof global.config !== "undefined")
-				url = replaceSecretPlaceholder(url);
+			if (typeof global.config !== "undefined") url = replaceSecretPlaceholder(url);
 
 			// Validate protocol before attempting connection (non-http/https are never allowed)
 			let parsed;
@@ -86,44 +78,23 @@ const cors = async (req, res) => {
 				parsed = new URL(url);
 			} catch {
 				Log.warn(`SSRF blocked (invalid URL): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 			if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
 				Log.warn(`SSRF blocked (protocol): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 
 			// Block localhost by hostname before even creating the dispatcher (no DNS needed).
 			if (parsed.hostname.toLowerCase() === "localhost") {
 				Log.warn(`SSRF blocked (localhost): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 
 			// Whitelist check: if enabled, only allow explicitly listed domains
-			if (
-				global.config.cors === "allowWhitelist" &&
-				!global.config.corsDomainWhitelist.includes(
-					parsed.hostname.toLowerCase()
-				)
-			) {
+			if (global.config.cors === "allowWhitelist" && !global.config.corsDomainWhitelist.includes(parsed.hostname.toLowerCase())) {
 				Log.warn(`CORS blocked (not in whitelist): ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: domain not in corsDomainWhitelist"
-					});
+				return res.status(403).json({ error: "Forbidden: domain not in corsDomainWhitelist" });
 			}
 
 			const headersToSend = getHeadersToSend(req.url);
@@ -133,34 +104,23 @@ const cors = async (req, res) => {
 			// Resolve DNS once and validate the IP. The validated IP is then pinned
 			// for the actual connection so fetch() cannot re-resolve to a different
 			// address. This prevents DNS rebinding / TOCTOU attacks (GHSA-xhvw-r95j-xm4v).
-			const { address, family } = await dns.promises.lookup(
-				parsed.hostname
-			);
+			const { address, family } = await dns.promises.lookup(parsed.hostname);
 			if (ipaddr.process(address).range() !== "unicast") {
 				Log.warn(`SSRF blocked: ${url}`);
-				return res
-					.status(403)
-					.json({
-						error: "Forbidden: private or reserved addresses are not allowed"
-					});
+				return res.status(403).json({ error: "Forbidden: private or reserved addresses are not allowed" });
 			}
 
 			// Pin the validated IP — fetch() reuses it instead of doing its own DNS lookup
 			const dispatcher = new undici.Agent({
 				connect: {
 					lookup: (_h, _o, cb) => {
-						const addresses = [
-							{ address: address, family: family }
-						];
+						const addresses = [{ address: address, family: family }];
 						process.nextTick(() => cb(null, addresses));
 					}
 				}
 			});
 
-			const response = await undici.fetch(url, {
-				dispatcher,
-				headers: headersToSend
-			});
+			const response = await undici.fetch(url, { dispatcher, headers: headersToSend });
 			if (response.ok) {
 				for (const header of expectedReceivedHeaders) {
 					const headerValue = response.headers.get(header);
@@ -187,9 +147,7 @@ const cors = async (req, res) => {
  */
 const getHeadersToSend = (url) => {
 	const headersToSend = { "User-Agent": getUserAgent() };
-	const headersToSendMatch = new RegExp("sendheaders=(.+?)(&|$)", "g").exec(
-		url
-	);
+	const headersToSendMatch = new RegExp("sendheaders=(.+?)(&|$)", "g").exec(url);
 	if (headersToSendMatch) {
 		const headers = headersToSendMatch[1].split(",");
 		for (const header of headers) {
@@ -210,10 +168,7 @@ const getHeadersToSend = (url) => {
  */
 const geExpectedReceivedHeaders = (url) => {
 	const expectedReceivedHeaders = ["Content-Type"];
-	const expectedReceivedHeadersMatch = new RegExp(
-		"expectedheaders=(.+?)(&|$)",
-		"g"
-	).exec(url);
+	const expectedReceivedHeadersMatch = new RegExp("expectedheaders=(.+?)(&|$)", "g").exec(url);
 	if (expectedReceivedHeadersMatch) {
 		const headers = expectedReceivedHeadersMatch[1].split(",");
 		for (const header of headers) {
@@ -229,9 +184,7 @@ const geExpectedReceivedHeaders = (url) => {
  * @param {Response} res - the result
  */
 const getHtml = (req, res) => {
-	let html = fs.readFileSync(path.resolve(`${global.root_path}/index.html`), {
-		encoding: "utf8"
-	});
+	let html = fs.readFileSync(path.resolve(`${global.root_path}/index.html`), { encoding: "utf8" });
 	html = html.replace("#VERSION#", global.version);
 	html = html.replace("#TESTMODE#", global.mmTestMode);
 
@@ -273,22 +226,12 @@ const getUserAgent = () => {
  * @returns {object} environment variables key: values
  */
 const getEnvVarsAsObj = () => {
-	const obj = {
-		modulesDir: `${global.config.foreignModulesDir}`,
-		defaultModulesDir: `${global.config.defaultModulesDir}`,
-		customCss: `${global.config.customCss}`
-	};
+	const obj = { modulesDir: `${global.config.foreignModulesDir}`, defaultModulesDir: `${global.config.defaultModulesDir}`, customCss: `${global.config.customCss}` };
 	if (process.env.MM_MODULES_DIR) {
-		obj.modulesDir = process.env.MM_MODULES_DIR.replace(
-			`${global.root_path}/`,
-			""
-		);
+		obj.modulesDir = process.env.MM_MODULES_DIR.replace(`${global.root_path}/`, "");
 	}
 	if (process.env.MM_CUSTOMCSS_FILE) {
-		obj.customCss = process.env.MM_CUSTOMCSS_FILE.replace(
-			`${global.root_path}/`,
-			""
-		);
+		obj.customCss = process.env.MM_CUSTOMCSS_FILE.replace(`${global.root_path}/`, "");
 	}
 
 	return obj;
@@ -329,20 +272,7 @@ const getConfigFilePath = () => {
 		global.configuration_file = process.env.MM_CONFIG_FILE;
 	}
 
-	return path.resolve(
-		global.configuration_file || `${global.root_path}/config/config.js`
-	);
+	return path.resolve(global.configuration_file || `${global.root_path}/config/config.js`);
 };
 
-module.exports = {
-	cors,
-	getHtml,
-	getVersion,
-	getStartup,
-	getEnvVars,
-	getEnvVarsAsObj,
-	getUserAgent,
-	getServerPort,
-	getConfigFilePath,
-	replaceSecretPlaceholder
-};
+module.exports = { cors, getHtml, getVersion, getStartup, getEnvVars, getEnvVarsAsObj, getUserAgent, getServerPort, getConfigFilePath, replaceSecretPlaceholder };

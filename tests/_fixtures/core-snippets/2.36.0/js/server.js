@@ -18,7 +18,7 @@ const { getHtml, getVersion, getEnvVars, cors } = require("#server_functions");
  * @param {object} configObj The MM config full and redacted
  * @class
  */
-function Server(configObj) {
+function Server (configObj) {
 	const config = configObj.fullConf;
 	const app = express();
 	const port = process.env.MM_PORT || config.port;
@@ -83,13 +83,8 @@ function Server(configObj) {
 
 			server.listen(port, config.address || "localhost");
 
-			if (
-				config.ipWhitelist instanceof Array &&
-				config.ipWhitelist.length === 0
-			) {
-				Log.warn(
-					"You're using a full whitelist configuration to allow for all IPs"
-				);
+			if (config.ipWhitelist instanceof Array && config.ipWhitelist.length === 0) {
+				Log.warn("You're using a full whitelist configuration to allow for all IPs");
 			}
 
 			app.use(ipAccessControl(config.ipWhitelist));
@@ -98,45 +93,25 @@ function Server(configObj) {
 
 			if (config.hideConfigSecrets) {
 				app.get("/config/config.env", (req, res) => {
-					res.status(404).send(
-						'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /config/config.env</pre>\n</body>\n</html>'
-					);
+					res.status(404).send("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot GET /config/config.env</pre>\n</body>\n</html>");
 				});
 			}
 
-			let directories = [
-				"/config",
-				"/css",
-				"/favicon.svg",
-				"/defaultmodules",
-				"/modules",
-				"/node_modules/animate.css",
-				"/node_modules/@fontsource",
-				"/node_modules/@fortawesome",
-				"/translations",
-				"/tests/configs",
-				"/tests/mocks"
-			];
+			let directories = ["/config", "/css", "/favicon.svg", "/defaultmodules", "/modules", "/node_modules/animate.css", "/node_modules/@fontsource", "/node_modules/@fortawesome", "/translations", "/tests/configs", "/tests/mocks"];
 			for (const value of Object.values(vendor)) {
 				const dirArr = value.split("/");
-				if (dirArr[0] === "node_modules")
-					directories.push(`/${dirArr[0]}/${dirArr[1]}`);
+				if (dirArr[0] === "node_modules") directories.push(`/${dirArr[0]}/${dirArr[1]}`);
 			}
 			const uniqDirs = [...new Set(directories)];
 			for (const directory of uniqDirs) {
-				app.use(
-					directory,
-					express.static(path.resolve(global.root_path + directory))
-				);
+				app.use(directory, express.static(path.resolve(global.root_path + directory)));
 			}
 
 			const startUp = new Date();
 			const getStartup = (req, res) => res.send(startUp);
 
 			const getConfig = (req, res) => {
-				const obj = config.hideConfigSecrets
-					? configObj.redactedConf
-					: configObj.fullConf;
+				const obj = config.hideConfigSecrets ? configObj.redactedConf : configObj.fullConf;
 				// Functions can't survive JSON.stringify, so we wrap them in a
 				// tagged object { __mmFunction: "<source>" }. The client-side
 				// JSON reviver in main.js recognises this tag and reconstructs
