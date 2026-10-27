@@ -202,6 +202,10 @@ export default defineConfig(async () => {
 					extends: true,
 					test: {
 						name: "ui",
+						// Cores the cross-version real-core stage tests run on.
+						provide: {
+							stageCoreMatrix: availableCores()
+						},
 						include: [
 							path.posix.join(
 								"tests",

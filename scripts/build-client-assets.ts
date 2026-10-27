@@ -25,6 +25,15 @@ const generatedRoot = path.join(clientRoot, "generated");
 const nodeRequire = createRequire(import.meta.url);
 const stylesInputPath = path.join(clientRoot, "scss", "entrypoint.scss");
 const stylesOutputPath = path.join(clientRoot, "styles", "harness.css");
+const stageIsolationInputPath = path.join(
+	clientRoot,
+	"scss",
+	"stage-isolation.scss"
+);
+const stageIsolationOutputPath = path.join(
+	generatedRoot,
+	"stage-isolation.css"
+);
 const runtimeEntryPoints = [
 	path.join(clientRoot, "runtime.ts"),
 	...collectTypeScriptEntries(path.join(clientRoot, "runtime")),
@@ -225,6 +234,20 @@ function buildStyles(): void {
 	});
 	ensureDirectory(path.dirname(stylesOutputPath));
 	fs.writeFileSync(stylesOutputPath, result.css, "utf8");
+	buildStageIsolationStyles();
+}
+
+/**
+ * Compiles the real-core stage isolation stylesheet, which the stage page
+ * links from its injection block (`/__harness/generated/stage-isolation.css`).
+ */
+function buildStageIsolationStyles(): void {
+	const result = sass.compile(stageIsolationInputPath, {
+		style: "compressed",
+		sourceMap: false
+	});
+	ensureDirectory(generatedRoot);
+	fs.writeFileSync(stageIsolationOutputPath, result.css, "utf8");
 }
 
 /**
