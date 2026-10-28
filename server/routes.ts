@@ -26,6 +26,7 @@ import {
 	setActiveVersion
 } from "./mm-version-manager.ts";
 import { registerStageRoutes } from "./stage/stage-routes.ts";
+import { emitStageHarnessReload } from "./stage/stage-socket.ts";
 
 type ConfigService = {
 	getAvailableLanguages: () => Array<Record<string, unknown>>;
@@ -63,8 +64,11 @@ type RuntimeService = {
 	harnessRoot: string;
 	/** Maintainer flag `--real-core-stage`: serve the real core at `/__stage/`. */
 	realCoreStage?: boolean;
-	/** Sends the core root-namespace `RELOAD` on the stage socket server. */
-	emitStageReload?: () => void;
+	/**
+	 * Sends the core root-namespace `RELOAD` on the stage socket server when a
+	 * core page listens; returns whether it was sent.
+	 */
+	emitStageReload?: () => boolean;
 };
 
 type AnalysisService = {
@@ -127,14 +131,17 @@ async function registerRoutes({
 	const harnessConfig = getHarnessConfig();
 
 	/**
-	 * Emits `harness:reload` to the shell; with the real-core stage, also sends
-	 * the core its own root-namespace `RELOAD`.
+	 * Emits `harness:reload` to the shell. With the real-core stage, the core's
+	 * own root-namespace `RELOAD` reloads the stage whenever a core page
+	 * listens, and the shell leaves the frame alone (see
+	 * `emitStageHarnessReload`).
 	 */
 	const emitHarnessReload = (payload: Record<string, unknown>): void => {
-		io.emit("harness:reload", payload);
-		if (realCoreStage) {
-			emitStageReload?.();
-		}
+		emitStageHarnessReload(
+			io,
+			payload,
+			realCoreStage ? emitStageReload : undefined
+		);
 	};
 
 	await app.register(fastifyStatic, {

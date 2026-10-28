@@ -295,12 +295,16 @@ export function createSandboxBrowserCommands(suiteName) {
 	 */
 	async function gotoRealCoreStage(
 		context,
-		options: { coreKey?: string | null } = {}
+		options: { coreKey?: string | null; privateCoreHome?: string } = {}
 	) {
 		const runtime = await runtimeController.getLiveRuntimeForContext(
 			context,
 			"coreKey" in options
-				? { realCoreStage: true, coreKey: options.coreKey }
+				? {
+						realCoreStage: true,
+						coreKey: options.coreKey,
+						privateCoreHome: options.privateCoreHome
+					}
 				: { realCoreStage: true }
 		);
 		writeFixtureStylesheet(runtime.fixtureStylePath);

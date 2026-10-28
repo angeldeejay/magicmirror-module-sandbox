@@ -5,6 +5,14 @@
 	const core = globalScope.__MICROCORE__;
 	const SHELL_SOURCE = "module-sandbox-shell";
 	const STAGE_SOURCE = "module-sandbox-stage";
+	/**
+	 * How long the shell waits for the stage document to reload after the
+	 * core took a reload (`reloadedBy: "core"`) before it reloads the frame
+	 * itself. Writable for tests.
+	 */
+	core.coreReloadFallbackMs = 5000;
+	/** Pending fallback for a core-driven reload, cleared by the frame load. */
+	let coreReloadFallbackTimer = null;
 
 	/**
 	 * Resolve the viewport iframe element.
@@ -448,6 +456,26 @@
 				}
 
 				core.showBackdrop("Loading\u2026");
+				// Real-core stage: the core's own root-socket RELOAD already
+				// reloads the stage, as on a mirror. Navigating the frame too
+				// would boot it twice (server/stage/stage-socket.ts
+				// `emitStageHarnessReload`).
+				// If no document loads in time, the RELOAD reached no listener of
+				// this stage (another tab's core took it, or the socket belonged
+				// to a document that was already unloading): reload the frame so
+				// the stage never stays stuck behind the backdrop.
+				if (payload && payload.reloadedBy === "core") {
+					globalScope.clearTimeout(coreReloadFallbackTimer);
+					coreReloadFallbackTimer = globalScope.setTimeout(() => {
+						coreReloadFallbackTimer = null;
+						core.reloadStage(
+							typeof payload.version === "string"
+								? payload.version
+								: undefined
+						);
+					}, core.coreReloadFallbackMs);
+					return;
+				}
 				core.reloadStage(
 					payload && typeof payload.version === "string"
 						? payload.version
@@ -474,10 +502,17 @@
 
 		if (frame) {
 			frame.addEventListener("load", () => {
+				// The stage reloaded, whoever drove it: no fallback needed.
+				globalScope.clearTimeout(coreReloadFallbackTimer);
+				coreReloadFallbackTimer = null;
 				core.stageReady = false;
 				core.bootComplete = false;
-				// The reloaded stage reports its own version again.
+				// The reloaded stage reports its own version again; until it
+				// does, the badge must not keep the previous document's.
 				core.stageMmVersion = undefined;
+				globalScope.dispatchEvent(
+					new CustomEvent("module-sandbox:stage-reloaded")
+				);
 				globalScope.setTimeout(() => {
 					core.requestStageSnapshot();
 				}, 0);

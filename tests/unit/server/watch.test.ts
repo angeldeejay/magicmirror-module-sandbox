@@ -186,11 +186,14 @@ test("startModuleWatcher: io.emit scope is always 'stage' for any module file ch
 	assert.equal(payload.scope, "stage");
 });
 
-test("startModuleWatcher: with the real-core stage, every stage harness:reload also sends the core RELOAD", async () => {
+test("startModuleWatcher: with the real-core stage, the core RELOAD reloads the stage when a core page listens", async () => {
 	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const order: string[] = [];
 	const io = { emit: vi.fn((name: string) => order.push(name)) };
-	const emitStageReload = vi.fn(() => order.push("RELOAD"));
+	const emitStageReload = vi.fn(() => {
+		order.push("RELOAD");
+		return true;
+	});
 	startModuleWatcher({
 		...makeModuleWatcherOptions(),
 		io,
@@ -209,11 +212,38 @@ test("startModuleWatcher: with the real-core stage, every stage harness:reload a
 	);
 
 	assert.deepEqual(order, [
-		"harness:reload",
 		"RELOAD",
 		"harness:reload",
-		"RELOAD"
+		"RELOAD",
+		"harness:reload"
 	]);
+	for (const [, payload] of io.emit.mock.calls) {
+		assert.equal(payload.scope, "stage");
+		assert.equal(payload.reloadedBy, "core");
+	}
+});
+
+test("startModuleWatcher: with the real-core stage and no core page listening, the shell reloads the stage", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const io = { emit: vi.fn() };
+	const emitStageReload = vi.fn(() => false);
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		io,
+		emitStageReload
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.js")
+	);
+
+	assert.equal(emitStageReload.mock.calls.length, 1);
+	const [eventName, payload] = io.emit.mock.calls[0];
+	assert.equal(eventName, "harness:reload");
+	assert.equal(payload.scope, "stage");
+	assert.equal("reloadedBy" in payload, false);
 });
 
 test("startModuleWatcher: without the real-core stage, reloads emit only harness:reload", async () => {

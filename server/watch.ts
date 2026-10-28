@@ -11,6 +11,7 @@ import * as fs from "node:fs";
 import ignore from "ignore";
 import * as path from "pathe";
 import { configRoot, harnessRoot, repoRoot } from "./paths.ts";
+import { emitStageHarnessReload } from "./stage/stage-socket.ts";
 
 /**
  * Normalizes a chokidar-delivered file path to forward slashes + lowercase for
@@ -213,9 +214,10 @@ function startModuleWatcher({
 	restartHelper: () => Promise<void>;
 	/**
 	 * With the real-core stage (`--real-core-stage`), sends the core its own
-	 * root-namespace `RELOAD` next to every stage `harness:reload`.
+	 * root-namespace `RELOAD` for every stage reload when a core page listens,
+	 * returning whether it was sent (see `emitStageHarnessReload`).
 	 */
-	emitStageReload?: () => void;
+	emitStageReload?: () => boolean;
 }): import("chokidar").FSWatcher {
 	loadModuleGitignore();
 
@@ -274,13 +276,16 @@ function startModuleWatcher({
 						await restartHelper();
 					}
 
-					io.emit("harness:reload", {
-						event: eventName,
-						file: relativePath || filePath,
-						scope: "stage",
-						version: reloadVersion
-					});
-					emitStageReload?.();
+					emitStageHarnessReload(
+						io,
+						{
+							event: eventName,
+							file: relativePath || filePath,
+							scope: "stage",
+							version: reloadVersion
+						},
+						emitStageReload
+					);
 				} catch (err) {
 					console.error("[module-sandbox] module watcher error", err);
 				}

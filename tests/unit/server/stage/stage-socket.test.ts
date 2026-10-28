@@ -7,9 +7,10 @@ import * as path from "node:path";
 import type { AddressInfo } from "node:net";
 import { createRequire } from "node:module";
 import { Server } from "socket.io";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
 	createStageSocketServer,
+	emitStageHarnessReload,
 	WebsocketLogEntry
 } from "../../../../server/stage/stage-socket.ts";
 
@@ -160,8 +161,45 @@ describe("stage socket server", () => {
 			client.on("connect", () => resolve())
 		);
 		const reload = new Promise((resolve) => client.on("RELOAD", resolve));
-		stage.emitReload();
+		expect(stage.emitReload()).toBe(true);
 		await reload;
+	});
+
+	test("emitReload sends nothing when no core page listens on the root namespace", async () => {
+		const { port, stage } = await boot();
+		stage.io.of(`/${MODULE_NAME}`);
+		// A module socket alone does not carry the core's RELOAD listener.
+		const moduleClient = connect(`http://127.0.0.1:${port}/${MODULE_NAME}`, {
+			path: "/__stage/socket.io",
+			transports: ["websocket"]
+		});
+		cleanups.push(() => void moduleClient.close());
+		await new Promise<void>((resolve) =>
+			moduleClient.on("connect", () => resolve())
+		);
+		let reloads = 0;
+		moduleClient.on("RELOAD", () => {
+			reloads += 1;
+		});
+
+		expect(stage.emitReload()).toBe(false);
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		expect(reloads).toBe(0);
+	});
+
+	test("emitStageHarnessReload marks a reload the core performs", () => {
+		const shellIo = { emit: vi.fn() };
+		const payload = { scope: "stage", version: "v1" };
+
+		emitStageHarnessReload(shellIo, payload, () => true);
+		emitStageHarnessReload(shellIo, payload, () => false);
+		emitStageHarnessReload(shellIo, payload);
+
+		expect(shellIo.emit.mock.calls).toEqual([
+			["harness:reload", { ...payload, reloadedBy: "core" }],
+			["harness:reload", payload],
+			["harness:reload", payload]
+		]);
 	});
 
 	test("WebsocketLogEntry rejects malformed entries", () => {

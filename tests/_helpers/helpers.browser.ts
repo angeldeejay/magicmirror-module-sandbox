@@ -37,13 +37,15 @@ export async function gotoSandbox() {
  * `coreKey` pins the core (an mmvm version key, or null for the built-in
  * core; see `tests/_helpers/core-matrix.ts`) and restarts the server when it
  * differs from the running one. Omitted, the server follows the maintainer's
- * own `~/.mmvm/active`.
+ * own `~/.mmvm/active`. A test that switches the active core at runtime also
+ * passes `privateCoreHome`, so the switch stays in a home of its own instead
+ * of the one shared by every server pinned to the same core.
  *
- * @param {{ coreKey?: string | null }} [options]
+ * @param {{ coreKey?: string | null, privateCoreHome?: string }} [options]
  * @returns {Promise<void>}
  */
 export async function gotoRealCoreStage(
-	options: { coreKey?: string | null } = {}
+	options: { coreKey?: string | null; privateCoreHome?: string } = {}
 ) {
 	await commands.sandboxGotoRealCoreStage(options);
 }

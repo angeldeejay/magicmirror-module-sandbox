@@ -358,3 +358,101 @@ test("a develop core does not show a false mismatch", async () => {
 	expect(title.toLowerCase()).not.toContain("mismatch");
 	expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.36.0");
 });
+
+test("a stage-ready from the new core that arrives before mm-version-changed keeps its version", async () => {
+	// The shell records each stage-ready in __MICROCORE__.stageMmVersion
+	// before dispatching it (client/runtime/shell-stage.ts).
+	const shellCore: { stageMmVersion?: string } = {};
+	vi.stubGlobal("__MICROCORE__", shellCore);
+	vi.stubGlobal(
+		"fetch",
+		makeVersionsFetch({
+			active: "2.38.0",
+			usingBuiltIn: false,
+			builtInVersion: "2.35.0",
+			versions: [{ key: "2.38.0", displayVersion: "2.38.0" }]
+		})
+	);
+	render(<Topbar harness={HARNESS} />);
+
+	await act(async () => {
+		shellCore.stageMmVersion = "2.38.0";
+		dispatchStageReady({ mmVersion: "2.38.0" });
+	});
+	await act(async () => {
+		window.dispatchEvent(new CustomEvent("module-sandbox:mm-version-changed"));
+	});
+
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.38.0");
+	});
+	// Still the stage's own report, not only the server state.
+	vi.stubGlobal("fetch", makeVersionsFetch());
+	await act(async () => {
+		window.dispatchEvent(new CustomEvent("module-sandbox:mm-version-changed"));
+	});
+	await waitFor(() => {
+		const title = document.querySelector(".mmv-topbar-badge")?.getAttribute("title") ?? "";
+		expect(title.toLowerCase()).toContain("mismatch");
+	});
+	expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.38.0");
+});
+
+test("mm-version-changed before the stage reloads keeps the running core until it reports again", async () => {
+	const shellCore: { stageMmVersion?: string } = {};
+	vi.stubGlobal("__MICROCORE__", shellCore);
+	render(<Topbar harness={HARNESS} />);
+	await act(async () => {
+		shellCore.stageMmVersion = "2.36.0";
+		dispatchStageReady({ mmVersion: "2.36.0" });
+	});
+
+	await act(async () => {
+		window.dispatchEvent(new CustomEvent("module-sandbox:mm-version-changed"));
+	});
+	// The old document still runs 2.36.0 until the stage reloads.
+	expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.36.0");
+
+	// Frame load clears the shell copy; the new core then reports itself.
+	await act(async () => {
+		shellCore.stageMmVersion = "2.38.0";
+		dispatchStageReady({ mmVersion: "2.38.0" });
+	});
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.38.0");
+	});
+});
+
+test("a stage reload drops the old core, so a new core that never reports leaves the server state", async () => {
+	const shellCore: { stageMmVersion?: string } = {};
+	vi.stubGlobal("__MICROCORE__", shellCore);
+	vi.stubGlobal(
+		"fetch",
+		makeVersionsFetch({
+			active: "2.38.0",
+			usingBuiltIn: false,
+			builtInVersion: "2.35.0",
+			versions: [{ key: "2.38.0", displayVersion: "2.38.0" }]
+		})
+	);
+	render(<Topbar harness={HARNESS} />);
+	await act(async () => {
+		shellCore.stageMmVersion = "2.36.0";
+		dispatchStageReady({ mmVersion: "2.36.0" });
+	});
+	await act(async () => {
+		window.dispatchEvent(new CustomEvent("module-sandbox:mm-version-changed"));
+	});
+	expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.36.0");
+
+	// The frame loads the new document, which never posts stage-ready.
+	await act(async () => {
+		shellCore.stageMmVersion = undefined;
+		window.dispatchEvent(new CustomEvent("module-sandbox:stage-reloaded"));
+	});
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.38.0");
+	});
+	const title = document.querySelector(".mmv-topbar-badge")?.getAttribute("title") ?? "";
+	expect(title.toLowerCase()).not.toContain("mismatch");
+});

@@ -192,7 +192,7 @@ function makeRouteOptions(
 				Record<string, unknown>
 			>,
 			realCoreStage: flat.realCoreStage as boolean | undefined,
-			emitStageReload: flat.emitStageReload as (() => void) | undefined
+			emitStageReload: flat.emitStageReload as (() => boolean) | undefined
 		},
 		analysisService: {
 			getAnalysisResult: flat.getAnalysisResult as () => null,
@@ -678,8 +678,8 @@ test("without the real-core stage flag, reloads emit only harness:reload and no 
 	assert.equal(vi.mocked(registerStageRoutes).mock.calls.length, 0);
 });
 
-test("with the real-core stage flag, reloads also send the core RELOAD and the stage routes register", async () => {
-	const emitStageReload = vi.fn();
+test("with the real-core stage flag, reloads go through the core RELOAD and the stage routes register", async () => {
+	const emitStageReload = vi.fn(() => true);
 	const io = { emit: vi.fn() };
 	const getRuntimeConfig = vi.fn(() => ({ language: "es", locale: "es-ES" }));
 	const app = await buildApp({
@@ -702,6 +702,10 @@ test("with the real-core stage flag, reloads also send the core RELOAD and the s
 		["harness:reload", "harness:reload"]
 	);
 	assert.equal(emitStageReload.mock.calls.length, 2);
+	// The core reloads the stage, so the shell must not navigate it as well.
+	for (const [, payload] of io.emit.mock.calls) {
+		assert.equal(payload.reloadedBy, "core");
+	}
 
 	const stageCalls = vi.mocked(registerStageRoutes).mock.calls;
 	assert.equal(stageCalls.length, 1);
@@ -711,6 +715,51 @@ test("with the real-core stage flag, reloads also send the core RELOAD and the s
 		language: "es",
 		locale: "es-ES"
 	});
+});
+
+test("with the real-core stage flag and no core page listening, the shell reloads the stage", async () => {
+	const emitStageReload = vi.fn(() => false);
+	const io = { emit: vi.fn() };
+	const app = await buildApp({ io, emitStageReload, realCoreStage: true });
+
+	await app.inject({ method: "POST", url: "/__harness/restart" });
+
+	assert.equal(emitStageReload.mock.calls.length, 1);
+	const [eventName, payload] = io.emit.mock.calls[0];
+	assert.equal(eventName, "harness:reload");
+	assert.equal("reloadedBy" in payload, false);
+});
+
+test("with the real-core stage flag, a version switch and its reset reload through the core RELOAD once each", async () => {
+	const emitStageReload = vi.fn(() => true);
+	const io = { emit: vi.fn() };
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(true);
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.38.0",
+		displayVersion: "2.38.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+	const app = await buildApp({ io, emitStageReload, realCoreStage: true });
+
+	await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.38.0" })
+	});
+	await app.inject({ method: "DELETE", url: "/__harness/mm-versions/active" });
+
+	assert.equal(emitStageReload.mock.calls.length, 2);
+	const reloads = io.emit.mock.calls.filter(
+		([name]: [string]) => name === "harness:reload"
+	);
+	assert.equal(reloads.length, 2);
+	for (const [, payload] of reloads) {
+		assert.equal(payload.event, "mm-version-change");
+		assert.equal(payload.reloadedBy, "core");
+	}
 });
 
 test("static asset routes each invoke their resolver function to locate the file", async () => {

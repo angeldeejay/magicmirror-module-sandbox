@@ -150,6 +150,8 @@ type SandboxSessionRuntime = {
 	 * or undefined to follow the maintainer's own `~/.mmvm/active`.
 	 */
 	coreKey?: string | null;
+	/** Name of the private core home the server runs under, if any. */
+	privateCoreHome?: string;
 };
 
 /**
@@ -163,6 +165,15 @@ type SandboxRuntimeOptions = {
 	 * the running server's restarts it; omitted keeps the current one.
 	 */
 	coreKey?: string | null;
+	/**
+	 * Run the pinned core under a home of its own, named here, instead of the
+	 * home shared by every server pinned to the same core. For a test that
+	 * switches the active core at runtime (`/__harness/mm-versions/activate`):
+	 * the server reads `.mmvm/active` on every stage request, so a switch in a
+	 * shared home would reach other test files' servers. Only a session asking
+	 * for the same name reuses such a server. Takes effect with `coreKey`.
+	 */
+	privateCoreHome?: string;
 };
 
 /** Maintainer CLI flag that serves the real MagicMirror core in the stage. */
@@ -177,10 +188,20 @@ const coreHomesRoot = path.join(sandboxRoot, ".runtime-cache", "core-homes");
  * store; `fs.rmSync` removes junctions without following them.
  *
  * @param {string|null} coreKey - mmvm key, or null for the built-in core
+ * @param {string} [privateCoreHome] - name of a home of its own (see
+ *   `SandboxRuntimeOptions.privateCoreHome`)
  * @returns {string} the directory to use as HOME/USERPROFILE
  */
-function ensureIsolatedCoreHome(coreKey: string | null): string {
-	const home = path.join(coreHomesRoot, coreKey ?? "built-in");
+function ensureIsolatedCoreHome(
+	coreKey: string | null,
+	privateCoreHome?: string
+): string {
+	const home = path.join(
+		coreHomesRoot,
+		privateCoreHome
+			? `private-${sanitizePathSegment(privateCoreHome)}`
+			: (coreKey ?? "built-in")
+	);
 	const mmvmRoot = path.join(home, ".mmvm");
 	const realMmvmRoot = path.join(os.homedir(), ".mmvm");
 	fs.mkdirSync(mmvmRoot, { recursive: true });
@@ -210,7 +231,10 @@ function getCoreHomeEnv(runtime: SandboxSessionRuntime): NodeJS.ProcessEnv {
 	if (runtime.coreKey === undefined) {
 		return {};
 	}
-	const home = ensureIsolatedCoreHome(runtime.coreKey);
+	const home = ensureIsolatedCoreHome(
+		runtime.coreKey,
+		runtime.privateCoreHome
+	);
 	return { HOME: home, USERPROFILE: home };
 }
 
@@ -260,7 +284,8 @@ function createPerSessionFixtureRuntime(
 	suiteName,
 	sessionId,
 	realCoreStage = false,
-	coreKey: string | null | undefined = undefined
+	coreKey: string | null | undefined = undefined,
+	privateCoreHome: string | undefined = undefined
 ): SandboxSessionRuntime {
 	const safeSuiteName = sanitizePathSegment(suiteName);
 	const safeSessionId = sanitizePathSegment(sessionId) || "session";
@@ -277,7 +302,8 @@ function createPerSessionFixtureRuntime(
 		fixtureRoot,
 		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css"),
 		realCoreStage,
-		coreKey
+		coreKey,
+		privateCoreHome
 	};
 }
 
@@ -407,10 +433,19 @@ async function ensureSandboxSessionRuntime(
 			existingRuntime.needsHelperReset = false;
 			existingRuntime.coreKey = options.coreKey;
 		}
+		if (
+			options.privateCoreHome !== undefined &&
+			options.privateCoreHome !== existingRuntime.privateCoreHome
+		) {
+			throw new Error(
+				`Sandbox session "${sessionId}" already runs with privateCoreHome=${existingRuntime.privateCoreHome}; one test file cannot mix core homes.`
+			);
+		}
 		return existingRuntime;
 	}
 	const realCoreStage = Boolean(options.realCoreStage);
 	const coreKey = "coreKey" in options ? options.coreKey : undefined;
+	const { privateCoreHome } = options;
 
 	// Acquire a warm server from the pool to avoid a cold start. Only servers
 	// booted with the same stage mode are reusable.
@@ -421,7 +456,8 @@ async function ensureSandboxSessionRuntime(
 	while (
 		pooledIndex >= 0 &&
 		(pool[pooledIndex].runtime.realCoreStage !== realCoreStage ||
-			pool[pooledIndex].runtime.coreKey !== coreKey)
+			pool[pooledIndex].runtime.coreKey !== coreKey ||
+			pool[pooledIndex].runtime.privateCoreHome !== privateCoreHome)
 	) {
 		pooledIndex -= 1;
 	}
@@ -451,7 +487,8 @@ async function ensureSandboxSessionRuntime(
 		suiteName,
 		sessionId,
 		realCoreStage,
-		coreKey
+		coreKey,
+		privateCoreHome
 	);
 	runtime.port = await allocateLoopbackPort();
 	runtime.baseUrl = getSandboxBaseUrl(runtime.port);
@@ -463,6 +500,56 @@ async function ensureSandboxSessionRuntime(
 	resetPerSessionFixtureFiles(runtime);
 	sandboxSessionRuntimes.set(runtimeKey, runtime);
 	return runtime;
+}
+
+/**
+ * Put a pooled server with a private core home back on its intended core.
+ * A test that switched the core and failed before resetting it would
+ * otherwise hand the next session a server on the wrong core. The switch goes
+ * through the server's own MM Version routes, so the helper shims follow,
+ * and the home's `active` file is rewritten afterwards either way.
+ *
+ * @param {SandboxSessionRuntime} runtime
+ * @returns {Promise<void>}
+ */
+async function restorePrivateCoreHome(
+	runtime: SandboxSessionRuntime
+): Promise<void> {
+	if (!runtime.privateCoreHome || runtime.coreKey === undefined) {
+		return;
+	}
+	const activeFile = path.join(
+		coreHomesRoot,
+		`private-${sanitizePathSegment(runtime.privateCoreHome)}`,
+		".mmvm",
+		"active"
+	);
+	let current = "";
+	try {
+		current = fs.readFileSync(activeFile, "utf8").trim();
+	} catch {
+		// A missing file means the built-in core.
+	}
+	const intended = runtime.coreKey ?? "";
+	if (current !== intended) {
+		try {
+			await fetch(
+				intended
+					? `${runtime.baseUrl}/__harness/mm-versions/activate`
+					: `${runtime.baseUrl}/__harness/mm-versions/active`,
+				intended
+					? {
+							method: "POST",
+							headers: { "content-type": "application/json" },
+							body: JSON.stringify({ version: intended })
+						}
+					: { method: "DELETE" }
+			);
+		} catch {
+			// The file rewrite below still pins the stage core.
+		}
+	}
+	ensureIsolatedCoreHome(runtime.coreKey, runtime.privateCoreHome);
 }
 
 /**
@@ -481,6 +568,7 @@ async function ensureSandboxSessionServer(runtime) {
 		// clean helper state (no log entries or open sockets from prior tests).
 		if (runtime.needsHelperReset) {
 			runtime.needsHelperReset = false;
+			await restorePrivateCoreHome(runtime);
 			try {
 				await fetch(`${runtime.baseUrl}/__harness/restart`, {
 					method: "POST"
