@@ -135,6 +135,19 @@ The behaviors covered are listed below. Sources are cited by function, because l
 
 **D5 correction (2026-10-27, maintainer-approved).** D5 used to assert that `hidden=false` is deferred to the show callback, which no core release since at least 2.30.0 does. The assertion was corrected, lockString coverage was added, and the lock handling moved from `module.ts` into `core.hideModule` / `core.showModule` (`client/runtime/lifecycle.ts`), where `main.js` keeps it.
 
+#### Split for the real-core stage (decided by the owner)
+
+The real-core stage (maintainer flag `--real-core-stage`) runs each MagicMirror version's own core, so fidelity is checked per version. The suite splits in two:
+
+- **Cross-version tests**, in `tests/integration/stage-transparency.browser.test.ts`. They check observer transparency: the sandbox alters nothing. They run once per core in the matrix and must pass identically on every supported version.
+- **Version-pinned tests**, in `tests/integration/core-fidelity/pinned/<version>.browser.test.ts` (today `2.36.0` and `2.38.0`). Their expected results are fixed per version. Each assertion cites the file and line in that version's core (`git show v<version>:js/<file>` in the MagicMirror repo). Each file runs on the real-core stage with its own core, through public behaviour only (`MM`, `Module`, the module instance API, the DOM). It is skipped, with the reason in the suite name, when its core is not in the run.
+
+The rule above holds within each version. A pinned expectation changes only when that version's core says otherwise, citing the file:line. It never changes to make a failing run green. When a new release changes a behaviour, it gets its own pinned file; the old version's file stays as it is.
+
+The core matrix (`tests/_helpers/core-matrix.ts`) is the built-in core, plus the mmvm version named by the test-only env `MM_SANDBOX_TEST_CORE_VERSION` when it is installed with its shims. Install one with `npx tsx scripts/install-test-core.ts <version>`. CI's `core-matrix` job does this for `2.38.0` (blocking; the installed release is cached, the shims are rebuilt every run with `--rebuild-shims`) and `develop` (non-blocking, never cached), then runs `test:20-integration`. A requested core that is missing makes the run fail rather than skip; only an unset `MM_SANDBOX_TEST_CORE_VERSION` skips the pinned files of other cores. If the built-in core is ever bumped past a pinned version, add that version to the CI core matrix so its pinned file keeps running.
+
+**Transition.** Until the default stage flips to the real core and the hand-port is deleted, `tests/integration/core-fidelity.browser.test.ts` keeps guarding the hand-port runtime (`client/runtime/`), which is still the default stage. It is deleted with the hand-port. Its D6 and D9 expectations are hand-port contracts that the real 2.36.0 core does not share. On the real core, an empty or missing header hides the header (`main.js:253-258`). `withClass("<module name>")` matches, because the loader appends the module name to `data.classes` (`loader.js:136`). The pinned files carry the core's behaviour.
+
 ## Config editor
 
 The config editor is complete. It offers:

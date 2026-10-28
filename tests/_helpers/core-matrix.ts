@@ -24,9 +24,20 @@ export type CoreMatrixEntry = {
 	key: string | null;
 };
 
+/** A plain release number, which must match the installed package exactly. */
+const RELEASE_VERSION_RE = /^\d+\.\d+\.\d+$/;
+
 /**
  * Returns the built-in core, plus the version named by
- * `MM_SANDBOX_TEST_CORE_VERSION` when it is installed in mmvm with its shims.
+ * `MM_SANDBOX_TEST_CORE_VERSION`.
+ *
+ * Without the env var the matrix is the built-in core alone, and suites
+ * pinned to other cores skip. A requested core that cannot join the matrix
+ * throws instead: an explicit request must never degrade into a green run on
+ * the built-in core only.
+ *
+ * @throws {Error} when the requested core is not installed in mmvm, has no
+ *   built shims, has no readable version, or is a different release
  */
 export function availableCores(
 	env: NodeJS.ProcessEnv = process.env
@@ -40,13 +51,25 @@ export function availableCores(
 	}
 
 	const key = sanitizeVersion(requested);
-	if (!isVersionInstalled(key) || !areShimsBuilt(key)) {
-		console.warn(
-			`[core-matrix] ${TEST_CORE_VERSION_ENV}=${requested} is not installed in mmvm with its shims; running on the built-in core only.`
+	const fail = (problem: string): never => {
+		throw new Error(
+			`[core-matrix] ${TEST_CORE_VERSION_ENV}=${requested}: ${problem}. Install it with \`npx tsx scripts/install-test-core.ts ${requested}\`, or unset ${TEST_CORE_VERSION_ENV}.`
 		);
-		return cores;
+	};
+	if (!isVersionInstalled(key)) {
+		fail(`version "${key}" is not installed in mmvm`);
 	}
-	cores.push({ version: getInstalledMmVersion(key) ?? key, key });
+	if (!areShimsBuilt(key)) {
+		fail(`version "${key}" is installed but its shims are not built`);
+	}
+	const installed = getInstalledMmVersion(key);
+	if (!installed) {
+		fail(`version "${key}" has no readable MagicMirror package version`);
+	}
+	if (RELEASE_VERSION_RE.test(requested) && installed !== requested) {
+		fail(`version "${key}" holds MagicMirror ${installed}`);
+	}
+	cores.push({ version: installed as string, key });
 	return cores;
 }
 

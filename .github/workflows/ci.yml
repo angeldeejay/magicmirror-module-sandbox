@@ -64,3 +64,59 @@ jobs:
                   folder: ./coverage
                   branch: coverage
                   single-commit: true
+
+    # Runs the integration suite again on a newer MagicMirror core installed
+    # through the sandbox's own mmvm: the cross-version transparency tests on
+    # both cores, and each version-pinned fidelity file on its own core.
+    # `develop` moves daily, so its entry is informational and never blocks.
+    core-matrix:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        continue-on-error: ${{ matrix.core == 'develop' }}
+        strategy:
+            fail-fast: false
+            matrix:
+                core:
+                    - 2.38.0
+                    - develop
+        env:
+            FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+            PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
+            HUSKY: "0"
+            MM_SANDBOX_TEST_CORE_VERSION: ${{ matrix.core }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Install Playwright Chromium
+              run: npx playwright install --with-deps chromium
+
+            # Only the installed release is cached: it is immutable. Shims are
+            # built from the sandbox's own sources (shims/, scripts/, esbuild),
+            # so they are rebuilt on every run instead. develop moves daily and
+            # is never cached.
+            - name: Cache MagicMirror ${{ matrix.core }} install
+              if: ${{ matrix.core != 'develop' }}
+              uses: actions/cache@v4
+              with:
+                  path: ~/.mmvm/versions/${{ matrix.core }}
+                  key: mmvm-version-${{ runner.os }}-${{ matrix.core }}
+
+            - name: Install MagicMirror ${{ matrix.core }} into mmvm
+              run: npx tsx scripts/install-test-core.ts --rebuild-shims
+
+            - name: Integration suite on MagicMirror ${{ matrix.core }}
+              run: |
+                  npm run build
+                  npm run test:20-integration
