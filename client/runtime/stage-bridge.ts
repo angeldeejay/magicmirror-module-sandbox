@@ -52,9 +52,27 @@
 				? core.helperLog.slice()
 				: [],
 			lifecycleState: Object.assign({}, core.lifecycleState || {}),
-			observationGaps: readObservationGaps()
+			observationGaps: readObservationGaps(),
+			...readMmVersion()
 		});
 	};
+
+	/**
+	 * The MagicMirror version the stage runs, from the core's own
+	 * `window.mmVersion`. Only the real-core stage (recognised by its
+	 * observation-gap lists) reports one, so the hand-port stage leaves the
+	 * shell badge on the server state exactly as before.
+	 *
+	 * @returns {{mmVersion?: string}}
+	 */
+	function readMmVersion() {
+		const version = globalScope.mmVersion;
+		return Array.isArray(core.unavailableHooks) &&
+			typeof version === "string" &&
+			version !== ""
+			? { mmVersion: version }
+			: {};
+	}
 
 	/**
 	 * Hook points and notifications the stage cannot observe. Only the

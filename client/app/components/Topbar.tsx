@@ -14,8 +14,26 @@ type BadgeState = {
 	displayVersion: string;
 };
 
+/**
+ * Normalise a version the stage reported; anything but a non-empty string
+ * counts as "the stage reported none".
+ */
+function readStageVersion(value: unknown): string | null {
+	return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+/** Compare versions without the `-develop` suffix the server label drops. */
+function normalizeVersion(version: string): string {
+	return version.replace(/-develop$/i, "");
+}
+
 function MmVersionBadge() {
 	const [badge, setBadge] = useState<BadgeState>({ usingBuiltIn: true, displayVersion: "—" });
+	// The core the stage actually runs, as the stage itself reports it. Only
+	// the real-core stage reports one; without it the server state decides.
+	const [stageVersion, setStageVersion] = useState<string | null>(
+		() => readStageVersion((globalThis as { __MICROCORE__?: { stageMmVersion?: unknown } }).__MICROCORE__?.stageMmVersion)
+	);
 
 	useEffect(() => {
 		function refresh() {
@@ -40,21 +58,49 @@ function MmVersionBadge() {
 				.catch(() => {});
 		}
 
+		function onStageReady(event: Event) {
+			// The latest stage-ready decides: a reported version or none.
+			setStageVersion(readStageVersion((event as CustomEvent).detail?.mmVersion));
+		}
+
+		function onVersionChanged() {
+			// The stage reloads on a version switch; until it reports again
+			// the old value no longer describes what runs.
+			setStageVersion(null);
+			refresh();
+		}
+
 		refresh();
-		window.addEventListener("module-sandbox:mm-version-changed", refresh);
+		window.addEventListener("module-sandbox:mm-version-changed", onVersionChanged);
+		window.addEventListener("module-sandbox:stage-ready", onStageReady);
 		return () => {
-			window.removeEventListener("module-sandbox:mm-version-changed", refresh);
+			window.removeEventListener("module-sandbox:mm-version-changed", onVersionChanged);
+			window.removeEventListener("module-sandbox:stage-ready", onStageReady);
 		};
 	}, []);
 
-	const { usingBuiltIn, displayVersion } = badge;
+	const { usingBuiltIn } = badge;
+	const serverVersion = badge.displayVersion;
+	// What actually runs wins over what the server believes is active.
+	const displayVersion =
+		stageVersion === null ? serverVersion : normalizeVersion(stageVersion);
+	const mismatch =
+		stageVersion !== null &&
+		serverVersion !== "—" &&
+		normalizeVersion(stageVersion) !== normalizeVersion(serverVersion);
+	const baseTitle = usingBuiltIn
+		? `Built-in shims (MM ${displayVersion})`
+		: `MM core: ${displayVersion}`;
+	const title = mismatch
+		? `MM core running in the stage: ${displayVersion}. Version mismatch: the server reports ${serverVersion}${usingBuiltIn ? " (built-in)" : ""}`
+		: baseTitle;
 
 	return (
 		<button
 			class={`mmv-topbar-badge${usingBuiltIn ? " mmv-topbar-badge--builtin" : ""}`}
 			type="button"
 			aria-label="MagicMirror core version"
-			title={usingBuiltIn ? `Built-in shims (MM ${displayVersion})` : `MM core: ${displayVersion}`}
+			title={title}
 			onClick={() => {
 				location.hash = "#mmversion";
 			}}

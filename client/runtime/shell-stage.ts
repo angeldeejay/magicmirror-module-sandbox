@@ -286,6 +286,11 @@
 				core.bootComplete = Boolean(
 					message.detail && message.detail.bootComplete
 				);
+				// Kept for the badge, which may mount after this event.
+				core.stageMmVersion =
+					message.detail && typeof message.detail.mmVersion === "string"
+						? message.detail.mmVersion
+						: undefined;
 				core.hideBackdrop();
 				replaceMirroredEntries(
 					"notificationLog",
@@ -471,6 +476,8 @@
 			frame.addEventListener("load", () => {
 				core.stageReady = false;
 				core.bootComplete = false;
+				// The reloaded stage reports its own version again.
+				core.stageMmVersion = undefined;
 				globalScope.setTimeout(() => {
 					core.requestStageSnapshot();
 				}, 0);

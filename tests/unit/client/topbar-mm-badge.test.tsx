@@ -227,3 +227,134 @@ test("badge shows active key when usingBuiltIn is false and versions array is ab
 		expect(badge?.textContent).toBe("2.36.0");
 	});
 });
+
+// ── MmVersionBadge — version reported by the stage ────────────────────────────
+
+function dispatchStageReady(detail: Record<string, unknown>) {
+	window.dispatchEvent(new CustomEvent("module-sandbox:stage-ready", { detail }));
+}
+
+test("badge shows the version reported by the stage", async () => {
+	render(<Topbar harness={HARNESS} />);
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.35.0");
+	});
+
+	await act(async () => {
+		dispatchStageReady({ mmVersion: "2.38.0" });
+	});
+
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.38.0");
+	});
+});
+
+test("badge titles the mismatch when the stage disagrees with the server", async () => {
+	render(<Topbar harness={HARNESS} />);
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.35.0");
+	});
+
+	await act(async () => {
+		dispatchStageReady({ mmVersion: "2.38.0" });
+	});
+
+	await waitFor(() => {
+		const title = document.querySelector(".mmv-topbar-badge")?.getAttribute("title") ?? "";
+		expect(title).toContain("2.38.0");
+		expect(title).toContain("2.35.0");
+		expect(title.toLowerCase()).toContain("mismatch");
+	});
+});
+
+test("badge has no mismatch title when the stage agrees with the server", async () => {
+	render(<Topbar harness={HARNESS} />);
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.35.0");
+	});
+
+	await act(async () => {
+		dispatchStageReady({ mmVersion: "2.35.0" });
+	});
+
+	const title = document.querySelector(".mmv-topbar-badge")?.getAttribute("title") ?? "";
+	expect(title.toLowerCase()).not.toContain("mismatch");
+});
+
+test("badge ignores a stage-ready without a version", async () => {
+	render(<Topbar harness={HARNESS} />);
+	await act(async () => {
+		dispatchStageReady({ bootComplete: true });
+	});
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.35.0");
+	});
+});
+
+test("badge picks up a version the stage reported before it mounted", async () => {
+	vi.stubGlobal("__MICROCORE__", { stageMmVersion: "2.38.0" });
+	render(<Topbar harness={HARNESS} />);
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.38.0");
+	});
+});
+
+test("a version switch clears the stage version until the stage reports again", async () => {
+	render(<Topbar harness={HARNESS} />);
+	await act(async () => {
+		dispatchStageReady({ mmVersion: "2.38.0" });
+	});
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.38.0");
+	});
+
+	await act(async () => {
+		window.dispatchEvent(new CustomEvent("module-sandbox:mm-version-changed"));
+	});
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.35.0");
+	});
+	const title = document.querySelector(".mmv-topbar-badge")?.getAttribute("title") ?? "";
+	expect(title.toLowerCase()).not.toContain("mismatch");
+
+	// A stage-ready that reports nothing leaves the server state in charge.
+	await act(async () => {
+		dispatchStageReady({ bootComplete: true });
+	});
+	expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.35.0");
+});
+
+test("a later stage-ready without a version drops the earlier one", async () => {
+	render(<Topbar harness={HARNESS} />);
+	await act(async () => {
+		dispatchStageReady({ mmVersion: "2.38.0" });
+	});
+	await act(async () => {
+		dispatchStageReady({});
+	});
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.35.0");
+	});
+});
+
+test("a develop core does not show a false mismatch", async () => {
+	vi.stubGlobal(
+		"fetch",
+		makeVersionsFetch({
+			active: "develop",
+			usingBuiltIn: false,
+			builtInVersion: "2.35.0",
+			versions: [{ key: "develop", displayVersion: "2.36.0-develop" }]
+		})
+	);
+	render(<Topbar harness={HARNESS} />);
+	await waitFor(() => {
+		expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.36.0");
+	});
+	await act(async () => {
+		dispatchStageReady({ mmVersion: "2.36.0-develop" });
+	});
+	const title = document.querySelector(".mmv-topbar-badge")?.getAttribute("title") ?? "";
+	expect(title.toLowerCase()).not.toContain("mismatch");
+	expect(document.querySelector(".mmv-topbar-badge__label")?.textContent).toBe("2.36.0");
+});
