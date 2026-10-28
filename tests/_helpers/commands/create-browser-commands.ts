@@ -32,11 +32,6 @@ const sandboxPages = new Map();
 // repeated mid-test calls to waitForStageFrame (stageClick, stageText, …).
 // Invalidated before page.goto() and before any action that triggers a stage reload.
 const stageFrameCache = new WeakMap<object, any>();
-// Pages whose stage iframe runs the real MagicMirror core (`/__stage/`). Its
-// observer publishes bootComplete only once the core sends
-// DOM_OBJECTS_CREATED, which a module failing in getDom never gets, so
-// readiness is the observer marker plus the core-created module wrapper.
-const realCoreStagePages = new WeakSet<object>();
 // Page → console messages (shell and stage frames), in arrival order.
 const pageConsoleMessages = new WeakMap<object, string[]>();
 type ModuleConfigEditor = HTMLElement & { json_value: unknown };
@@ -186,32 +181,46 @@ export function createSandboxBrowserCommands(suiteName) {
 			stageFrameCache.delete(page);
 		}
 
-		if (realCoreStagePages.has(page)) {
-			return waitForRealCoreStageFrame(page);
+		// The stage iframe runs the real MagicMirror core (`/__stage/`). Its
+		// observer publishes bootComplete only once the core sends
+		// DOM_OBJECTS_CREATED, which a module failing in getDom never gets, so
+		// readiness is the observer marker plus the core-created module
+		// wrapper, or the observer's disabled marker (a disabled module is
+		// never created).
+		const frameElement = await page.waitForSelector(stageFrameSelector, {
+			state: "visible"
+		});
+		const timeoutAt = Date.now() + 20_000;
+		let frame: any = null;
+		while (Date.now() < timeoutAt) {
+			frame = await frameElement.contentFrame();
+			if (frame) break;
+			await sleep(50);
 		}
-
-		// Wait for the stage frame element to be visible first.
-		await page.waitForSelector(stageFrameSelector, { state: "visible" });
-
-		// Wait for boot to complete by polling core.bootComplete on the SHELL page.
-		//
-		// Protocol:
-		//   - iframe calls publishStageReady(bootComplete) after every boot settle.
-		//   - shell-stage.js sets core.bootComplete from the postMessage payload.
-		//   - bootComplete is true only when runtime.ts's boot() promise settles
-		//     (resolved or rejected); false for the early snapshot fired by
-		//     requestStageSnapshot (which can arrive before boot finishes).
-		//   - shell-stage.js resets bootComplete to false on DOMContentLoaded and
-		//     on every iframe "load" event, so a harness:reload cycle also resets it.
-		//
-		// Checking the shell page avoids stale frame-handle issues entirely.
+		if (!frame) {
+			throw new Error("Timed out waiting for the stage iframe frame.");
+		}
 		try {
-			await page.waitForFunction(
-				() => Boolean((window as any).__MICROCORE__?.bootComplete),
+			await frame.waitForFunction(
+				() => {
+					const root = globalThis.document.documentElement;
+					return (
+						root.dataset.sandboxStage === "core" &&
+						(root.dataset.sandboxDisabled === "true" ||
+							Boolean(globalThis.document.querySelector(".module")))
+					);
+				},
 				undefined,
 				{ timeout: 20_000 }
 			);
-		} catch {
+			// The shell received the stage's first snapshot, so its panels
+			// mirror this document.
+			await page.waitForFunction(
+				() => Boolean((window as any).__MICROCORE__?.stageReady),
+				undefined,
+				{ timeout: 20_000 }
+			);
+		} catch (error) {
 			const diagState = await page
 				.evaluate(() => {
 					const core = (window as any).__MICROCORE__;
@@ -226,99 +235,11 @@ export function createSandboxBrowserCommands(suiteName) {
 				})
 				.catch(() => ({ evalError: true }));
 			throw new Error(
-				`waitForStageFrame: boot timeout after 20 s. Shell state: ${JSON.stringify(diagState)}`
+				`waitForStageFrame: stage not ready after 20 s (${String(error)}). Shell state: ${JSON.stringify(diagState)}`
 			);
 		}
-
-		// Acquire a live frame handle now that boot is confirmed complete.
-		const frameElement = await page.waitForSelector(stageFrameSelector, {
-			state: "visible"
-		});
-		const timeoutAt = Date.now() + 5_000;
-		let frame = null;
-		while (Date.now() < timeoutAt) {
-			frame = await frameElement.contentFrame();
-			if (frame) break;
-			await sleep(50);
-		}
-		if (!frame) {
-			throw new Error(
-				"Timed out waiting for the mounted-module iframe frame."
-			);
-		}
-
 		stageFrameCache.set(page, frame);
 		return frame;
-	}
-
-	/**
-	 * Resolve the stage iframe once the real core page loaded the observer
-	 * (`data-sandbox-stage="core"`) and created the mounted module wrapper.
-	 *
-	 * @param {any} page
-	 * @returns {Promise<any>}
-	 */
-	async function waitForRealCoreStageFrame(page): Promise<any> {
-		const frameElement = await page.waitForSelector(stageFrameSelector, {
-			state: "visible"
-		});
-		const timeoutAt = Date.now() + 20_000;
-		let frame: any = null;
-		while (Date.now() < timeoutAt) {
-			frame = await frameElement.contentFrame();
-			if (frame) break;
-			await sleep(50);
-		}
-		if (!frame) {
-			throw new Error(
-				"Timed out waiting for the real-core stage iframe frame."
-			);
-		}
-		await frame.waitForFunction(
-			() =>
-				globalThis.document.documentElement.dataset.sandboxStage ===
-					"core" &&
-				Boolean(globalThis.document.querySelector(".module")),
-			undefined,
-			{ timeout: 20_000 }
-		);
-		stageFrameCache.set(page, frame);
-		return frame;
-	}
-
-	/**
-	 * Reset mutable fixture state and open the sandbox shell booted with the
-	 * maintainer flag `--real-core-stage`, whose iframe runs the real core.
-	 *
-	 * @param {SandboxCommandContext} context
-	 * @returns {Promise<void>}
-	 */
-	async function gotoRealCoreStage(
-		context,
-		options: { coreKey?: string | null; privateCoreHome?: string } = {}
-	) {
-		const runtime = await runtimeController.getLiveRuntimeForContext(
-			context,
-			"coreKey" in options
-				? {
-						realCoreStage: true,
-						coreKey: options.coreKey,
-						privateCoreHome: options.privateCoreHome
-					}
-				: { realCoreStage: true }
-		);
-		writeFixtureStylesheet(runtime.fixtureStylePath);
-		resetPersistedStateForModuleRoot(runtime.fixtureRoot);
-		const page = await getSandboxPage(context);
-		realCoreStagePages.add(page);
-		stageFrameCache.delete(page);
-		if (inspectionOptions.headed) {
-			await page.bringToFront();
-		}
-		await page.goto(runtime.baseUrl, {
-			waitUntil: "domcontentloaded"
-		});
-		await waitForStageFrame(page);
 	}
 
 	/**
@@ -328,9 +249,10 @@ export function createSandboxBrowserCommands(suiteName) {
 	 * Protocol:
 	 *   1. Reset fixture files (same as gotoSandbox).
 	 *   2. Arm the stage-ready listener before triggering any reload.
-	 *   3. POST /__harness/restart → server restarts helper AND emits
-	 *      Socket.IO "harness:reload" → shell calls core.reloadStage() →
-	 *      stage iframe reloads → module boots fresh.
+	 *   3. POST /__harness/restart → server restarts helper AND sends the
+	 *      core its root-socket RELOAD (or, when no core page listens, the
+	 *      shell reloads the frame on "harness:reload") → stage iframe
+	 *      reloads → module boots fresh.
 	 *   4. Wait for stage-ready event and confirm bootComplete.
 	 *
 	 * Falls back to gotoSandbox when the shell is not yet loaded (e.g. first
@@ -376,9 +298,20 @@ export function createSandboxBrowserCommands(suiteName) {
 	 * @param {SandboxCommandContext} context
 	 * @returns {Promise<void>}
 	 */
-	async function gotoSandbox(context) {
-		const runtime =
-			await runtimeController.getLiveRuntimeForContext(context);
+	async function gotoSandbox(
+		context,
+		options: { coreKey?: string | null; privateCoreHome?: string } = {}
+	) {
+		// The built-in core unless the caller pins another one, always through
+		// an isolated home: the run never follows the maintainer's own
+		// `~/.mmvm/active`.
+		const runtime = await runtimeController.getLiveRuntimeForContext(
+			context,
+			{
+				coreKey: options.coreKey ?? null,
+				privateCoreHome: options.privateCoreHome
+			}
+		);
 		if (runtimeController.usesPerSessionRuntime) {
 			writeFixtureStylesheet(runtime.fixtureStylePath);
 		} else {
@@ -854,7 +787,6 @@ export function createSandboxBrowserCommands(suiteName) {
 		sandboxPageCheck: pageCheck,
 		sandboxPageCount: pageCount,
 		sandboxGoto: gotoSandbox,
-		sandboxGotoRealCoreStage: gotoRealCoreStage,
 		sandboxReset: resetSandbox,
 		sandboxPageDisabled: pageDisabled,
 		sandboxPageEvaluate: pageEvaluate,

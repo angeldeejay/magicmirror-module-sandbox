@@ -5,7 +5,11 @@
 import * as fs from "node:fs";
 import * as path from "pathe";
 import { expect, test } from "vitest";
-import { distCopyTargets } from "../../../scripts/dist-layout.ts";
+import {
+	distCopyTargets,
+	distCoreDirectory
+} from "../../../scripts/dist-layout.ts";
+import { PACKAGED_CORE_DIRECTORY } from "../../../server/stage/built-in-core.ts";
 import {
 	CORE_PIECES,
 	coreSnapshotDir
@@ -35,4 +39,8 @@ test("every core piece has a reviewed snapshot file to ship", () => {
 			true
 		);
 	}
+});
+
+test("dist packages the built-in core where the server looks for it", () => {
+	expect(distCoreDirectory).toBe(PACKAGED_CORE_DIRECTORY);
 });

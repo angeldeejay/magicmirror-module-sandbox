@@ -1,12 +1,12 @@
 /**
- * Browser-backed integration coverage for the real-core stage socket server:
- * module traffic on `/__stage/socket.io` reaches the shell WebSocket panel
- * from the server side (maintainer flag `--real-core-stage`).
+ * Browser-backed integration coverage for the stage socket server: module
+ * traffic on `/__stage/socket.io` reaches the shell WebSocket panel from the
+ * server side.
  */
 import { afterAll, expect, test } from "vitest";
 import {
 	closeSandbox,
-	gotoRealCoreStage,
+	gotoSandbox,
 	pageEvaluate,
 	stageEvaluate,
 	stageText
@@ -28,7 +28,7 @@ const pageText = (selector: string) => {
 };
 
 test("websocket log reaches the shell from the server side", async () => {
-	await gotoRealCoreStage();
+	await gotoSandbox();
 	// The panel content is read from the DOM, so the domain does not need to be
 	// opened.
 

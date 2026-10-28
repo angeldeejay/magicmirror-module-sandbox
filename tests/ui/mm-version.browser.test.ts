@@ -235,7 +235,9 @@ journeyTest(
 	"ui-mmversion-activate-button-disabled-when-empty",
 	"reset button is disabled when the active core is the built-in version",
 	async () => {
-		// Reset mmvm state before loading so the component mounts fresh
+		// Reset mmvm state before loading so the component mounts fresh. The
+		// server runs under an isolated home (`gotoSandbox`), so this never
+		// writes the maintainer's own `~/.mmvm/active`.
 		await gotoSandbox();
 		await pageEvaluate(() =>
 			fetch("/__harness/mm-versions/active", { method: "DELETE" })

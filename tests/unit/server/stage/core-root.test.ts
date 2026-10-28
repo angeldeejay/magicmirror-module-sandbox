@@ -12,14 +12,12 @@ vi.mock("../../../../server/mm-version-manager.ts", () => ({
 	getInstalledMmVersion: vi.fn(),
 	getBuiltInMmVersion: vi.fn()
 }));
-vi.mock("../../../../scripts/shared.ts", () => ({
-	resolveMagicMirrorRoot: vi.fn()
-}));
-
 import * as mmvm from "../../../../server/mm-version-manager.ts";
-import * as shared from "../../../../scripts/shared.ts";
+import { harnessRoot } from "../../../../server/paths.ts";
 import {
+	PACKAGED_CORE_DIRECTORY,
 	resolveActiveCore,
+	resolveBuiltInCoreRoot,
 	resolveCoreStaticPath
 } from "../../../../server/stage/core-root.ts";
 
@@ -62,9 +60,8 @@ describe("resolveActiveCore", () => {
 	test("resolveActiveCore returns the built-in root and version when no mmvm version is active", () => {
 		vi.mocked(mmvm.getActiveVersion).mockReturnValue(null);
 		vi.mocked(mmvm.getBuiltInMmVersion).mockReturnValue("2.39.0");
-		vi.mocked(shared.resolveMagicMirrorRoot).mockReturnValue(root);
 		expect(resolveActiveCore()).toEqual({
-			root,
+			root: resolveBuiltInCoreRoot(harnessRoot),
 			version: "2.39.0",
 			key: null
 		});
@@ -91,8 +88,31 @@ describe("resolveActiveCore", () => {
 	test("resolveActiveCore uses an empty version when the built-in version is unknown", () => {
 		vi.mocked(mmvm.getActiveVersion).mockReturnValue(null);
 		vi.mocked(mmvm.getBuiltInMmVersion).mockReturnValue(null);
-		vi.mocked(shared.resolveMagicMirrorRoot).mockReturnValue(root);
 		expect(resolveActiveCore().version).toBe("");
+	});
+});
+
+describe("resolveBuiltInCoreRoot", () => {
+	test("prefers the synced mmcore-source core", () => {
+		const base = path.join(tmp, "source-install");
+		const synced = path.join(base, "mmcore-source", "node_modules", "magicmirror");
+		write(path.join(synced, "index.html"));
+		write(path.join(base, PACKAGED_CORE_DIRECTORY, "index.html"));
+		expect(resolveBuiltInCoreRoot(base)).toBe(synced);
+	});
+
+	test("falls back to the packaged core of a distribution install", () => {
+		const base = path.join(tmp, "dist-install");
+		write(path.join(base, PACKAGED_CORE_DIRECTORY, "index.html"));
+		expect(resolveBuiltInCoreRoot(base)).toBe(
+			path.join(base, PACKAGED_CORE_DIRECTORY)
+		);
+	});
+
+	test("fails clearly when no built-in core exists", () => {
+		expect(() => resolveBuiltInCoreRoot(path.join(tmp, "empty"))).toThrow(
+			/built-in MagicMirror core is missing/
+		);
 	});
 });
 

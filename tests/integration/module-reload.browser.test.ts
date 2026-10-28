@@ -15,6 +15,7 @@ import {
 	selectSandboxLanguage,
 	stageClick,
 	stageText,
+	stageVisible,
 	writeModuleConfig
 } from "../_helpers/helpers.browser.ts";
 import { createJourneyTest } from "../_helpers/journey-coverage.ts";
@@ -68,9 +69,10 @@ journeyTest(
 				.poll(() => stageText("#test-module-translation"))
 				.toBe("Hello Reloaded Developer from the test module fixture.");
 			await expect.poll(() => pageValue("#config-language")).toBe("en");
-			await expect
-				.poll(() => stageText("#module-header"))
-				.toBe("MMM-TestModule");
+			// The saved header is "": the core hides an empty header
+			// (main.js:253-258) instead of showing the module name.
+			await expect.poll(() => stageText(".module-header")).toBe("");
+			await expect.poll(() => stageVisible(".module-header")).toBe(false);
 			await expect
 				.poll(() => stageText("#test-module-style-probe"))
 				.toBe("Reloaded badge");

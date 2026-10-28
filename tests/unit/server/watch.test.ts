@@ -108,6 +108,8 @@ function makeModuleWatcherOptions(overrides: Record<string, unknown> = {}) {
 	return {
 		io: { emit: vi.fn() },
 		restartHelper: vi.fn(async () => {}),
+		// No core page listens by default, so the shell reloads the stage.
+		emitStageReload: vi.fn(() => false),
 		...overrides
 	};
 }
@@ -186,7 +188,7 @@ test("startModuleWatcher: io.emit scope is always 'stage' for any module file ch
 	assert.equal(payload.scope, "stage");
 });
 
-test("startModuleWatcher: with the real-core stage, the core RELOAD reloads the stage when a core page listens", async () => {
+test("startModuleWatcher: the core RELOAD reloads the stage when a core page listens", async () => {
 	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const order: string[] = [];
 	const io = { emit: vi.fn((name: string) => order.push(name)) };
@@ -223,7 +225,7 @@ test("startModuleWatcher: with the real-core stage, the core RELOAD reloads the 
 	}
 });
 
-test("startModuleWatcher: with the real-core stage and no core page listening, the shell reloads the stage", async () => {
+test("startModuleWatcher: with no core page listening, the shell reloads the stage", async () => {
 	const { startModuleWatcher } = await import("../../../server/watch.ts");
 	const io = { emit: vi.fn() };
 	const emitStageReload = vi.fn(() => false);
@@ -244,23 +246,6 @@ test("startModuleWatcher: with the real-core stage and no core page listening, t
 	assert.equal(eventName, "harness:reload");
 	assert.equal(payload.scope, "stage");
 	assert.equal("reloadedBy" in payload, false);
-});
-
-test("startModuleWatcher: without the real-core stage, reloads emit only harness:reload", async () => {
-	const { startModuleWatcher } = await import("../../../server/watch.ts");
-	const io = { emit: vi.fn() };
-	startModuleWatcher({ ...makeModuleWatcherOptions(), io } as any);
-
-	await triggerEvent(
-		lastHandler(),
-		"change",
-		path.join(repoRoot, "MMM-TestModule.js")
-	);
-
-	assert.deepEqual(
-		io.emit.mock.calls.map(([name]: [string]) => name),
-		["harness:reload"]
-	);
 });
 
 test("startModuleWatcher: io.emit scope is 'stage' for node_helper.js", async () => {

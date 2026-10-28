@@ -213,11 +213,11 @@ function startModuleWatcher({
 	io: import("socket.io").Server;
 	restartHelper: () => Promise<void>;
 	/**
-	 * With the real-core stage (`--real-core-stage`), sends the core its own
-	 * root-namespace `RELOAD` for every stage reload when a core page listens,
-	 * returning whether it was sent (see `emitStageHarnessReload`).
+	 * Sends the core its own root-namespace `RELOAD` for every stage reload
+	 * when a core page listens, returning whether it was sent (see
+	 * `emitStageHarnessReload`).
 	 */
-	emitStageReload?: () => boolean;
+	emitStageReload: () => boolean;
 }): import("chokidar").FSWatcher {
 	loadModuleGitignore();
 

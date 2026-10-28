@@ -25,9 +25,8 @@ export const HARNESS_RELOAD_EVENT = "harness:reload";
 export const RELOADED_BY_CORE = "core";
 
 /**
- * Directions are from the module's side, as the hand-port stage records them
- * (`client/runtime/module.ts`): `sent` is module to server, `received` is
- * server to module.
+ * Directions are from the module's side: `sent` is module to server,
+ * `received` is server to module.
  */
 export const WebsocketLogEntry = z.object({
 	direction: z.enum(["sent", "received"]),
@@ -51,14 +50,13 @@ export type StageSocketServer = {
  * Emits one stage `harness:reload` to the shell, making sure exactly one
  * mechanism reloads the stage document.
  *
- * With the real-core stage (`emitStageReload` given) the faithful path is the
- * core's own: a mirror reloads when its root socket receives `RELOAD`
- * (`main.js` `modulesStarted`). When the core took it, the payload says
- * `reloadedBy: "core"` and the shell only shows its loading backdrop. When no
- * core page listens (the core never reached `modulesStarted`, for example a
- * module whose `start()` threw, or the page is still booting), nothing would
- * reload the stage, so the shell reloads the frame itself as it does for the
- * hand-port stage. Without `emitStageReload` the payload goes out unchanged.
+ * The faithful path is the core's own: a mirror reloads when its root socket
+ * receives `RELOAD` (`main.js` `modulesStarted`). When the core took it, the
+ * payload says `reloadedBy: "core"` and the shell only shows its loading
+ * backdrop. When no core page listens (the core never reached
+ * `modulesStarted`, for example a module whose `start()` threw, or the page is
+ * still booting), nothing would reload the stage, so the shell reloads the
+ * frame itself. Without `emitStageReload` the payload goes out unchanged.
  */
 export function emitStageHarnessReload(
 	shellIo: Pick<Server, "emit">,

@@ -11,8 +11,14 @@ import {
 	getInstalledMmVersion,
 	getMmVersionRoot
 } from "../mm-version-manager.ts";
-import { resolveMagicMirrorRoot } from "../../scripts/shared.ts";
 import { harnessRoot } from "../paths.ts";
+import {
+	findBuiltInCoreRoot,
+	getBuiltInCoreRootCandidates,
+	PACKAGED_CORE_DIRECTORY
+} from "./built-in-core.ts";
+
+export { PACKAGED_CORE_DIRECTORY };
 
 export type ActiveCore = {
 	root: string;
@@ -33,6 +39,20 @@ const CORE_DIRECTORIES = new Set([
 const CORE_FILES = new Set(["favicon.svg"]);
 
 /**
+ * Returns the built-in core root: the synced `mmcore-source/` in the source
+ * repository, else the packaged copy in a distribution install.
+ */
+export function resolveBuiltInCoreRoot(root: string = harnessRoot): string {
+	const found = findBuiltInCoreRoot(root);
+	if (!found) {
+		throw new Error(
+			`The built-in MagicMirror core is missing (looked in ${getBuiltInCoreRootCandidates(root).join(", ")}). Run \`node --run build\` in the sandbox repository.`
+		);
+	}
+	return found;
+}
+
+/**
  * Returns the core the sandbox is currently running (mmvm active or built-in).
  */
 export function resolveActiveCore(): ActiveCore {
@@ -45,7 +65,7 @@ export function resolveActiveCore(): ActiveCore {
 		};
 	}
 	return {
-		root: resolveMagicMirrorRoot(harnessRoot),
+		root: resolveBuiltInCoreRoot(),
 		version: getBuiltInMmVersion() ?? "",
 		key: null
 	};

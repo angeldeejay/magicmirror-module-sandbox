@@ -26,7 +26,8 @@ import {
 	assignCoreGlobalConfig,
 	getStageState,
 	registerStageRoutes,
-	renderStageInjection
+	renderStageInjection,
+	STAGE_PREFIX
 } from "../../../../server/stage/stage-routes.ts";
 
 const MODULE_NAME = "MMM-TestModule";
@@ -371,26 +372,19 @@ describe("core server_functions endpoints", () => {
 });
 
 describe("shell stage url", () => {
-	function renderShell(realCoreStage: boolean): string {
-		return htmlModule.createHtmlPage({
+	test("the shell iframe always loads the stage at /__stage/", () => {
+		const html = htmlModule.createHtmlPage({
 			getAvailableLanguages: () => [{ code: "en", label: "English" }],
 			getHarnessConfig: () => ({
 				moduleName: MODULE_NAME,
 				moduleEntry: "MMM-TestModule.js",
 				moduleIdentifier: "MMM-TestModule_sandbox",
-				language: "en",
-				realCoreStage
+				language: "en"
 			}),
 			getModuleConfig: () => ({}),
 			getContract: () => ({}),
 			getHelperLogEntries: () => []
 		});
-	}
-
-	test("the shell stageUrl is /__stage/ only when realCoreStage is true", () => {
-		expect(renderShell(true)).toContain('src="/__stage/"');
-		const legacy = renderShell(false);
-		expect(legacy).not.toContain('src="/__stage/"');
-		expect(legacy).toMatch(/src="\/__harness\/stage\?v=[^"]+"/);
+		expect(html).toContain(`src="${STAGE_PREFIX}"`);
 	});
 });

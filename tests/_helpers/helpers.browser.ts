@@ -21,33 +21,25 @@ export async function closeSandbox() {
 }
 
 /**
- * Reset fixture files and open the sandbox shell until the stage runtime is ready.
- *
- * @returns {Promise<void>}
- */
-export async function gotoSandbox() {
-	await commands.sandboxGoto();
-}
-
-/**
- * Reset fixture files and open the sandbox shell of a server booted with the
- * maintainer flag `--real-core-stage`, until the real core created the module.
- * A test file must not mix this with `gotoSandbox`.
+ * Reset fixture files and open the sandbox shell until the stage (the real
+ * MagicMirror core) created the module.
  *
  * `coreKey` pins the core (an mmvm version key, or null for the built-in
  * core; see `tests/_helpers/core-matrix.ts`) and restarts the server when it
- * differs from the running one. Omitted, the server follows the maintainer's
- * own `~/.mmvm/active`. A test that switches the active core at runtime also
+ * differs from the running one. Omitted, the stage runs the built-in core.
+ * Either way the server runs under an isolated home
+ * (`.runtime-cache/core-homes/`), never the maintainer's own
+ * `~/.mmvm/active`. A test that switches the active core at runtime also
  * passes `privateCoreHome`, so the switch stays in a home of its own instead
  * of the one shared by every server pinned to the same core.
  *
  * @param {{ coreKey?: string | null, privateCoreHome?: string }} [options]
  * @returns {Promise<void>}
  */
-export async function gotoRealCoreStage(
+export async function gotoSandbox(
 	options: { coreKey?: string | null; privateCoreHome?: string } = {}
 ) {
-	await commands.sandboxGotoRealCoreStage(options);
+	await commands.sandboxGoto(options);
 }
 
 /**

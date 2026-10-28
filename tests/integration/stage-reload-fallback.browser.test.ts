@@ -1,9 +1,8 @@
 /**
- * Browser-backed integration coverage for the shell's fallback on the
- * real-core stage (maintainer flag `--real-core-stage`): when a stage
- * `harness:reload` says the core's own RELOAD performs the reload
- * (`reloadedBy: "core"`) but no stage document loads, the shell reloads the
- * frame itself, exactly once (client/runtime/shell-stage.ts).
+ * Browser-backed integration coverage for the shell's stage reload fallback:
+ * when a stage `harness:reload` says the core's own RELOAD performs the
+ * reload (`reloadedBy: "core"`) but no stage document loads, the shell
+ * reloads the frame itself, exactly once (client/runtime/shell-stage.ts).
  *
  * The lost RELOAD is simulated by delivering only the shell event: the
  * server sends no RELOAD, as happens when another tab's core took it or the
@@ -12,7 +11,7 @@
 import { afterAll, expect, test } from "vitest";
 import {
 	closeSandbox,
-	gotoRealCoreStage,
+	gotoSandbox,
 	pageEvaluate,
 	stageEvaluate
 } from "../_helpers/helpers.browser.ts";
@@ -39,7 +38,7 @@ afterAll(async () => {
 });
 
 test("a core reload that never loads the stage falls back to one frame reload", async () => {
-	await gotoRealCoreStage({ coreKey: null });
+	await gotoSandbox({ coreKey: null });
 	await expect
 		.poll(() =>
 			stageEvaluate(() =>

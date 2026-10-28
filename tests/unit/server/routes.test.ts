@@ -40,11 +40,12 @@ vi.mock("../../../server/mm-version-manager.ts", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// stage routes mock: the real-core stage has its own unit suite
+// stage routes mock: the stage has its own unit suite
 // ---------------------------------------------------------------------------
 
 vi.mock("../../../server/stage/stage-routes.ts", () => ({
-	registerStageRoutes: vi.fn(async () => {})
+	registerStageRoutes: vi.fn(async () => {}),
+	STAGE_PREFIX: "/__stage/"
 }));
 
 // ---------------------------------------------------------------------------
@@ -126,15 +127,11 @@ function makeRouteOptions(
 		saveRuntimeConfig: vi.fn((next: Record<string, unknown>) => next),
 		getContract: vi.fn(() => ({ supportedFrontendSurface: [] })),
 		createHtmlPage: vi.fn(() => "<html>shell</html>"),
-		createStagePage: vi.fn(() => "<html>stage</html>"),
 		getHelperLogEntries: vi.fn(() => []),
 		resolveWebfontsRoot: vi.fn(() => "/stub/webfonts"),
-		resolveAnimateCss: vi.fn(() => "/stub/animate.css"),
-		resolveCronerPath: vi.fn(() => "/stub/croner.js"),
-		resolveMomentPath: vi.fn(() => "/stub/moment.js"),
-		resolveMomentTimezonePath: vi.fn(() => "/stub/moment-timezone.js"),
-		resolveFontAwesomeCss: vi.fn(() => "/stub/font-awesome.css"),
 		io: { emit: vi.fn() } as { emit: ReturnType<typeof vi.fn> },
+		// No core page listens by default, so the shell reloads the stage.
+		emitStageReload: vi.fn(() => false),
 		restartHelper: vi.fn(async () => {}),
 		injectShimResolution: vi.fn(),
 		harnessRoot: "/stub/harness" as string,
@@ -173,14 +170,7 @@ function makeRouteOptions(
 		},
 		assetService: {
 			resolveWebfontsRoot: flat.resolveWebfontsRoot as () => string,
-			resolveAnimateCss: flat.resolveAnimateCss as () => string,
-			resolveCronerPath: flat.resolveCronerPath as () => string,
-			resolveMomentPath: flat.resolveMomentPath as () => string,
-			resolveMomentTimezonePath:
-				flat.resolveMomentTimezonePath as () => string,
-			resolveFontAwesomeCss: flat.resolveFontAwesomeCss as () => string,
-			createHtmlPage: flat.createHtmlPage as (o: object) => string,
-			createStagePage: flat.createStagePage as (o: object) => string
+			createHtmlPage: flat.createHtmlPage as (o: object) => string
 		},
 		runtimeService: {
 			io: flat.io as import("socket.io").Server,
@@ -191,8 +181,7 @@ function makeRouteOptions(
 			getHelperLogEntries: flat.getHelperLogEntries as () => Array<
 				Record<string, unknown>
 			>,
-			realCoreStage: flat.realCoreStage as boolean | undefined,
-			emitStageReload: flat.emitStageReload as (() => boolean) | undefined
+			emitStageReload: flat.emitStageReload as () => boolean
 		},
 		analysisService: {
 			getAnalysisResult: flat.getAnalysisResult as () => null,
@@ -245,19 +234,16 @@ test("GET / responds with text/html and delegates to createHtmlPage", async () =
 // Tests — stage page
 // ---------------------------------------------------------------------------
 
-test("GET /__harness/stage responds with text/html and delegates to createStagePage", async () => {
-	const createStagePage = vi.fn(() => "<html>stage</html>");
-	const app = await buildApp({ createStagePage });
+test("GET /__harness/stage redirects the retired hand-port stage page to /__stage/", async () => {
+	const app = await buildApp();
 
 	const response = await app.inject({
 		method: "GET",
-		url: "/__harness/stage"
+		url: "/__harness/stage?v=abc"
 	});
 
-	assert.equal(response.statusCode, 200);
-	assert.match(response.headers["content-type"] as string, /text\/html/);
-	assert.equal(response.body, "<html>stage</html>");
-	assert.equal(createStagePage.mock.calls.length, 1);
+	assert.equal(response.statusCode, 302);
+	assert.equal(response.headers.location, "/__stage/");
 });
 
 // ---------------------------------------------------------------------------
@@ -566,70 +552,6 @@ test("POST /__harness/config/module returns fallback error text when thrown erro
 });
 
 // ---------------------------------------------------------------------------
-// Tests — static asset routes
-// ---------------------------------------------------------------------------
-
-test("GET /moment.js responds with application/javascript content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({ method: "GET", url: "/moment.js" });
-
-	assert.equal(response.statusCode, 200);
-	assert.match(
-		response.headers["content-type"] as string,
-		/application\/javascript/
-	);
-});
-
-test("GET /animate.css responds with text/css content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({ method: "GET", url: "/animate.css" });
-
-	assert.equal(response.statusCode, 200);
-	assert.match(response.headers["content-type"] as string, /text\/css/);
-});
-
-test("GET /croner.js responds with application/javascript content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({ method: "GET", url: "/croner.js" });
-
-	assert.equal(response.statusCode, 200);
-	assert.match(
-		response.headers["content-type"] as string,
-		/application\/javascript/
-	);
-});
-
-test("GET /moment-timezone.js responds with application/javascript content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({
-		method: "GET",
-		url: "/moment-timezone.js"
-	});
-
-	assert.equal(response.statusCode, 200);
-	assert.match(
-		response.headers["content-type"] as string,
-		/application\/javascript/
-	);
-});
-
-test("GET /font-awesome.css responds with text/css content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({
-		method: "GET",
-		url: "/font-awesome.css"
-	});
-
-	assert.equal(response.statusCode, 200);
-	assert.match(response.headers["content-type"] as string, /text\/css/);
-});
-
-// ---------------------------------------------------------------------------
 // Tests — POST /__harness/restart
 // ---------------------------------------------------------------------------
 
@@ -663,22 +585,10 @@ test("POST /__harness/restart calls restartHelper and emits harness:reload with 
 });
 
 // ---------------------------------------------------------------------------
-// Tests — static asset routes
+// Tests — stage reloads
 // ---------------------------------------------------------------------------
 
-test("without the real-core stage flag, reloads emit only harness:reload and no stage routes register", async () => {
-	const emitStageReload = vi.fn();
-	const io = { emit: vi.fn() };
-	const app = await buildApp({ io, emitStageReload });
-
-	await app.inject({ method: "POST", url: "/__harness/restart" });
-
-	assert.equal(io.emit.mock.calls.length, 1);
-	assert.equal(emitStageReload.mock.calls.length, 0);
-	assert.equal(vi.mocked(registerStageRoutes).mock.calls.length, 0);
-});
-
-test("with the real-core stage flag, reloads go through the core RELOAD and the stage routes register", async () => {
+test("reloads go through the core RELOAD and the stage routes register", async () => {
 	const emitStageReload = vi.fn(() => true);
 	const io = { emit: vi.fn() };
 	const getRuntimeConfig = vi.fn(() => ({ language: "es", locale: "es-ES" }));
@@ -686,7 +596,6 @@ test("with the real-core stage flag, reloads go through the core RELOAD and the 
 		io,
 		emitStageReload,
 		getRuntimeConfig,
-		realCoreStage: true,
 		watchEnabled: false
 	});
 
@@ -717,10 +626,10 @@ test("with the real-core stage flag, reloads go through the core RELOAD and the 
 	});
 });
 
-test("with the real-core stage flag and no core page listening, the shell reloads the stage", async () => {
+test("with no core page listening, the shell reloads the stage", async () => {
 	const emitStageReload = vi.fn(() => false);
 	const io = { emit: vi.fn() };
-	const app = await buildApp({ io, emitStageReload, realCoreStage: true });
+	const app = await buildApp({ io, emitStageReload });
 
 	await app.inject({ method: "POST", url: "/__harness/restart" });
 
@@ -730,7 +639,7 @@ test("with the real-core stage flag and no core page listening, the shell reload
 	assert.equal("reloadedBy" in payload, false);
 });
 
-test("with the real-core stage flag, a version switch and its reset reload through the core RELOAD once each", async () => {
+test("a version switch and its reset reload through the core RELOAD once each", async () => {
 	const emitStageReload = vi.fn(() => true);
 	const io = { emit: vi.fn() };
 	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(true);
@@ -741,7 +650,7 @@ test("with the real-core stage flag, a version switch and its reset reload throu
 		shimsBuilt: true,
 		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
 	});
-	const app = await buildApp({ io, emitStageReload, realCoreStage: true });
+	const app = await buildApp({ io, emitStageReload });
 
 	await app.inject({
 		method: "POST",
@@ -760,34 +669,6 @@ test("with the real-core stage flag, a version switch and its reset reload throu
 		assert.equal(payload.event, "mm-version-change");
 		assert.equal(payload.reloadedBy, "core");
 	}
-});
-
-test("static asset routes each invoke their resolver function to locate the file", async () => {
-	const resolveMomentPath = vi.fn(() => "/stub/moment.js");
-	const resolveAnimateCss = vi.fn(() => "/stub/animate.css");
-	const resolveCronerPath = vi.fn(() => "/stub/croner.js");
-	const resolveMomentTimezonePath = vi.fn(() => "/stub/moment-timezone.js");
-	const resolveFontAwesomeCss = vi.fn(() => "/stub/font-awesome.css");
-
-	const app = await buildApp({
-		resolveMomentPath,
-		resolveAnimateCss,
-		resolveCronerPath,
-		resolveMomentTimezonePath,
-		resolveFontAwesomeCss
-	});
-
-	await app.inject({ method: "GET", url: "/moment.js" });
-	await app.inject({ method: "GET", url: "/animate.css" });
-	await app.inject({ method: "GET", url: "/croner.js" });
-	await app.inject({ method: "GET", url: "/moment-timezone.js" });
-	await app.inject({ method: "GET", url: "/font-awesome.css" });
-
-	assert.equal(resolveMomentPath.mock.calls.length, 1);
-	assert.equal(resolveAnimateCss.mock.calls.length, 1);
-	assert.equal(resolveCronerPath.mock.calls.length, 1);
-	assert.equal(resolveMomentTimezonePath.mock.calls.length, 1);
-	assert.equal(resolveFontAwesomeCss.mock.calls.length, 1);
 });
 
 // ---------------------------------------------------------------------------

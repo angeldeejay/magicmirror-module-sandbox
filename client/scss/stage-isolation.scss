@@ -1,7 +1,7 @@
 @use "sass:list";
 
-// Isolation stylesheet for the real-core stage (`/__stage/`, maintainer flag
-// `--real-core-stage`). Injected into the version's own index.html.
+// Isolation stylesheet for the stage (`/__stage/`). Injected into the active
+// version's own index.html.
 //
 // The view is "isolated": only the mounted module's region (plus the region
 // containers it sits in) is visible, inside the version's real DOM and CSS.

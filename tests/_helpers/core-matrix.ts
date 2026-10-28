@@ -1,5 +1,5 @@
 /**
- * MagicMirror cores a test run can boot the real-core stage against.
+ * MagicMirror cores a test run can boot the stage against.
  *
  * Node-side only: the browser suites receive the matrix through Vitest
  * `provide`/`inject` (key `stageCoreMatrix`), because browser test files

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /**
- * The stage bridge's `stage-ready` payload: the real-core stage reports the
- * core's own `window.mmVersion`, the hand-port stage reports none.
+ * The stage bridge's `stage-ready` payload reports the core's own
+ * `window.mmVersion` once the core page set it.
  */
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -40,7 +40,7 @@ afterEach(() => {
 	delete (globalThis as BridgeScope).mmVersion;
 });
 
-test("the real-core stage reports the core's mmVersion in stage-ready", async () => {
+test("stage-ready reports the core's mmVersion", async () => {
 	(globalThis as BridgeScope).mmVersion = "2.38.0";
 	const core = await loadBridge({ unavailableHooks: [] });
 
@@ -51,18 +51,17 @@ test("the real-core stage reports the core's mmVersion in stage-ready", async ()
 	expect(posted[0].detail.mmVersion).toBe("2.38.0");
 });
 
-test("the hand-port stage leaves mmVersion out of stage-ready", async () => {
-	(globalThis as BridgeScope).mmVersion = "2.36.0";
+test("stage-ready omits mmVersion when the core set none", async () => {
 	const core = await loadBridge({});
 
-	core.publishStageReady(true);
+	core.publishStageReady();
 
-	expect(posted[0].type).toBe("stage-ready");
 	expect("mmVersion" in posted[0].detail).toBe(false);
 });
 
-test("the real-core stage omits mmVersion when the core set none", async () => {
-	const core = await loadBridge({ unavailableHooks: [] });
+test("stage-ready omits an empty mmVersion", async () => {
+	(globalThis as BridgeScope).mmVersion = "";
+	const core = await loadBridge({});
 
 	core.publishStageReady();
 

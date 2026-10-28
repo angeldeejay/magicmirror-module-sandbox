@@ -1,5 +1,9 @@
 /**
  * Bridge between the iframe-backed module stage and the persistent sandbox shell.
+ *
+ * Bundled into the stage observer (`client/stage-observer/index.ts`), it reads
+ * the observer facade on `window.__MICROCORE__` and talks to the shell over
+ * postMessage.
  */
 (function initModuleSandboxStageBridge(globalScope) {
 	const core = globalScope.__MICROCORE__;
@@ -59,24 +63,19 @@
 
 	/**
 	 * The MagicMirror version the stage runs, from the core's own
-	 * `window.mmVersion`. Only the real-core stage (recognised by its
-	 * observation-gap lists) reports one, so the hand-port stage leaves the
-	 * shell badge on the server state exactly as before.
+	 * `window.mmVersion`. Omitted until the core page set it.
 	 *
 	 * @returns {{mmVersion?: string}}
 	 */
 	function readMmVersion() {
 		const version = globalScope.mmVersion;
-		return Array.isArray(core.unavailableHooks) &&
-			typeof version === "string" &&
-			version !== ""
+		return typeof version === "string" && version !== ""
 			? { mmVersion: version }
 			: {};
 	}
 
 	/**
-	 * Hook points and notifications the stage cannot observe. Only the
-	 * real-core facade reports any; the hand-port core has neither list.
+	 * Hook points and notifications the stage cannot observe.
 	 *
 	 * @returns {{unavailableHooks: string[], unobservedNotifications: string[]}}
 	 */

@@ -143,26 +143,25 @@ type SandboxSessionRuntime = {
 	stderr?: string;
 	startPromise?: Promise<void> | null;
 	needsHelperReset?: boolean;
-	/** Server booted with the maintainer flag `--real-core-stage`. */
-	realCoreStage: boolean;
 	/**
-	 * Core the server runs: an mmvm version key, null for the built-in core,
-	 * or undefined to follow the maintainer's own `~/.mmvm/active`.
+	 * Core the server runs: an mmvm version key, or null for the built-in
+	 * core. Always pinned through an isolated home, so a run never depends on
+	 * (or writes) the maintainer's own `~/.mmvm/active`.
 	 */
-	coreKey?: string | null;
+	coreKey: string | null;
 	/** Name of the private core home the server runs under, if any. */
 	privateCoreHome?: string;
 };
 
 /**
  * Per-session runtime options. Omitted fields keep whatever the session
- * already booted with (a fresh session defaults to the hand-port stage).
+ * already booted with.
  */
 type SandboxRuntimeOptions = {
-	realCoreStage?: boolean;
 	/**
 	 * Pin the core (mmvm key, or null for built-in). A different value than
-	 * the running server's restarts it; omitted keeps the current one.
+	 * the running server's restarts it; omitted keeps the current one, and a
+	 * fresh session defaults to the built-in core.
 	 */
 	coreKey?: string | null;
 	/**
@@ -175,9 +174,6 @@ type SandboxRuntimeOptions = {
 	 */
 	privateCoreHome?: string;
 };
-
-/** Maintainer CLI flag that serves the real MagicMirror core in the stage. */
-const REAL_CORE_STAGE_FLAG = "--real-core-stage";
 
 const coreHomesRoot = path.join(sandboxRoot, ".runtime-cache", "core-homes");
 
@@ -222,15 +218,13 @@ function ensureIsolatedCoreHome(
 }
 
 /**
- * Environment overrides that pin the core of one runtime, if it pins one.
+ * Environment overrides that pin the core of one runtime through its isolated
+ * home.
  *
  * @param {SandboxSessionRuntime} runtime
  * @returns {NodeJS.ProcessEnv}
  */
 function getCoreHomeEnv(runtime: SandboxSessionRuntime): NodeJS.ProcessEnv {
-	if (runtime.coreKey === undefined) {
-		return {};
-	}
 	const home = ensureIsolatedCoreHome(
 		runtime.coreKey,
 		runtime.privateCoreHome
@@ -283,8 +277,7 @@ function buildSessionMapKey(suiteName, sessionId) {
 function createPerSessionFixtureRuntime(
 	suiteName,
 	sessionId,
-	realCoreStage = false,
-	coreKey: string | null | undefined = undefined,
+	coreKey: string | null = null,
 	privateCoreHome: string | undefined = undefined
 ): SandboxSessionRuntime {
 	const safeSuiteName = sanitizePathSegment(suiteName);
@@ -301,7 +294,6 @@ function createPerSessionFixtureRuntime(
 		runtimeRoot,
 		fixtureRoot,
 		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css"),
-		realCoreStage,
 		coreKey,
 		privateCoreHome
 	};
@@ -412,16 +404,8 @@ async function ensureSandboxSessionRuntime(
 	const existingRuntime = sandboxSessionRuntimes.get(runtimeKey);
 	if (existingRuntime) {
 		if (
-			options.realCoreStage !== undefined &&
-			options.realCoreStage !== existingRuntime.realCoreStage
-		) {
-			throw new Error(
-				`Sandbox session "${sessionId}" already runs with realCoreStage=${existingRuntime.realCoreStage}; one test file cannot mix stage modes.`
-			);
-		}
-		if (
 			"coreKey" in options &&
-			options.coreKey !== existingRuntime.coreKey
+			(options.coreKey ?? null) !== existingRuntime.coreKey
 		) {
 			// Switching cores restarts the server under the other core's home.
 			await terminateChildProcess(existingRuntime.child, {
@@ -431,7 +415,7 @@ async function ensureSandboxSessionRuntime(
 			existingRuntime.child?.stderr?.destroy();
 			existingRuntime.child = null;
 			existingRuntime.needsHelperReset = false;
-			existingRuntime.coreKey = options.coreKey;
+			existingRuntime.coreKey = options.coreKey ?? null;
 		}
 		if (
 			options.privateCoreHome !== undefined &&
@@ -443,20 +427,18 @@ async function ensureSandboxSessionRuntime(
 		}
 		return existingRuntime;
 	}
-	const realCoreStage = Boolean(options.realCoreStage);
-	const coreKey = "coreKey" in options ? options.coreKey : undefined;
+	const coreKey = options.coreKey ?? null;
 	const { privateCoreHome } = options;
 
 	// Acquire a warm server from the pool to avoid a cold start. Only servers
-	// booted with the same stage mode are reusable.
+	// booted with the same core (and core home) are reusable.
 	// Cancel the TTL timer and re-ref the child + pipe handles so the parent
 	// process stays alive while this session is using the server.
 	const pool = getWorkerPool(suiteName);
 	let pooledIndex = pool.length - 1;
 	while (
 		pooledIndex >= 0 &&
-		(pool[pooledIndex].runtime.realCoreStage !== realCoreStage ||
-			pool[pooledIndex].runtime.coreKey !== coreKey ||
+		(pool[pooledIndex].runtime.coreKey !== coreKey ||
 			pool[pooledIndex].runtime.privateCoreHome !== privateCoreHome)
 	) {
 		pooledIndex -= 1;
@@ -486,7 +468,6 @@ async function ensureSandboxSessionRuntime(
 	const runtime = createPerSessionFixtureRuntime(
 		suiteName,
 		sessionId,
-		realCoreStage,
 		coreKey,
 		privateCoreHome
 	);
@@ -515,7 +496,7 @@ async function ensureSandboxSessionRuntime(
 async function restorePrivateCoreHome(
 	runtime: SandboxSessionRuntime
 ): Promise<void> {
-	if (!runtime.privateCoreHome || runtime.coreKey === undefined) {
+	if (!runtime.privateCoreHome) {
 		return;
 	}
 	const activeFile = path.join(
@@ -595,10 +576,7 @@ async function ensureSandboxSessionServer(runtime) {
 			runtime.stdout = "";
 			runtime.stderr = "";
 			const invocation = getSandboxServerInvocation();
-			const serverArgs = runtime.realCoreStage
-				? [...invocation.args, REAL_CORE_STAGE_FLAG]
-				: invocation.args;
-			runtime.child = spawn(invocation.command, serverArgs, {
+			runtime.child = spawn(invocation.command, invocation.args, {
 				cwd: sandboxRoot,
 				env: {
 					...process.env,
@@ -814,9 +792,9 @@ export function createSandboxRuntimeController(suiteName) {
 			options: SandboxRuntimeOptions = {}
 		) {
 			if (!usesPerSessionRuntime) {
-				if (options.realCoreStage) {
+				if ("coreKey" in options) {
 					throw new Error(
-						`Suite "${suiteName}" shares one sandbox server and cannot boot the real-core stage.`
+						`Suite "${suiteName}" shares one sandbox server and cannot pin a core.`
 					);
 				}
 				return suiteRuntime;

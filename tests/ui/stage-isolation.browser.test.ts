@@ -1,6 +1,6 @@
 /**
- * Browser-backed coverage for the real-core stage isolation stylesheet
- * (`client/scss/stage-isolation.scss`, maintainer flag `--real-core-stage`).
+ * Browser-backed coverage for the stage isolation stylesheet
+ * (`client/scss/stage-isolation.scss`).
  *
  * The view is "isolated": only the mounted module's region and its ancestor
  * containers are visible, inside the version's real DOM and CSS. The sheet
@@ -10,7 +10,7 @@
 import { afterAll, describe, expect, inject, test } from "vitest";
 import {
 	closeSandbox,
-	gotoRealCoreStage,
+	gotoSandbox,
 	openSidebarTab,
 	pageCheck,
 	pageClick,
@@ -56,7 +56,7 @@ async function bootWith(
 		disabled?: boolean;
 	}
 ): Promise<void> {
-	await gotoRealCoreStage({ coreKey });
+	await gotoSandbox({ coreKey });
 	await openSidebarTab("config", "general");
 	await pageSelect("#config-position", settings.position);
 	for (const [selector, on] of [

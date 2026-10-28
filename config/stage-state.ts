@@ -1,6 +1,6 @@
 /**
- * Contract for the sandbox state the server embeds in the real-core stage
- * injection block, read by the stage observer before any core script runs.
+ * Contract for the sandbox state the server embeds in the stage injection
+ * block, read by the stage observer before any core script runs.
  *
  * The observer cannot read the module position from the core's own
  * `/config/` fetch without altering core input, so the server carries the

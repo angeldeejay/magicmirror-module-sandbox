@@ -75,7 +75,8 @@ journeyTest(
 			.toContain("Running");
 
 		await expect.poll(() => pageText("#lifecycle-started")).toBe("Yes");
-		// The hand-port stage reports no observation gaps.
+		// The fixture has every observed lifecycle method, so no hook is
+		// missing on the core.
 		expect(await pageCount("#lifecycle-observation-notice[hidden]")).toBe(
 			1
 		);

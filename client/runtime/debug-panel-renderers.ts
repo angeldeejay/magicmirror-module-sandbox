@@ -354,8 +354,8 @@
 	};
 
 	/**
-	 * Show or hide one observation-gap notice. An empty list hides it, so the
-	 * hand-port stage, which reports no gaps, renders nothing.
+	 * Show or hide one observation-gap notice. An empty list hides it, so a
+	 * stage that reports no gaps renders nothing.
 	 *
 	 * @param {string} noticeId
 	 * @param {string[]} lines

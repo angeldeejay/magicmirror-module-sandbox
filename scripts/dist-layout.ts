@@ -5,6 +5,14 @@
 import * as path from "pathe";
 
 /**
+ * Where the built-in core's browser files go inside `dist/`. The server
+ * resolves the built-in core there when `mmcore-source/` is absent
+ * (`server/stage/built-in-core.ts` `PACKAGED_CORE_DIRECTORY`, pinned equal by
+ * `tests/unit/scripts/dist-layout.test.ts`).
+ */
+export const distCoreDirectory = "core";
+
+/**
  * Repository paths copied verbatim into `dist/` at the same relative path.
  * `scripts/upstream-snapshots/core` holds the reviewed core drift hashes that
  * `server/stage/core-variants.ts` reads at runtime through a path relative to

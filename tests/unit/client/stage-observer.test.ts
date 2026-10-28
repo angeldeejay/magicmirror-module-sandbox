@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 /**
- * Unit tests for the real-core stage observer (`client/stage-observer/`):
- * transparent instance and `Log` hooks, global capture, instance discovery,
- * the `__MICROCORE__` facade and the stage state contract.
+ * Unit tests for the stage observer (`client/stage-observer/`): transparent
+ * instance and `Log` hooks, global capture, instance discovery, the
+ * `__MICROCORE__` facade, the style refresh and the stage state contract.
  *
  * The cross-version behaviour against real cores lives in
  * `tests/integration/stage-transparency.browser.test.ts`.
  */
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
 	parseStageState,
 	type StageState
@@ -16,7 +16,6 @@ import {
 	clonePayload,
 	createStageFacade,
 	serializeLogValue,
-	STYLE_REFRESH_UNAVAILABLE,
 	UNCLONEABLE_PLACEHOLDER
 } from "../../../client/stage-observer/facade.ts";
 import {
@@ -28,6 +27,7 @@ import {
 	hookConsole,
 	RECORDED_CONSOLE_METHODS
 } from "../../../client/stage-observer/log-hooks.ts";
+import { refreshModuleStylesheets } from "../../../client/stage-observer/style-refresh.ts";
 import {
 	serializeStageState,
 	stageStateSchema
@@ -284,7 +284,10 @@ describe("hookConsole", () => {
 /**
  * Builds a facade on a scope that records dispatched events.
  */
-function createFacadeFixture(parent?: unknown) {
+function createFacadeFixture(
+	parent?: unknown,
+	refreshStyles?: (moduleName: string) => Promise<boolean>
+) {
 	const events: Array<{ type: string; detail: any }> = [];
 	const scope = {
 		parent: undefined as unknown,
@@ -297,7 +300,11 @@ function createFacadeFixture(parent?: unknown) {
 		}
 	};
 	scope.parent = parent ?? scope;
-	return { scope, events, ...createStageFacade(scope) };
+	return {
+		scope,
+		events,
+		...createStageFacade(scope, refreshStyles ? { refreshStyles } : {})
+	};
 }
 
 describe("createStageFacade", () => {
@@ -464,10 +471,26 @@ describe("createStageFacade", () => {
 		expect(crossOrigin.core.helperLog).toEqual([]);
 	});
 
-	test("style refresh rejects with a clear message", async () => {
+	test("style refresh has nothing to do before the core created the module", async () => {
+		const refreshStyles = vi.fn(() => Promise.resolve(true));
 		await expect(
-			createFacadeFixture().core.reloadModuleStyles()
-		).rejects.toThrow(STYLE_REFRESH_UNAVAILABLE);
+			createFacadeFixture(undefined, refreshStyles).core.reloadModuleStyles()
+		).resolves.toBe(false);
+		expect(refreshStyles).not.toHaveBeenCalled();
+	});
+
+	test("style refresh re-fetches the created module's stylesheets", async () => {
+		const refreshStyles = vi.fn(() => Promise.resolve(true));
+		const fixture = createFacadeFixture(undefined, refreshStyles);
+		fixture.core.moduleInstance = { name: "MMM-Fixture" };
+		await expect(fixture.core.reloadModuleStyles()).resolves.toBe(true);
+		expect(refreshStyles).toHaveBeenCalledWith("MMM-Fixture");
+	});
+
+	test("style refresh defaults to the stage document", async () => {
+		const fixture = createFacadeFixture();
+		fixture.core.moduleInstance = { name: "MMM-Absent" };
+		await expect(fixture.core.reloadModuleStyles()).resolves.toBe(false);
 	});
 
 	test("observation gaps are exposed once the instance is attached", () => {
@@ -587,7 +610,7 @@ describe("createStageFacade", () => {
 });
 
 describe("log value serialization", () => {
-	test("serializeLogValue matches the hand-port runtime shapes", () => {
+	test("serializeLogValue matches the shell's log entry shapes", () => {
 		const error = new Error("boom");
 		expect(serializeLogValue(error)).toEqual({
 			name: "Error",
@@ -664,5 +687,102 @@ describe("stage state contract", () => {
 		expect(() =>
 			serializeStageState({ position: 1 } as unknown as StageState)
 		).toThrow();
+	});
+});
+
+describe("refreshModuleStylesheets", () => {
+	/**
+	 * Minimal stand-in for the stage document's `<link>` list. A real DOM
+	 * would fetch the stylesheets; this one lets each test decide when a link
+	 * loads or fails.
+	 */
+	class FakeLink extends EventTarget {
+		rel = "stylesheet";
+		constructor(
+			public href: string,
+			private readonly list: FakeLink[]
+		) {
+			super();
+		}
+		get isConnected(): boolean {
+			return this.list.includes(this);
+		}
+		cloneNode(): FakeLink {
+			return new FakeLink(this.href, this.list);
+		}
+		after(next: FakeLink): void {
+			this.list.splice(this.list.indexOf(this) + 1, 0, next);
+		}
+		remove(): void {
+			const index = this.list.indexOf(this);
+			if (index !== -1) {
+				this.list.splice(index, 1);
+			}
+		}
+	}
+
+	let links: FakeLink[];
+	const doc = {
+		querySelectorAll: () => links.filter((link) => link.rel === "stylesheet")
+	} as unknown as Document;
+
+	function addLink(href: string): FakeLink {
+		const link = new FakeLink(href, links);
+		links.push(link);
+		return link;
+	}
+
+	/** Fires `type` on every link the refresh inserted. */
+	function settleNewLinks(type: "load" | "error") {
+		for (const link of links.filter((entry) =>
+			entry.href.includes("refresh=")
+		)) {
+			link.dispatchEvent(new Event(type));
+		}
+	}
+
+	beforeEach(() => {
+		links = [];
+	});
+
+	test("resolves false when the module loaded no stylesheet", async () => {
+		addLink("http://localhost/__stage/css/main.css");
+		addLink("not a url");
+		await expect(
+			refreshModuleStylesheets(doc, "MMM-Fixture", "t1")
+		).resolves.toBe(false);
+	});
+
+	test("replaces only the module's links, in place, once the copy loaded", async () => {
+		const core = addLink("http://localhost/__stage/css/main.css");
+		const own = addLink(
+			"http://localhost/__stage/modules/MMM-Fixture/MMM-Fixture.css?x=1"
+		);
+		const vendor = addLink(
+			"http://localhost/__stage/node_modules/weathericons/css/weather-icons.css"
+		);
+		const done = refreshModuleStylesheets(doc, "MMM-Fixture", "t2");
+		// Until the new copy loads, both stay so the module never goes unstyled.
+		expect(own.isConnected).toBe(true);
+		expect(links).toHaveLength(4);
+		settleNewLinks("load");
+		await expect(done).resolves.toBe(true);
+
+		expect(links.map((link) => link.href)).toEqual([
+			core.href,
+			"http://localhost/__stage/modules/MMM-Fixture/MMM-Fixture.css?x=1&refresh=t2",
+			vendor.href
+		]);
+		expect(own.isConnected).toBe(false);
+	});
+
+	test("rejects and keeps the old link when the copy fails to load", async () => {
+		const own = addLink(
+			"http://localhost/__stage/modules/MMM-Fixture/MMM-Fixture.css"
+		);
+		const done = refreshModuleStylesheets(doc, "MMM-Fixture", "t3");
+		settleNewLinks("error");
+		await expect(done).rejects.toThrow(/Failed to load stylesheet/);
+		expect(links).toEqual([own]);
 	});
 });

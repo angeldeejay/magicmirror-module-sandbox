@@ -7,9 +7,8 @@
  * version, annotated with the file and line in the 2.36.0 sources
  * (`git show v2.36.0:js/<file>` in the MagicMirror repo; the built-in core in
  * `mmcore-source/node_modules/magicmirror` is the same release). They run on
- * the real-core stage (maintainer flag `--real-core-stage`) with the 2.36.0
- * core, and only through public behaviour: `MM`, `Module`, the module
- * instance API and the DOM.
+ * the stage with the 2.36.0 core, and only through public behaviour: `MM`,
+ * `Module`, the module instance API and the DOM.
  *
  * NON-NEGOTIABLE RULE (decided by the owner, per version)
  * -------------------------------------------------------

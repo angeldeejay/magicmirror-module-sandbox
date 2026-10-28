@@ -567,6 +567,117 @@ async function assertServerResponds(smokePort) {
 }
 
 /**
+ * Verify that the packaged sandbox serves the built-in MagicMirror core at
+ * `/__stage/` (from `dist/core/`) and that the core boots the mounted module
+ * in a real browser, as the sandbox shell's stage iframe would load it.
+ *
+ * @param {number} smokePort
+ * @returns {Promise<void>}
+ */
+async function assertStageBootsCore(smokePort) {
+	const base = `http://127.0.0.1:${smokePort}/__stage/`;
+	const mmVersion = await (
+		await fetch(`http://127.0.0.1:${smokePort}/__harness/mm-versions`)
+	).json();
+	// The server runs under an empty home, so no mmvm version can be active:
+	// the stage can only be serving the packaged core (`dist/core/`).
+	if (mmVersion.usingBuiltIn !== true || mmVersion.active !== null) {
+		throw new Error(
+			`The packaged sandbox is not on its built-in core: ${JSON.stringify({ active: mmVersion.active, usingBuiltIn: mmVersion.usingBuiltIn })}`
+		);
+	}
+	if (typeof mmVersion.builtInVersion !== "string" || !mmVersion.builtInVersion) {
+		throw new Error(
+			`The packaged sandbox reports no built-in core version: ${JSON.stringify(mmVersion)}`
+		);
+	}
+	// The core's own page and files, plus one hoisted vendor file and the
+	// server_functions-backed endpoint (its Node dependencies ship too).
+	for (const requestPath of [
+		"",
+		"js/main.js",
+		"css/main.css",
+		"node_modules/moment/min/moment-with-locales.js",
+		"node_modules/@fortawesome/fontawesome-free/css/all.min.css",
+		"env",
+		"config/"
+	]) {
+		const response = await fetch(`${base}${requestPath}`);
+		if (!response.ok) {
+			throw new Error(
+				`Packaged stage answered HTTP ${response.status} for /__stage/${requestPath}.`
+			);
+		}
+	}
+	const html = await (await fetch(base)).text();
+	if (!html.includes(`window.mmVersion = "${mmVersion.builtInVersion}"`)) {
+		throw new Error(
+			"Packaged stage page is not the built-in core's index.html."
+		);
+	}
+
+	const { chromium } = await import("playwright");
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage();
+		await page.goto(base, { waitUntil: "domcontentloaded" });
+		await page.waitForFunction(
+			() =>
+				document.documentElement.dataset.sandboxStage === "core" &&
+				Boolean(
+					document.querySelector(".module.MMM-TestModule .module-content")
+						?.childElementCount
+				),
+			undefined,
+			{ timeout: 30_000 }
+		);
+		const version = await page.evaluate(
+			() => (window as unknown as { mmVersion?: string }).mmVersion
+		);
+		if (version !== mmVersion.builtInVersion) {
+			throw new Error(
+				`Packaged stage ran core ${String(version)}, expected ${mmVersion.builtInVersion}.`
+			);
+		}
+	} finally {
+		await browser.close();
+	}
+}
+
+let originalNpmLocations: { cache: string; userconfig: string } | null = null;
+
+/**
+ * Environment for a packaged sandbox server under a fresh, empty home, so it
+ * never reads the maintainer's own `~/.mmvm/active` (and can only run the
+ * packaged built-in core). npm keeps the original cache and user config, so
+ * `npm exec` stays offline-capable and uses the same registry settings.
+ *
+ * @returns {{ env: NodeJS.ProcessEnv, cleanup: () => void }}
+ */
+function createIsolatedHomeEnv() {
+	if (!originalNpmLocations) {
+		originalNpmLocations = {
+			cache: runCommand(npmCommand, ["config", "get", "cache"]),
+			userconfig: runCommand(npmCommand, ["config", "get", "userconfig"])
+		};
+	}
+	const home = fs.mkdtempSync(
+		path.join(os.tmpdir(), "magicmirror-module-sandbox-e2e-home-")
+	);
+	return {
+		env: {
+			HOME: home,
+			USERPROFILE: home,
+			npm_config_cache: originalNpmLocations.cache,
+			npm_config_userconfig: originalNpmLocations.userconfig
+		},
+		cleanup() {
+			fs.rmSync(home, { recursive: true, force: true });
+		}
+	};
+}
+
+/**
  * Launch one packaged sandbox command and assert that it boots successfully.
  *
  * @param {string[]} args
@@ -576,11 +687,13 @@ async function assertServerResponds(smokePort) {
  */
 async function runSmokeCommand(args, moduleRoot, smokePort) {
 	const invocation = buildCommandInvocation(npmCommand, args);
+	const isolatedHome = createIsolatedHomeEnv();
 	const child = spawn(invocation.command, invocation.args, {
 		cwd: moduleRoot,
 		env: {
 			...process.env,
 			...quietNpmEnv,
+			...isolatedHome.env,
 			MM_SANDBOX_PORT: String(smokePort)
 		},
 		...invocation.options,
@@ -591,8 +704,10 @@ async function runSmokeCommand(args, moduleRoot, smokePort) {
 	try {
 		await waitForServerReady(child, smokePort);
 		await assertServerResponds(smokePort);
+		await assertStageBootsCore(smokePort);
 	} finally {
 		await killChildProcessTree(child);
+		isolatedHome.cleanup();
 	}
 }
 
@@ -608,6 +723,7 @@ async function runSmokeCommand(args, moduleRoot, smokePort) {
  * @returns {Promise<void>}
  */
 async function runInstalledSmokeBinary(moduleRoot, smokePort) {
+	const isolatedHome = createIsolatedHomeEnv();
 	const child = spawn(
 		process.execPath,
 		[getInstalledSandboxBinPath(moduleRoot)],
@@ -615,6 +731,7 @@ async function runInstalledSmokeBinary(moduleRoot, smokePort) {
 			cwd: moduleRoot,
 			env: {
 				...process.env,
+				...isolatedHome.env,
 				MM_SANDBOX_PORT: String(smokePort)
 			},
 			stdio: ["ignore", "pipe", "pipe"],
@@ -625,8 +742,10 @@ async function runInstalledSmokeBinary(moduleRoot, smokePort) {
 	try {
 		await waitForServerReady(child, smokePort);
 		await assertServerResponds(smokePort);
+		await assertStageBootsCore(smokePort);
 	} finally {
 		await killChildProcessTree(child);
+		isolatedHome.cleanup();
 	}
 }
 

@@ -1,5 +1,5 @@
 /**
- * Shell chrome on the real-core stage (maintainer flag `--real-core-stage`).
+ * Shell chrome around the stage, which runs the active MagicMirror core.
  *
  * The topbar badge must name the core that actually runs in the stage, and
  * the theme switch must restyle the shell without disturbing the stage. Runs
@@ -8,7 +8,7 @@
 import { afterAll, describe, expect, inject, test } from "vitest";
 import {
 	closeSandbox,
-	gotoRealCoreStage,
+	gotoSandbox,
 	pageAttribute,
 	pageClick,
 	pageEvaluate,
@@ -31,9 +31,9 @@ afterAll(async () => {
 	await closeSandbox();
 });
 
-/** Boots the real-core stage on one core and waits for the shell to be ready. */
+/** Boots the stage on one core and waits for the shell to be ready. */
 async function boot(coreKey: string | null): Promise<void> {
-	await gotoRealCoreStage({ coreKey });
+	await gotoSandbox({ coreKey });
 	await expect
 		.poll(() =>
 			stageEvaluate(() =>

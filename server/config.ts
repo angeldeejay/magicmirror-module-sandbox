@@ -47,8 +47,6 @@ type HarnessConfig = {
 	mmVersion: string;
 	header: string | boolean;
 	hiddenOnStartup: boolean;
-	/** Maintainer flag `--real-core-stage` (temporary). */
-	realCoreStage: boolean;
 	packageVersion?: string;
 };
 type ConfigApiOptions = {

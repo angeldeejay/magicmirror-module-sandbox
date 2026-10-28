@@ -11,9 +11,7 @@ mmcore-source/
 dist/
 client/generated/
 client/webfonts/
-client/styles/font-awesome.css
 client/styles/magicmirror-fonts.css
-client/styles/magicmirror-stage.css
 shims/generated/
 coverage/
 .runtime-cache/

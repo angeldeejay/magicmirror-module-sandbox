@@ -130,7 +130,7 @@
 		}
 
 		const nextUrl = new URL(
-			frame.getAttribute("src") || "/__harness/stage",
+			frame.getAttribute("src") || "/__stage/",
 			globalScope.location.origin
 		);
 		nextUrl.searchParams.set("v", version || Date.now().toString(36));
@@ -193,28 +193,12 @@
 	 * @returns {void}
 	 */
 	function applyLifecycleState(nextState) {
-		if (typeof core.setLifecycleState === "function") {
-			core.setLifecycleState(nextState || {});
-			return;
-		}
-
-		core.lifecycleState = Object.assign(
-			{},
-			core.lifecycleState,
-			nextState || {}
-		);
-		globalScope.dispatchEvent(
-			new CustomEvent("module-sandbox:lifecycle-updated", {
-				detail: {
-					state: Object.assign({}, core.lifecycleState)
-				}
-			})
-		);
+		core.setLifecycleState(nextState || {});
 	}
 
 	/**
 	 * Store the stage's observation gaps and tell the panels. Missing or
-	 * malformed lists count as empty, which is what the hand-port stage sends.
+	 * malformed lists count as empty.
 	 *
 	 * @param {{unavailableHooks?: unknown, unobservedNotifications?: unknown}} [detail]
 	 * @returns {void}
@@ -240,18 +224,6 @@
 				}
 			})
 		);
-	}
-
-	/**
-	 * Whether the stage iframe runs the real MagicMirror core (maintainer flag
-	 * `--real-core-stage`, served under `/__stage/`).
-	 *
-	 * @returns {boolean}
-	 */
-	function isRealCoreStage() {
-		const frame = core.getStageFrame();
-		const src = frame ? frame.getAttribute("src") || "" : "";
-		return src.startsWith("/__stage/");
 	}
 
 	/**
@@ -401,9 +373,9 @@
 
 			core.rootSocket = rootSocket;
 
-			// Server-side stage traffic log (real core). Zod validates the entry on
-			// the server before emitting; the runtime scripts are not bundled, so
-			// only the shape needed for rendering is checked here.
+			// Server-side stage traffic log. Zod validates the entry on the server
+			// before emitting; the runtime scripts are not bundled, so only the
+			// shape needed for rendering is checked here.
 			rootSocket.on("harness:websocket-log", (entry) => {
 				if (
 					!entry ||
@@ -429,12 +401,11 @@
 				);
 			});
 
-			// The hand-port stage runtime records helper logs from its own root
-			// socket and mirrors them here. The real core has no such listener,
-			// so under it the shell records them itself; the stage facade reads
-			// them back from this copy (see `mirroredShellLog`).
+			// The core page has no listener for helper logs, so the shell records
+			// them itself; the stage facade reads them back from this copy (see
+			// `mirroredShellLog`).
 			rootSocket.on("harness:helper-log", (entry) => {
-				if (!isRealCoreStage() || !entry || typeof entry !== "object") {
+				if (!entry || typeof entry !== "object") {
 					return;
 				}
 				applyMirroredUpdate(
@@ -456,8 +427,8 @@
 				}
 
 				core.showBackdrop("Loading\u2026");
-				// Real-core stage: the core's own root-socket RELOAD already
-				// reloads the stage, as on a mirror. Navigating the frame too
+				// The core's own root-socket RELOAD already reloads the stage,
+				// as on a mirror. Navigating the frame too
 				// would boot it twice (server/stage/stage-socket.ts
 				// `emitStageHarnessReload`).
 				// If no document loads in time, the RELOAD reached no listener of
@@ -519,13 +490,11 @@
 			});
 			// The stage document can finish loading before this listener
 			// exists: the shell's deferred scripts delay DOMContentLoaded, and
-			// a small stage page (the real core under `--real-core-stage`)
-			// loads first. Its `load` event is then gone, so ask for the
-			// snapshot now. Without this, only a stage that publishes
-			// stage-ready on its own (the hand-port boot, or the real core's
-			// DOM_OBJECTS_CREATED) clears the backdrop, and a module whose
-			// getDom fails never does. Same task as the listener above, so no
-			// load can fall between the two.
+			// the small core page loads first. Its `load` event is then gone,
+			// so ask for the snapshot now. Without this, only the core's
+			// DOM_OBJECTS_CREATED clears the backdrop, and a module whose
+			// getDom fails never sends it. Same task as the listener above, so
+			// no load can fall between the two.
 			if (isStageDocumentLoaded(frame)) {
 				globalScope.setTimeout(() => {
 					core.requestStageSnapshot();

@@ -1,7 +1,9 @@
 #!/usr/bin/env tsx
 
 /**
- * Maintainer asset-sync entrypoint for copying MagicMirror CSS and font assets into the sandbox.
+ * Maintainer asset-sync entrypoint for copying the MagicMirror Roboto font CSS
+ * and font files the sandbox shell uses (`client/styles/magicmirror-fonts.css`).
+ * The stage serves the core's own CSS and fonts instead.
  */
 
 import { transformSync } from "esbuild";
@@ -305,7 +307,6 @@ function syncMagicMirrorAssets({
 	const targetStylesRoot = path.join(clientRoot, "styles");
 	const copiedFiles = new Map<string, string>();
 	const fontsCssPath = path.join(targetStylesRoot, "magicmirror-fonts.css");
-	const stageCssPath = path.join(targetStylesRoot, "magicmirror-stage.css");
 
 	ensureDirectory(targetFontsRoot);
 	ensureDirectory(targetStylesRoot);
@@ -317,33 +318,12 @@ function syncMagicMirrorAssets({
 		packageRoot,
 		copiedFiles
 	});
-	const fontAwesomeCss = inlineCssImports({
-		entryCssPath: path.join(magicMirrorCssRoot, "font-awesome.css"),
-		targetFontsRoot,
-		packageRoot,
-		copiedFiles
-	});
-	const mainCss = inlineCssImports({
-		entryCssPath: path.join(magicMirrorCssRoot, "main.css"),
-		targetFontsRoot,
-		packageRoot,
-		copiedFiles
-	});
 
 	writeGeneratedCssFile(
 		fontsCssPath,
 		[
 			"/* Generated from magicmirror/css/roboto.css. Do not edit manually. */",
 			fontsCss
-		].join("\n\n")
-	);
-	writeGeneratedCssFile(
-		stageCssPath,
-		[
-			"/* Generated from MagicMirror core CSS. Do not edit manually. */",
-			'@import url("/__harness/styles/magicmirror-fonts.css");',
-			fontAwesomeCss,
-			mainCss
 		].join("\n\n")
 	);
 	writeManagedAssetManifest({

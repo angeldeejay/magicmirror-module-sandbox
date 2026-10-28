@@ -1,5 +1,6 @@
 /**
- * Fastify routes for the real-core stage under `/__stage/`.
+ * Fastify routes for the stage under `/__stage/`, which runs the active
+ * MagicMirror core itself.
  *
  * The stage serves the active MagicMirror core page and its static files
  * verbatim, the generated core files (`config/basepath.js`,
@@ -9,7 +10,8 @@
  * the core page requests lands here. The stage socket server
  * (`stage-socket.ts`) answers `/__stage/socket.io` before Fastify sees it.
  *
- * Registered only behind the maintainer flag `--real-core-stage`.
+ * This is the only stage: every MagicMirror version, the built-in core
+ * included, runs through it.
  */
 
 import * as fs from "node:fs";
@@ -118,8 +120,8 @@ export type StageRoutesOptions = {
 
 /**
  * Assigns the active core's `fullConf` to `global.config`, as core
- * `js/app.js` does once before loading helpers. The real-core stage calls it
- * before every helper (re)start; `getEnvVars` and `cors` read it too.
+ * `js/app.js` does once before loading helpers. The sandbox calls it before
+ * every helper (re)start; `getEnvVars` and `cors` read it too.
  */
 export function assignCoreGlobalConfig(
 	sources: CoreConfigSources,

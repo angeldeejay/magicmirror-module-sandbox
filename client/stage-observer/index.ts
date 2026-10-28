@@ -7,8 +7,8 @@
  * 1. `./setup.ts` sets the `data-sandbox-*` attributes and installs the
  *    `globalThis.__MICROCORE__` facade;
  * 2. `client/runtime/stage-bridge.ts` connects that facade to the shell over
- *    postMessage, exactly as in the hand-port stage (it publishes
- *    stage-ready, which clears the shell loading overlay);
+ *    postMessage (it publishes stage-ready, which clears the shell loading
+ *    overlay);
  * 3. this body wraps `console` before `js/logger.js` binds it into `Log`,
  *    captures `MM` as the core assigns it, and hooks the module instance
  *    once the core creates it.

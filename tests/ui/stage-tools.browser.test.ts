@@ -1,11 +1,11 @@
 /**
- * Tool parity on the real-core stage (maintainer flag `--real-core-stage`).
+ * Tool parity on the stage, which runs the active MagicMirror core.
  *
- * The sidebar tools the hand-port stage offers (lifecycle controls, the
- * notification emit and log, the WebSocket, console and helper logs, the
- * config save-and-reload, the language switch and the style refresh) must
- * keep working when the stage runs the real MagicMirror core, and a panel
- * whose hook point the core does not offer must say so. Runs once per core in
+ * The sidebar tools (lifecycle controls, the notification emit and log, the
+ * WebSocket, console and helper logs, the config save-and-reload, the
+ * language switch and the style refresh) must keep working when the stage
+ * runs the real MagicMirror core, and a panel whose hook point the core does
+ * not offer must say so. Runs once per core in
  * `tests/_helpers/core-matrix.ts`.
  *
  * 2.37+ reject the fixture's `this._super()` in getDom, exactly as a real
@@ -16,10 +16,9 @@
 import { afterAll, describe, expect, inject, test } from "vitest";
 import {
 	closeSandbox,
-	gotoRealCoreStage,
+	gotoSandbox,
 	openDomain,
 	openSidebarTab,
-	pageAttribute,
 	pageClick,
 	pageEvaluate,
 	pageFill,
@@ -55,10 +54,6 @@ type ShellScope = typeof globalThis & {
 };
 
 const cores = inject("stageCoreMatrix");
-
-/** Message of the rejected style refresh (`client/stage-observer/facade.ts`). */
-const STYLE_REFRESH_UNAVAILABLE =
-	"Style refresh is not available on the real-core stage yet";
 
 /** Error the getDom-throwing fixture variant raises. */
 const GETDOM_FAILURE = "stage-tools getDom failure";
@@ -102,9 +97,9 @@ async function waitForHookedInstance(): Promise<void> {
 		.toBe(true);
 }
 
-/** Boots the real-core stage on one core with the default fixture state. */
+/** Boots the stage on one core with the default fixture state. */
 async function boot(coreKey: string | null): Promise<void> {
-	await gotoRealCoreStage({ coreKey });
+	await gotoSandbox({ coreKey });
 	await waitForHookedInstance();
 }
 
@@ -340,17 +335,35 @@ describe.each(cores)("core $version", ({ version, key }) => {
 			});
 	});
 
-	test("Refresh styles reports that the real core does not offer it yet", async () => {
+	test("Refresh styles re-fetches the module stylesheet the core loaded", async () => {
 		await boot(key);
 		await openDomain("config");
 		await openSidebarTab("config", "module");
+		const moduleStylesheets = () =>
+			stageEvaluate(() =>
+				Array.from(
+					globalThis.document.querySelectorAll<HTMLLinkElement>(
+						'link[rel="stylesheet"]'
+					)
+				)
+					.map((link) => new URL(link.href))
+					.filter((url) =>
+						url.pathname.includes("/modules/MMM-TestModule/")
+					)
+					.map((url) => `${url.pathname}${url.search}`)
+			);
+		const before = await moduleStylesheets();
+		expect(before).toEqual(["/__stage/modules/MMM-TestModule/MMM-TestModule.css"]);
 
 		await pageClick("#module-config-refresh-styles");
 		await expect
 			.poll(() => pageText("#module-config-status"))
-			.toBe(STYLE_REFRESH_UNAVAILABLE);
-		expect(await pageAttribute("#module-config-status", "data-state")).toBe(
-			"error"
+			.toBe("Mounted module styles refreshed.");
+		const after = await moduleStylesheets();
+		// Same file, still one link, fetched again with a cache-busting query.
+		expect(after).toHaveLength(1);
+		expect(after[0]).toMatch(
+			/^\/__stage\/modules\/MMM-TestModule\/MMM-TestModule\.css\?refresh=/
 		);
 	});
 

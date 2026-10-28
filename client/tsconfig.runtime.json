@@ -12,7 +12,6 @@
 		"lib": ["DOM", "DOM.Iterable", "ES2021"]
 	},
 	"include": [
-		"runtime.ts",
 		"runtime/**/*.ts",
 		"vendor/**/*.ts",
 		"stage-observer/**/*.ts",

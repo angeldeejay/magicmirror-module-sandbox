@@ -2,15 +2,14 @@
  * Shared plumbing for the version-pinned core-fidelity suites
  * (`tests/integration/core-fidelity/pinned/<version>.browser.test.ts`).
  *
- * Each pinned file runs against the real-core stage (maintainer flag
- * `--real-core-stage`) on exactly one MagicMirror core, picked from the
- * core matrix that `tests/_helpers/core-matrix.ts` provides. When that core
- * is not part of the run, the whole file is skipped and its suite name says
- * why.
+ * Each pinned file runs against the stage on exactly one MagicMirror core,
+ * picked from the core matrix that `tests/_helpers/core-matrix.ts` provides.
+ * When that core is not part of the run, the whole file is skipped and its
+ * suite name says why.
  */
 import { inject } from "vitest";
 import type { CoreMatrixEntry } from "./core-matrix.ts";
-import { gotoRealCoreStage, stageEvaluate } from "./helpers.browser.ts";
+import { gotoSandbox, stageEvaluate } from "./helpers.browser.ts";
 
 export type PinnedCore = {
 	/** Matrix entry for the pinned core, or null when it is not in this run. */
@@ -38,7 +37,7 @@ export function resolvePinnedCore(version: string): PinnedCore {
 }
 
 /**
- * Open the real-core stage on one core and wait until the core handed its
+ * Open the stage on one core and wait until the core handed its
  * module instances to `MM.modulesStarted`, so `MM.getModules()` returns the
  * mounted module.
  *
@@ -46,7 +45,7 @@ export function resolvePinnedCore(version: string): PinnedCore {
  * @returns {Promise<void>}
  */
 export async function openPinnedStage(core: CoreMatrixEntry): Promise<void> {
-	await gotoRealCoreStage({ coreKey: core.key });
+	await gotoSandbox({ coreKey: core.key });
 	const timeoutAt = Date.now() + 20_000;
 	while (
 		!(await stageEvaluate(() =>

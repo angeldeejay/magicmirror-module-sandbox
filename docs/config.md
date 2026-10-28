@@ -53,8 +53,9 @@ Both panels share the same footer actions:
   module `config` body to the last saved sandbox state.
 - **Format config** rewrites the nested `config` body with normalized
   formatting and strips any comments, without saving yet.
-- **Refresh styles** reloads only the stylesheets declared by `getStyles()`
-  without a full viewport reload.
+- **Refresh styles** re-fetches the module's own stylesheets (the
+  `getStyles()` files the core loaded from `modules/<ModuleName>/`) without a
+  full viewport reload. Vendor stylesheets are left alone.
 - **Save and reload** writes the current config envelope plus the current
   sandbox language selection through the backend.
 

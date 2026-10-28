@@ -1,8 +1,8 @@
 /**
  * Browser-backed integration coverage for switching the MagicMirror core on
- * the real-core stage (maintainer flag `--real-core-stage`): activating
- * another core reloads the stage into it, exactly once, and the module keeps
- * talking to the helper that now runs on that core.
+ * the stage: activating another core reloads the stage into it, exactly
+ * once, and the module keeps talking to the helper that now runs on that
+ * core.
  *
  * It needs a second core, so it runs only when `MM_SANDBOX_TEST_CORE_VERSION`
  * adds one to the matrix (`tests/_helpers/core-matrix.ts`). The server runs
@@ -12,7 +12,7 @@
 import { afterAll, describe, expect, inject, test } from "vitest";
 import {
 	closeSandbox,
-	gotoRealCoreStage,
+	gotoSandbox,
 	pageEvaluate,
 	pageText,
 	stageEvaluate
@@ -206,7 +206,7 @@ describe.skipIf(!other)(
 		: "version switch (skipped: needs a second core; set MM_SANDBOX_TEST_CORE_VERSION)",
 	() => {
 		test("a config save boots the stage exactly once", async () => {
-			await gotoRealCoreStage({
+			await gotoSandbox({
 				coreKey: null,
 				privateCoreHome: "version-switch"
 			});
@@ -235,7 +235,7 @@ describe.skipIf(!other)(
 		});
 
 		test("activating another core reloads the stage into it", async () => {
-			await gotoRealCoreStage({
+			await gotoSandbox({
 				coreKey: null,
 				privateCoreHome: "version-switch"
 			});

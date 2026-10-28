@@ -13,6 +13,7 @@ import * as fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import * as path from "pathe";
+import { findBuiltInCoreRoot } from "./stage/built-in-core.ts";
 import { detectCoreVariants } from "./stage/core-variants.ts";
 
 const _serverDir = path.dirname(
@@ -276,32 +277,23 @@ export function getInstalledMmVersion(versionKey: string): string | null {
 }
 
 /**
- * Returns the version of the baseline MagicMirror package used for built-in shims.
- * Prefers mmcore-source/ (populated by sync-mmcore-source.ts) over node_modules/.
+ * Returns the version of the built-in MagicMirror core: the same root the
+ * stage serves (`server/stage/built-in-core.ts`), so the badge and the stage
+ * never disagree. Null when no built-in core is present.
  */
 export function getBuiltInMmVersion(): string | null {
-	const candidates = [
-		path.join(
-			_projectRoot,
-			"mmcore-source",
-			"node_modules",
-			"magicmirror",
-			"package.json"
-		),
-		path.join(_projectRoot, "node_modules", "magicmirror", "package.json")
-	];
-	for (const pkgPath of candidates) {
-		try {
-			if (!fs.existsSync(pkgPath)) continue;
-			const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
-				version?: unknown;
-			};
-			if (typeof pkg.version === "string") return pkg.version;
-		} catch {
-			// try next candidate
-		}
+	const root = findBuiltInCoreRoot(_projectRoot);
+	if (!root) {
+		return null;
 	}
-	return null;
+	try {
+		const pkg = JSON.parse(
+			fs.readFileSync(path.join(root, "package.json"), "utf8")
+		) as { version?: unknown };
+		return typeof pkg.version === "string" ? pkg.version : null;
+	} catch {
+		return null;
+	}
 }
 
 // ── Capability map ────────────────────────────────────────────────────────────

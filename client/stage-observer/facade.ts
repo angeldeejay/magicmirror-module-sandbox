@@ -1,15 +1,15 @@
 /**
- * `globalThis.__MICROCORE__` facade for the real-core stage.
+ * `globalThis.__MICROCORE__` facade of the stage, which runs the active
+ * MagicMirror core itself.
  *
- * `client/runtime/stage-bridge.ts` was written against the hand-port core and
- * reads a fixed set of fields. Under the real MagicMirror core this facade
- * provides exactly those fields, fed by the observer hooks, so the bridge runs
- * unchanged in both stages:
+ * `client/runtime/stage-bridge.ts` reads a fixed set of fields. This facade
+ * provides exactly those fields, fed by the observer hooks:
  * - logs: `notificationLog`, `consoleLog` (filled here), `websocketLog` and
  *   `helperLog` (owned by the shell, see `mirroredShellLog`);
  * - `lifecycleState`, `moduleInstance`;
  * - `emitNotification`, `suspendModule`, `resumeModule`,
- *   `reloadModuleStyles`; the bridge adds `publishStageReady`;
+ *   `reloadModuleStyles` (re-fetches the module's own stylesheets, see
+ *   `style-refresh.ts`); the bridge adds `publishStageReady`;
  * - observation gaps for the panels: `unobservedNotifications`,
  *   `unavailableHooks`, published as `module-sandbox:observation-gaps-updated`
  *   when the instance is attached.
@@ -22,6 +22,7 @@ import type {
 	InstanceHookCallbacks,
 	ObservedMethod
 } from "./instance-hooks.ts";
+import { refreshModuleStylesheets } from "./style-refresh.ts";
 
 const MAX_NOTIFICATION_LOG_ENTRIES = 100;
 const MAX_CONSOLE_LOG_ENTRIES = 200;
@@ -87,10 +88,6 @@ export type StageFacade = {
 /** Logged in place of a value that cannot be cloned or stringified. */
 export const UNCLONEABLE_PLACEHOLDER = "[uncloneable value]";
 
-/** Message of the rejected style refresh under the real core. */
-export const STYLE_REFRESH_UNAVAILABLE =
-	"Style refresh is not available on the real-core stage yet";
-
 /**
  * Notifications every supported core (2.35+) sends before the observer can
  * see the instance: `MM.modulesStarted` sends `ALL_MODULES_STARTED`, then
@@ -105,8 +102,8 @@ type FacadeScope = {
 };
 
 /**
- * Clone one console value into a JSON-safe shape, as the hand-port runtime
- * does (`client/runtime/shared.ts` `serializeLogValue`).
+ * Clone one console value into a JSON-safe shape, the same shape the shell's
+ * own log entries use (`client/runtime/shared.ts` `serializeLogValue`).
  */
 export function serializeLogValue(value: unknown): unknown {
 	try {
@@ -133,8 +130,7 @@ export function serializeLogValue(value: unknown): unknown {
 }
 
 /**
- * JSON-safe copy of a notification payload for the log, as the hand-port
- * runtime does (`client/runtime/notifications.ts` `clonePayload`).
+ * JSON-safe copy of a notification payload for the log.
  */
 export function clonePayload(value: unknown): unknown {
 	if (value === undefined) {
@@ -178,7 +174,15 @@ function mirroredShellLog(scope: FacadeScope, key: string): unknown[] {
  */
 export function createStageFacade(
 	scope: FacadeScope,
-	{ disabled = false }: { disabled?: boolean } = {}
+	{
+		disabled = false,
+		refreshStyles = (moduleName) =>
+			refreshModuleStylesheets(document, moduleName)
+	}: {
+		disabled?: boolean;
+		/** Re-fetches the module's stylesheets (`style-refresh.ts`). */
+		refreshStyles?: (moduleName: string) => Promise<boolean>;
+	} = {}
 ) {
 	let pendingEmitMeta: EmitMeta | null = null;
 
@@ -245,9 +249,12 @@ export function createStageFacade(
 			return true;
 		},
 		reloadModuleStyles() {
-			// Not ported to the real-core stage yet; the bridge shows this
-			// message to the shell as a failed refresh.
-			return Promise.reject(new Error(STYLE_REFRESH_UNAVAILABLE));
+			const name = core.moduleInstance?.name;
+			// Before the core created the module there is nothing to refresh.
+			if (typeof name !== "string" || name === "") {
+				return Promise.resolve(false);
+			}
+			return refreshStyles(name);
 		},
 		unobservedNotifications: [],
 		unavailableHooks: []

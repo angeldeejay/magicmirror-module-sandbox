@@ -40,8 +40,8 @@ function readShellStageVersion(): string | null {
 
 function MmVersionBadge() {
 	const [badge, setBadge] = useState<BadgeState>({ usingBuiltIn: true, displayVersion: "—" });
-	// The core the stage actually runs, as the stage itself reports it. Only
-	// the real-core stage reports one; without it the server state decides.
+	// The core the stage actually runs, as the stage itself reports it. Until
+	// the stage reported one, the server state decides.
 	const [stageVersion, setStageVersion] = useState<string | null>(readShellStageVersion);
 
 	useEffect(() => {

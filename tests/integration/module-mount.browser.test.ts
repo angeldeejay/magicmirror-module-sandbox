@@ -1,5 +1,11 @@
 /**
  * Browser-backed integration coverage for initial mounted-module boot flow.
+ *
+ * The stage runs the built-in MagicMirror core (2.36.0), so the module is
+ * read back through what that core created: the instance `MM.getModules()`
+ * returns, its wrapper (`main.js` `createDomObjects`) and the core's own
+ * `config` global, which 2.35-2.36 declare with a top-level `let`
+ * (`config/basepath.js`), reachable only as a free identifier.
  */
 import { afterAll, expect } from "vitest";
 import {
@@ -64,9 +70,10 @@ journeyTest(
 
 		const moduleRuntimeDetails = await stageEvaluate(() => {
 			const instance = globalThis.__moduleSandboxModule;
-			const wrapper = globalThis.document.querySelector(
-				'[data-module-shell="true"]'
+			const wrapper = globalThis.document.getElementById(
+				instance.identifier
 			);
+			const coreConfig = globalThis.eval("config");
 			return {
 				mmVersion: globalThis.mmVersion,
 				wrapperId: wrapper ? wrapper.id : null,
@@ -75,20 +82,23 @@ journeyTest(
 					globalThis.document.querySelector("#test-module-root")
 						?.parentElement?.className ?? "",
 				superAdapterSnapshot: instance.superAdapterSnapshot,
-				wrapperPosition: wrapper ? wrapper.dataset.position : null,
-				language: globalThis.config.language,
-				locale: globalThis.config.locale,
+				regionClassName: wrapper?.closest(".region")?.className ?? null,
+				isCoreModule:
+					globalThis.eval("MM").getModules()[0] === instance,
+				language: coreConfig.language,
+				locale: coreConfig.locale,
 				hasSocketApi:
 					typeof instance.socket === "function" &&
 					typeof instance.socket().sendNotification === "function" &&
 					typeof instance.socket().setNotificationCallback ===
 						"function",
+				// module.js setData/setConfig; configDeepMerge is a module-level
+				// helper of module.js, not an instance method.
 				hasConfigHelpers:
 					typeof instance.setData === "function" &&
-					typeof instance.setConfig === "function" &&
-					typeof instance.configDeepMerge === "function",
+					typeof instance.setConfig === "function",
 				nestedConfig: instance.config.nested,
-				positions: globalThis.MM.getAvailableModulePositions,
+				positions: globalThis.eval("MM").getAvailableModulePositions,
 				translatorChecks: {
 					headerTitle: instance.translate("HEADER_TITLE"),
 					greeting: instance.translate("GREETING", {
@@ -128,9 +138,10 @@ journeyTest(
 		await expect
 			.poll(() => stageText("#test-module-script-status"))
 			.toBe("Script: test-script-ready");
-		await expect
-			.poll(() => stageText("#module-header"))
-			.toBe("MMM-TestModule");
+		// The saved header is "": the core hides an empty header
+		// (main.js:253-258) instead of showing the module name.
+		await expect.poll(() => stageText(".module-header")).toBe("");
+		await expect.poll(() => stageVisible(".module-header")).toBe(false);
 		await expect
 			.poll(() => stageText("#test-module-lifecycle"))
 			.toBe("Suspend: 0 / Resume: 0");
@@ -156,7 +167,9 @@ journeyTest(
 		expect(moduleRuntimeDetails.mmVersion).toBe("2.36.0");
 		expect(moduleRuntimeDetails.language).toBe("es");
 		expect(moduleRuntimeDetails.locale).toBe("es");
-		expect(moduleRuntimeDetails.wrapperId).toBe("MMM-TestModule_sandbox");
+		// loader.js names instances module_<index>_<name>.
+		expect(moduleRuntimeDetails.wrapperId).toBe("module_0_MMM-TestModule");
+		expect(moduleRuntimeDetails.isCoreModule).toBe(true);
 		expect(moduleRuntimeDetails.wrapperClassName).toContain("module");
 		expect(moduleRuntimeDetails.wrapperClassName).toContain(
 			"MMM-TestModule"
@@ -182,8 +195,10 @@ journeyTest(
 		expect(
 			moduleRuntimeDetails.superAdapterSnapshot.hasImmediateHelperButton
 		).toBe(true);
-		expect(moduleRuntimeDetails.wrapperPosition).toBe(
-			defaultModuleOptions.position
+		// main.js selectWrapper: middle_center is the "middle center" region.
+		expect(defaultModuleOptions.position).toBe("middle_center");
+		expect(moduleRuntimeDetails.regionClassName).toBe(
+			"region middle center"
 		);
 		expect(moduleRuntimeDetails.hasSocketApi).toBe(true);
 		expect(moduleRuntimeDetails.hasConfigHelpers).toBe(true);

@@ -61,7 +61,8 @@ type HelperRuntimeOptions = {
 	io: import("socket.io").Server;
 	/**
 	 * Socket server handed to node_helper via setSocketIO. Defaults to the
-	 * shell `io`; the per-version stage flag returns the stage server instead.
+	 * shell `io`; the sandbox passes the stage socket server, where the core
+	 * page connects the module namespace.
 	 */
 	getHelperIo?: () => import("socket.io").Server;
 	getHarnessConfig: () => { moduleName: string };
@@ -74,8 +75,8 @@ type HelperRuntimeOptions = {
 	getModuleConfig?: () => { config?: unknown };
 	/**
 	 * Runs before every helper (re)start, after the previous helper stopped.
-	 * The real-core stage assigns `global.config` here, as core `js/app.js`
-	 * does before loading helpers.
+	 * The sandbox assigns `global.config` here, as core `js/app.js` does
+	 * before loading helpers.
 	 */
 	prepareHelperGlobals?: () => void;
 	/** Override the resolved node_helper path (.ts or .js). Primarily for testing. */

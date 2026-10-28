@@ -6,11 +6,10 @@
  * Each test asserts behaviour whose expected result is fixed for this core
  * version, annotated with the file and line in the 2.38.0 sources
  * (`git show v2.38.0:js/<file>` in the MagicMirror repo). They run on the
- * real-core stage (maintainer flag `--real-core-stage`) with the 2.38.0 core
- * installed in mmvm, selected by `MM_SANDBOX_TEST_CORE_VERSION=2.38.0`
- * (`tests/_helpers/core-matrix.ts`), and only through public behaviour:
- * `MM`, `Module`, the module instance API and the DOM. Without that core the
- * file is skipped.
+ * stage with the 2.38.0 core installed in mmvm, selected by
+ * `MM_SANDBOX_TEST_CORE_VERSION=2.38.0` (`tests/_helpers/core-matrix.ts`),
+ * and only through public behaviour: `MM`, `Module`, the module instance API
+ * and the DOM. Without that core the file is skipped.
  *
  * NON-NEGOTIABLE RULE (decided by the owner, per version)
  * -------------------------------------------------------

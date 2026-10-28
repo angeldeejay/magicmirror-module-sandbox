@@ -305,10 +305,6 @@ test("syncMagicMirrorAssets writes generated stage and font styles from MagicMir
 		path.join(packageRoot, "client", "styles", "magicmirror-fonts.css"),
 		"utf8"
 	);
-	const stageCss = fs.readFileSync(
-		path.join(packageRoot, "client", "styles", "magicmirror-stage.css"),
-		"utf8"
-	);
 
 	assert.doesNotMatch(
 		fontsCss,
@@ -318,13 +314,14 @@ test("syncMagicMirrorAssets writes generated stage and font styles from MagicMir
 		fontsCss,
 		/url\((?:"|)\/*__harness\/fonts\/roboto-latin-400-normal\.woff2(?:"|)\)/
 	);
-	assert.match(
-		stageCss,
-		/@import(?:"| )\/__harness\/styles\/magicmirror-fonts\.css/
+	// The stage serves the core's own CSS, so only the shell's Roboto sheet
+	// is generated, and no Font Awesome or main.css asset is copied.
+	assert.equal(
+		fs.existsSync(
+			path.join(packageRoot, "client", "styles", "magicmirror-stage.css")
+		),
+		false
 	);
-	assert.match(stageCss, /fa-solid-900\.woff2/);
-	assert.match(stageCss, /body\{color:#999\}/);
-	assert.doesNotMatch(stageCss, /Generated from MagicMirror core CSS/);
 	assert.equal(
 		fs.existsSync(
 			path.join(
@@ -340,10 +337,10 @@ test("syncMagicMirrorAssets writes generated stage and font styles from MagicMir
 		fs.existsSync(
 			path.join(packageRoot, "client", "fonts", "fa-solid-900.woff2")
 		),
-		true
+		false
 	);
 	assert.deepEqual(
 		readManagedAssetManifest(path.join(packageRoot, "client", "fonts")),
-		["fa-solid-900.woff2", "roboto-latin-400-normal.woff2"]
+		["roboto-latin-400-normal.woff2"]
 	);
 });

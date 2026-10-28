@@ -325,7 +325,7 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 		],
 		outcomes: [
 			"saved options visible on module data",
-			"animation markers updated",
+			"animation classes applied",
 			"header disabled state visible",
 			"disabled stage shell visible"
 		]
@@ -437,10 +437,10 @@ const journeyCatalog: readonly JourneyDefinition[] = [
 			"header:undefined"
 		],
 		outcomes: [
-			"empty string falls back to module name",
+			"empty string hides header",
 			"false hides header",
 			"whitespace remains visible",
-			"undefined falls back to module name"
+			"undefined hides header"
 		]
 	},
 	{

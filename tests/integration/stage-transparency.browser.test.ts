@@ -1,6 +1,6 @@
 /**
- * Cross-version transparency coverage for the real-core stage observer
- * (`client/stage-observer/`, maintainer flag `--real-core-stage`).
+ * Cross-version transparency coverage for the stage observer
+ * (`client/stage-observer/`).
  *
  * The observer hooks the created module instance and the global `Log`, and
  * must stay invisible to the core: same arguments, results, exceptions and
@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, inject, test } from "vitest";
 import {
 	closeSandbox,
 	consoleMessages,
-	gotoRealCoreStage,
+	gotoSandbox,
 	pageEvaluate,
 	stageEvaluate
 } from "../_helpers/helpers.browser.ts";
@@ -65,7 +65,7 @@ afterAll(async () => {
 
 describe.each(cores)("core $version", ({ version, key }) => {
 	beforeAll(async () => {
-		await gotoRealCoreStage({ coreKey: key });
+		await gotoSandbox({ coreKey: key });
 		// expect.poll is unavailable in hooks; wait for the hooked instance.
 		const timeoutAt = Date.now() + 20_000;
 		while (

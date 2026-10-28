@@ -3,7 +3,6 @@
  */
 
 import fastifyStatic from "@fastify/static";
-import * as fs from "node:fs";
 import * as path from "pathe";
 import type { HtmlPageOptions } from "./html.ts";
 import { repoRoot, harnessRoot } from "./paths.ts";
@@ -25,7 +24,7 @@ import {
 	sanitizeVersion,
 	setActiveVersion
 } from "./mm-version-manager.ts";
-import { registerStageRoutes } from "./stage/stage-routes.ts";
+import { registerStageRoutes, STAGE_PREFIX } from "./stage/stage-routes.ts";
 import { emitStageHarnessReload } from "./stage/stage-socket.ts";
 
 type ConfigService = {
@@ -46,13 +45,7 @@ type ConfigService = {
 
 type AssetService = {
 	resolveWebfontsRoot: () => string;
-	resolveAnimateCss: () => string;
-	resolveCronerPath: () => string;
-	resolveMomentPath: () => string;
-	resolveMomentTimezonePath: () => string;
-	resolveFontAwesomeCss: () => string;
 	createHtmlPage: (options: HtmlPageOptions) => string;
-	createStagePage: (options: Omit<HtmlPageOptions, "watchEnabled">) => string;
 };
 
 type RuntimeService = {
@@ -62,13 +55,11 @@ type RuntimeService = {
 	watchEnabled: boolean;
 	getHelperLogEntries: () => Array<Record<string, unknown>>;
 	harnessRoot: string;
-	/** Maintainer flag `--real-core-stage`: serve the real core at `/__stage/`. */
-	realCoreStage?: boolean;
 	/**
 	 * Sends the core root-namespace `RELOAD` on the stage socket server when a
 	 * core page listens; returns whether it was sent.
 	 */
-	emitStageReload?: () => boolean;
+	emitStageReload: () => boolean;
 };
 
 type AnalysisService = {
@@ -107,16 +98,7 @@ async function registerRoutes({
 		saveRuntimeConfig,
 		getContract
 	} = configService;
-	const {
-		resolveWebfontsRoot,
-		resolveAnimateCss,
-		resolveCronerPath,
-		resolveMomentPath,
-		resolveMomentTimezonePath,
-		resolveFontAwesomeCss,
-		createHtmlPage,
-		createStagePage
-	} = assetService;
+	const { resolveWebfontsRoot, createHtmlPage } = assetService;
 	const {
 		io,
 		restartHelper,
@@ -124,24 +106,18 @@ async function registerRoutes({
 		watchEnabled,
 		getHelperLogEntries,
 		harnessRoot: runtimeHarnessRoot,
-		realCoreStage = false,
 		emitStageReload
 	} = runtimeService;
 	const { getAnalysisResult, triggerAnalysis } = analysisService;
 	const harnessConfig = getHarnessConfig();
 
 	/**
-	 * Emits `harness:reload` to the shell. With the real-core stage, the core's
-	 * own root-namespace `RELOAD` reloads the stage whenever a core page
-	 * listens, and the shell leaves the frame alone (see
-	 * `emitStageHarnessReload`).
+	 * Emits `harness:reload` to the shell. The core's own root-namespace
+	 * `RELOAD` reloads the stage whenever a core page listens, and the shell
+	 * leaves the frame alone (see `emitStageHarnessReload`).
 	 */
 	const emitHarnessReload = (payload: Record<string, unknown>): void => {
-		emitStageHarnessReload(
-			io,
-			payload,
-			realCoreStage ? emitStageReload : undefined
-		);
+		emitStageHarnessReload(io, payload, emitStageReload);
 	};
 
 	await app.register(fastifyStatic, {
@@ -175,79 +151,26 @@ async function registerRoutes({
 		});
 	});
 
-	if (realCoreStage) {
-		await registerStageRoutes(app, {
-			sources: {
-				getModuleConfig,
-				getRuntimeConfig: () => {
-					const runtimeConfig = getRuntimeConfig();
-					return {
-						language: String(runtimeConfig.language),
-						locale: String(runtimeConfig.locale)
-					};
-				},
-				getHarnessConfig
-			},
-			moduleName: harnessConfig.moduleName,
-			moduleRoot: repoRoot
-		});
-	}
-
-	app.get("/__harness/stage", async (_request, reply) => {
-		reply.type("text/html; charset=utf-8");
-		return createStagePage({
-			getAvailableLanguages,
-			getHarnessConfig,
+	await registerStageRoutes(app, {
+		sources: {
 			getModuleConfig,
-			getContract,
-			getHelperLogEntries
-		});
+			getRuntimeConfig: () => {
+				const runtimeConfig = getRuntimeConfig();
+				return {
+					language: String(runtimeConfig.language),
+					locale: String(runtimeConfig.locale)
+				};
+			},
+			getHarnessConfig
+		},
+		moduleName: harnessConfig.moduleName,
+		moduleRoot: repoRoot
 	});
 
-	app.get(
-		"/moment.js",
-		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
-		async (_request, reply) => {
-			reply.type("application/javascript; charset=utf-8");
-			return reply.send(fs.createReadStream(resolveMomentPath()));
-		}
-	);
-
-	app.get(
-		"/animate.css",
-		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
-		async (_request, reply) => {
-			reply.type("text/css; charset=utf-8");
-			return reply.send(fs.createReadStream(resolveAnimateCss()));
-		}
-	);
-
-	app.get(
-		"/croner.js",
-		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
-		async (_request, reply) => {
-			reply.type("application/javascript; charset=utf-8");
-			return reply.send(fs.createReadStream(resolveCronerPath()));
-		}
-	);
-
-	app.get(
-		"/moment-timezone.js",
-		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
-		async (_request, reply) => {
-			reply.type("application/javascript; charset=utf-8");
-			return reply.send(fs.createReadStream(resolveMomentTimezonePath()));
-		}
-	);
-
-	app.get(
-		"/font-awesome.css",
-		{ config: { rateLimit: { max: 500, timeWindow: "1 minute" } } },
-		async (_request, reply) => {
-			reply.type("text/css; charset=utf-8");
-			return reply.send(fs.createReadStream(resolveFontAwesomeCss()));
-		}
-	);
+	// The hand-port stage page lived here; old links land on the real core.
+	app.get("/__harness/stage", async (_request, reply) => {
+		return reply.redirect(STAGE_PREFIX, 302);
+	});
 
 	app.get("/__harness/config", async (_request, reply) => {
 		return reply.send({

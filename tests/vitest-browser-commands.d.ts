@@ -9,9 +9,9 @@ declare module "vitest/browser" {
 		sandboxClickAndWaitForStylesRefreshed(selector: string): Promise<void>;
 		sandboxClose(): Promise<void>;
 		sandboxConsoleMessages(): Promise<string[]>;
-		sandboxGoto(): Promise<void>;
-		sandboxGotoRealCoreStage(options?: {
+		sandboxGoto(options?: {
 			coreKey?: string | null;
+			privateCoreHome?: string;
 		}): Promise<void>;
 		sandboxOpenDomain(domain: string): Promise<void>;
 		sandboxOpenSidebarTab(domain: string, tab: string): Promise<void>;

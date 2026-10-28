@@ -7,14 +7,14 @@
  * - `Log.*` calls flow through these wrappers;
  * - levels `Log.setLogLevel` disabled are replaced by no-ops in the logger
  *   and never reach the console, so they are not recorded;
- * - a module's direct `console.*` calls are recorded too, as the hand-port
- *   runtime did (`client/runtime/shared.ts` `installConsoleCapture`).
+ * - a module's direct `console.*` calls are recorded too, as the shell
+ *   records its own (`client/runtime/shared.ts` `installConsoleCapture`).
  *
  * Each wrapper calls the native method first, with the same arguments and
  * `this`, then records; it returns the native result and stays synchronous.
  */
 
-/** Console methods recorded, the same list as the hand-port runtime. */
+/** Console methods recorded, the same list as the shell records. */
 export const RECORDED_CONSOLE_METHODS = [
 	"log",
 	"info",

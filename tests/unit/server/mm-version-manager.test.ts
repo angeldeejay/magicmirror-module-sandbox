@@ -280,14 +280,23 @@ test("getBuiltInMmVersion returns version from first available candidate", () =>
 	expect(getBuiltInMmVersion()).toBe("2.36.0");
 });
 
-test("getBuiltInMmVersion falls back to second candidate", () => {
+test("getBuiltInMmVersion falls back to the packaged core (dist/core)", () => {
 	vi.mocked(fs.existsSync)
 		.mockReturnValueOnce(false)
 		.mockReturnValueOnce(true);
-	vi.mocked(fs.readFileSync).mockReturnValueOnce(
-		JSON.stringify({ version: "2.35.0" }) as unknown as Buffer
-	);
+	vi.mocked(fs.readFileSync).mockImplementationOnce(((file: string) => {
+		expect(String(file).endsWith("/core/package.json")).toBe(true);
+		return JSON.stringify({ version: "2.35.0" });
+	}) as unknown as typeof fs.readFileSync);
 	expect(getBuiltInMmVersion()).toBe("2.35.0");
+});
+
+test("getBuiltInMmVersion returns null when the core package.json is unreadable", () => {
+	vi.mocked(fs.existsSync).mockReturnValueOnce(true);
+	vi.mocked(fs.readFileSync).mockImplementationOnce(() => {
+		throw new Error("EACCES");
+	});
+	expect(getBuiltInMmVersion()).toBeNull();
 });
 
 test("getBuiltInMmVersion returns null when no candidate exists", () => {

@@ -1,11 +1,11 @@
 /**
  * Browser-backed integration coverage for mounted-module assets under the
- * real-core stage prefix `/__stage/` (maintainer flag `--real-core-stage`).
+ * stage prefix `/__stage/`.
  */
 import { afterAll, expect, test } from "vitest";
 import {
 	closeSandbox,
-	gotoRealCoreStage,
+	gotoSandbox,
 	stageEvaluate,
 	stageText
 } from "../_helpers/helpers.browser.ts";
@@ -36,7 +36,7 @@ function loadsMjsScripts(version: string): boolean {
 }
 
 test("module assets resolve under the stage prefix", async () => {
-	await gotoRealCoreStage();
+	await gotoSandbox();
 
 	const stage = await stageEvaluate(() => {
 		const scope = globalThis as StageGlobals;

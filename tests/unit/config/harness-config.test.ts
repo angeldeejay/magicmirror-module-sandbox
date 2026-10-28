@@ -1,13 +1,9 @@
 /**
- * Unit coverage for the maintainer `--real-core-stage` flag in the harness
- * bootstrap config.
+ * Unit coverage for the harness bootstrap config.
  */
 import * as path from "pathe";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import {
-	createHarnessConfig,
-	REAL_CORE_STAGE_FLAG
-} from "../../../config/harness.config.ts";
+import { createHarnessConfig } from "../../../config/harness.config.ts";
 import { harnessRoot } from "../../../server/paths.ts";
 
 const originalArgv = process.argv;
@@ -31,13 +27,14 @@ afterEach(() => {
 	}
 });
 
-test("realCoreStage is false without the CLI flag", () => {
-	process.argv = [originalArgv[0], "server/index.ts", "--watch"];
-	expect(createHarnessConfig().realCoreStage).toBe(false);
+test("derives the module identity from the mounted module", () => {
+	const config = createHarnessConfig();
+	expect(config.moduleName).toBe("MMM-TestModule");
+	expect(config.language).toBe("en");
 });
 
-test("realCoreStage is true only with --real-core-stage", () => {
-	expect(REAL_CORE_STAGE_FLAG).toBe("--real-core-stage");
-	process.argv = [originalArgv[0], "server/index.ts", REAL_CORE_STAGE_FLAG];
-	expect(createHarnessConfig().realCoreStage).toBe(true);
+test("has no stage mode switch: the real-core stage is the only stage", () => {
+	// The retired maintainer flag must not change anything any more.
+	process.argv = [originalArgv[0], "server/index.ts", "--real-core-stage"];
+	expect(Object.keys(createHarnessConfig())).not.toContain("realCoreStage");
 });
