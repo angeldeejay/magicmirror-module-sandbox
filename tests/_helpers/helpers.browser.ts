@@ -300,6 +300,45 @@ export async function stageClick(selector) {
 }
 
 /**
+ * Hold the sandbox page's requests whose URL matches `pattern` (a Playwright
+ * glob) until `releaseRequests()`; later requests pass straight through.
+ * Lasts until `clearRequestHolds()`.
+ *
+ * @param {string} pattern
+ * @returns {Promise<void>}
+ */
+export function holdRequests(pattern: string) {
+	return commands.sandboxHoldRequests(pattern);
+}
+
+/**
+ * Let every request held by `holdRequests()` through, and every later one.
+ *
+ * @returns {Promise<number>} how many requests matched the hold so far
+ */
+export function releaseRequests() {
+	return commands.sandboxReleaseRequests();
+}
+
+/**
+ * How many requests matched the current `holdRequests()` pattern so far.
+ *
+ * @returns {Promise<number>}
+ */
+export function heldRequestCount() {
+	return commands.sandboxHeldRequestCount();
+}
+
+/**
+ * Release and remove every hold installed by `holdRequests()`.
+ *
+ * @returns {Promise<void>}
+ */
+export function clearRequestHolds() {
+	return commands.sandboxClearRequestHolds();
+}
+
+/**
  * Read one attribute from an element inside the mounted-module iframe.
  *
  * @param {string} selector

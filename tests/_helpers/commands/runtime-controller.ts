@@ -267,8 +267,20 @@ function buildSessionMapKey(suiteName, sessionId) {
 	return `${suiteName}:${sessionId}`;
 }
 
+/** Numbers each runtime this process creates; see `createPerSessionFixtureRuntime`. */
+let runtimeSequence = 0;
+
 /**
  * Build the session-owned runtime paths used by one browser worker.
+ *
+ * Every runtime gets its own fixture copy, even within one session. Warm
+ * servers move between sessions through the pool, so a session can boot a
+ * fresh server while the one it booted earlier still runs for another
+ * session. A directory keyed by the session alone was then watched and
+ * written by both servers: one server's fixture write (a test's stylesheet,
+ * the reset in `gotoSandbox`) reached the other's files and fired its module
+ * watcher, which reloaded the other test's stage mid-test, and the cleanup of
+ * one deleted the other's module.
  *
  * @param {string} suiteName
  * @param {string} sessionId
@@ -282,10 +294,12 @@ function createPerSessionFixtureRuntime(
 ): SandboxSessionRuntime {
 	const safeSuiteName = sanitizePathSegment(suiteName);
 	const safeSessionId = sanitizePathSegment(sessionId) || "session";
+	runtimeSequence += 1;
 	const runtimeRoot = path.join(
 		sessionSuiteRoot,
 		safeSuiteName,
-		safeSessionId
+		safeSessionId,
+		`runtime-${process.pid}-${runtimeSequence}`
 	);
 	const fixtureRoot = path.join(runtimeRoot, sandboxModuleIdentity.name);
 	return {

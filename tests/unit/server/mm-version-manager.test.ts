@@ -10,9 +10,13 @@ vi.mock("node:child_process");
 vi.mock("../../../server/stage/core-variants.ts", () => ({
 	detectCoreVariants: vi.fn()
 }));
+vi.mock("../../../server/stage/core-cache.ts", () => ({
+	forgetCoreInstall: vi.fn()
+}));
 
 import * as fs from "node:fs";
 import * as childProcess from "node:child_process";
+import { forgetCoreInstall } from "../../../server/stage/core-cache.ts";
 import { detectCoreVariants } from "../../../server/stage/core-variants.ts";
 import {
 	areShimsBuilt,
@@ -239,6 +243,16 @@ test("deleteVersionCache removes both install dir and shims dir", () => {
 	const calls = vi.mocked(fs.rmSync).mock.calls.map((c) => String(c[0]));
 	expect(calls.some((p) => p.includes("versions"))).toBe(true);
 	expect(calls.some((p) => p.includes("shims"))).toBe(true);
+});
+
+test("deleteVersionCache forgets the core code loaded from the deleted install", () => {
+	vi.mocked(fs.rmSync).mockReturnValue(undefined);
+	vi.mocked(forgetCoreInstall).mockClear();
+	deleteVersionCache("2.35.0");
+	expect(forgetCoreInstall).toHaveBeenCalledTimes(1);
+	expect(forgetCoreInstall).toHaveBeenCalledWith(
+		getVersionInstallDir("2.35.0")
+	);
 });
 
 // ── getInstalledMmVersion ──────────────────────────────────────────────────────

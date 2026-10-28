@@ -9,15 +9,16 @@
  * 2. `client/runtime/stage-bridge.ts` connects that facade to the shell over
  *    postMessage (it publishes stage-ready, which clears the shell loading
  *    overlay);
- * 3. this body wraps `console` before `js/logger.js` binds it into `Log`,
- *    captures `MM` as the core assigns it, and hooks the module instance
- *    once the core creates it.
+ * 3. this body captures `MM` as the core provides it (see `watchCoreMM`:
+ *    from 2.38 that can be after the document's `load`), wraps `console`
+ *    before `js/logger.js` binds it into `Log`, and hooks the module
+ *    instance once the core creates it.
  */
 import { observer, scope } from "./setup.ts";
 import "../runtime/stage-bridge.ts";
 import {
-	captureGlobalAssignment,
 	hookInstance,
+	watchCoreMM,
 	watchForModuleInstance
 } from "./instance-hooks.ts";
 import { hookConsole } from "./log-hooks.ts";
@@ -29,23 +30,46 @@ import { hookConsole } from "./log-hooks.ts";
  */
 declare const MM: unknown;
 
-let capturedMM: unknown;
-const releaseMMCapture = captureGlobalAssignment(scope, "MM", (value) => {
-	capturedMM = value;
-});
-// Before js/logger.js binds console methods into Log (see log-hooks.ts).
-hookConsole(console, observer.recordConsole);
+/**
+ * Whether the page has loaded and the core has provided `MM`: a disabled
+ * module boots once both hold.
+ */
+let pageLoaded = false;
+let coreMMAvailable = false;
 
 /**
- * The core `MM` object: captured from `globalThis.MM = MM` (2.37+), or the
- * global lexical binding (2.35-2.36).
+ * A disabled module is never created, so DOM_OBJECTS_CREATED is never
+ * observed. Its boot is complete once the page has loaded and the core's
+ * `js/main.js` has run (it provides `MM` and starts `MM.init`), whichever comes
+ * last. A core that never provides `MM` never completes its boot, exactly as
+ * an enabled module whose core never sends DOM_OBJECTS_CREATED.
  */
-function resolveMM(): unknown {
-	if (capturedMM) {
-		return capturedMM;
+function publishDisabledBootComplete(): void {
+	if (
+		pageLoaded &&
+		coreMMAvailable &&
+		!observer.core.moduleInstance &&
+		observer.core.lifecycleState.disabled
+	) {
+		observer.publishBootComplete();
 	}
-	return typeof MM === "undefined" ? undefined : MM;
 }
+
+/**
+ * The core `MM` object: captured from `globalThis.MM = MM` (2.37+, possibly
+ * after `load` from 2.38), or the global lexical binding (2.35-2.36).
+ */
+const resolveMM = watchCoreMM(
+	scope,
+	document,
+	() => (typeof MM === "undefined" ? undefined : MM),
+	() => {
+		coreMMAvailable = true;
+		publishDisabledBootComplete();
+	}
+);
+// Before js/logger.js binds console methods into Log (see log-hooks.ts).
+hookConsole(console, observer.recordConsole);
 
 watchForModuleInstance(document, resolveMM, (instance) => {
 	const unavailableHooks = hookInstance(instance, observer.instanceCallbacks);
@@ -53,19 +77,7 @@ watchForModuleInstance(document, resolveMM, (instance) => {
 	observer.attachInstance(instance, unavailableHooks);
 });
 
-document.addEventListener("DOMContentLoaded", () => {
-	// Every core script has run by now. Drop the MM accessor when no version
-	// assigned the property, so `window.MM` reads as it natively would.
-	releaseMMCapture();
-});
-
 window.addEventListener("load", () => {
-	// A disabled module is never created, so DOM_OBJECTS_CREATED is never
-	// observed; the boot is complete once the page is.
-	if (
-		!observer.core.moduleInstance &&
-		observer.core.lifecycleState.disabled
-	) {
-		observer.publishBootComplete();
-	}
+	pageLoaded = true;
+	publishDisabledBootComplete();
 });

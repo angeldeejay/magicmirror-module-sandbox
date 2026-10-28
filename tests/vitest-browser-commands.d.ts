@@ -22,6 +22,10 @@ declare module "vitest/browser" {
 		sandboxPageCheck(selector: string): Promise<void>;
 		sandboxPageClick(selector: string): Promise<void>;
 		sandboxPageCount(selector: string): Promise<number>;
+		sandboxClearRequestHolds(): Promise<void>;
+		sandboxHeldRequestCount(): Promise<number>;
+		sandboxHoldRequests(pattern: string): Promise<void>;
+		sandboxReleaseRequests(): Promise<number>;
 		sandboxPageDisabled(selector: string): Promise<boolean>;
 		sandboxPageEvaluate<TArg, TResult>(
 			source: string,

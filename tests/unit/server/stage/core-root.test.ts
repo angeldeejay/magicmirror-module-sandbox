@@ -36,6 +36,30 @@ beforeAll(() => {
 	write(path.join(root, "index.html"));
 	write(path.join(root, "js", "main.js"));
 	write(path.join(root, "css", "main.css"));
+	// The core's vendor list, read as text the way core js/server.js turns it
+	// into served node_modules directories.
+	write(
+		path.join(root, "js", "vendor.js"),
+		[
+			"const vendor = {",
+			'\t"moment.js": "node_modules/moment/min/moment-with-locales.js",',
+			'\t"suncalc.js": "js/suncalc-global.mjs"',
+			"};",
+			"globalThis.vendor = vendor;",
+			""
+		].join("\n")
+	);
+	// Resolvable from the core root, but never served by the core.
+	write(
+		path.join(tmp, "node_modules", "left-pad", "package.json"),
+		'{"name":"left-pad","version":"1.0.0"}'
+	);
+	write(path.join(tmp, "node_modules", "left-pad", "index.js"));
+	write(
+		path.join(tmp, "node_modules", "@private", "secret", "package.json"),
+		'{"name":"@private/secret","version":"1.0.0"}'
+	);
+	write(path.join(tmp, "node_modules", "@private", "secret", "index.js"));
 	write(
 		path.join(tmp, "node_modules", "moment", "package.json"),
 		'{"name":"moment","version":"1.0.0"}'
@@ -152,6 +176,46 @@ describe("resolveCoreStaticPath", () => {
 		expect(resolveCoreStaticPath(core(), "node_modules")).toBeNull();
 		expect(resolveCoreStaticPath(core(), "node_modules/@scope")).toBeNull();
 		expect(resolveCoreStaticPath(core(), "node_modules/moment/../../x")).toBeNull();
+	});
+
+	test("resolveCoreStaticPath serves only the node_modules entries the core serves", () => {
+		expect(
+			resolveCoreStaticPath(core(), "node_modules/left-pad/index.js")
+		).toBeNull();
+		expect(
+			resolveCoreStaticPath(core(), "node_modules/@private/secret/index.js")
+		).toBeNull();
+		// js/vendor.js is read as text: requiring it would assign
+		// globalThis.vendor in the sandbox process, as 2.38 vendor.js does.
+		expect("vendor" in globalThis).toBe(false);
+	});
+
+	test("resolveCoreStaticPath serves only the fixed packages when the core has no js/vendor.js", () => {
+		const bare = path.join(tmp, "bare-core");
+		write(path.join(bare, "package.json"), '{"name":"magicmirror"}');
+		const bareCore = { root: bare, version: "0.0.0", key: null };
+		expect(
+			resolveCoreStaticPath(
+				bareCore,
+				"node_modules/moment/min/moment-with-locales.js"
+			)
+		).toBeNull();
+		expect(
+			resolveCoreStaticPath(bareCore, "node_modules/@fontsource/roboto/index.css")
+		).toBe(path.join(tmp, "node_modules", "@fontsource", "roboto", "index.css"));
+	});
+
+	test("resolveCoreStaticPath rejects names Win32 opens as another file", () => {
+		for (const requestPath of [
+			"js/main.js.",
+			"js/main.js ",
+			"js/main.js::$DATA",
+			"js/main.js:stream",
+			"config./config.js",
+			"js/./main.js"
+		]) {
+			expect(resolveCoreStaticPath(core(), requestPath), requestPath).toBeNull();
+		}
 	});
 
 	test("resolveCoreStaticPath rejects traversal and unknown roots", () => {

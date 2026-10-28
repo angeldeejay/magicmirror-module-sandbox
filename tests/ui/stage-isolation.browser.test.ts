@@ -99,7 +99,19 @@ async function bootWith(
 		});
 	if (settings.disabled !== true) {
 		await expect.poll(() => stageEvaluate(moduleCount)).toBeGreaterThan(0);
+		return;
 	}
+	// The attributes above are set by the observer before any core script
+	// runs, and a disabled module never creates DOM, so the boot point is the
+	// core's own `MM` becoming reachable. The document's load is not that
+	// point: from 2.38 the `js/main.js` module graph has a top-level await
+	// (`js/socketclient.js` awaits `import("/socket.io/socket.io.esm.min.js")`),
+	// so the document can reach `readyState` "complete" before the body of
+	// `main.js`, which assigns `globalThis.MM`, has run. `typeof` reads the
+	// 2.35-2.36 lexical binding too and never throws before either exists.
+	await expect
+		.poll(() => stageEvaluate(() => globalThis.eval("typeof MM")))
+		.toBe("object");
 }
 
 describe.each(cores)("core $version", ({ version, key }) => {

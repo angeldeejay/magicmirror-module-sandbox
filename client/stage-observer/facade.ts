@@ -66,6 +66,11 @@ export type StageFacade = {
 	readonly helperLog: unknown[];
 	lifecycleState: LifecycleState;
 	moduleInstance: ModuleInstance | null;
+	/**
+	 * Whether this document's boot completed (`publishBootComplete`), so a
+	 * later snapshot request reports it instead of resetting it.
+	 */
+	bootComplete: boolean;
 	emitNotification: (
 		notification: string,
 		payload: unknown,
@@ -129,8 +134,21 @@ export function serializeLogValue(value: unknown): unknown {
 	return clonePayload(value);
 }
 
+/** Whether serializing a value can run none of its owner's code. */
+function isPrimitive(value: unknown): boolean {
+	return (
+		value === null ||
+		(typeof value !== "object" && typeof value !== "function")
+	);
+}
+
 /**
  * JSON-safe copy of a notification payload for the log.
+ *
+ * Notification payloads are copied synchronously, inside the delivery, so
+ * the log shows the payload as delivered even when the module mutates it.
+ * The documented cost (ARCHITECTURE.md, observer rules): `JSON.stringify`
+ * runs the payload's own `toJSON` and getters at that point.
  */
 export function clonePayload(value: unknown): unknown {
 	if (value === undefined) {
@@ -210,6 +228,7 @@ export function createStageFacade(
 			suspended: false
 		},
 		moduleInstance: null,
+		bootComplete: false,
 		emitNotification(notification, payload, _sender, meta = {}) {
 			const instance = core.moduleInstance;
 			if (
@@ -275,12 +294,48 @@ export function createStageFacade(
 		dispatch("module-sandbox:notifications-updated", { entry: logged });
 	}
 
+	/** Console calls whose arguments are not serialized yet, oldest first. */
+	const pendingConsole: Array<{
+		timestamp: string;
+		method: string;
+		args: unknown[];
+	}> = [];
+
+	/**
+	 * Records one console call. Primitive arguments are serialized at once:
+	 * that runs no code of the caller. Any object argument defers the
+	 * serialization (and every later call, to keep the order) to a separate
+	 * task, so its `toJSON`, getters or Proxy traps never run inside the
+	 * module's own `console.*` / `Log.*` call, as a browser console reads
+	 * logged objects lazily too.
+	 */
 	function recordConsole(method: string, args: unknown[]): void {
-		const entry: ConsoleLogEntry = {
-			timestamp: new Date().toISOString(),
-			method,
-			args: args.map(serializeLogValue)
-		};
+		const timestamp = new Date().toISOString();
+		if (pendingConsole.length === 0 && args.every(isPrimitive)) {
+			publishConsole({
+				timestamp,
+				method,
+				args: args.map(serializeLogValue)
+			});
+			return;
+		}
+		pendingConsole.push({ timestamp, method, args: [...args] });
+		if (pendingConsole.length === 1) {
+			setTimeout(flushPendingConsole, 0);
+		}
+	}
+
+	function flushPendingConsole(): void {
+		for (const pending of pendingConsole.splice(0)) {
+			publishConsole({
+				timestamp: pending.timestamp,
+				method: pending.method,
+				args: pending.args.map(serializeLogValue)
+			});
+		}
+	}
+
+	function publishConsole(entry: ConsoleLogEntry): void {
 		core.consoleLog.unshift(entry);
 		if (core.consoleLog.length > MAX_CONSOLE_LOG_ENTRIES) {
 			core.consoleLog.length = MAX_CONSOLE_LOG_ENTRIES;
@@ -299,6 +354,7 @@ export function createStageFacade(
 	}
 
 	function publishBootComplete(): void {
+		core.bootComplete = true;
 		if (typeof core.publishStageReady === "function") {
 			core.publishStageReady(true);
 		}

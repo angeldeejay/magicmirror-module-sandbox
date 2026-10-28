@@ -33,6 +33,15 @@ describe("availableCores without a requested core", () => {
 		expect(mmvm.isVersionInstalled).not.toHaveBeenCalled();
 	});
 
+	test("throws when the built-in core has no readable version", () => {
+		for (const missing of [null, ""]) {
+			vi.mocked(mmvm.getBuiltInMmVersion).mockReturnValue(missing);
+			expect(() => availableCores({})).toThrow(
+				"the built-in MagicMirror core has no readable version"
+			);
+		}
+	});
+
 	test("treats a blank env var as unset", () => {
 		expect(availableCores({ [TEST_CORE_VERSION_ENV]: "  " })).toEqual([
 			builtIn

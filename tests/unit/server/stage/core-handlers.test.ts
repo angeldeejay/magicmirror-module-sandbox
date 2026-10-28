@@ -227,6 +227,41 @@ describe("buildCoreConfig", () => {
 		expect(always.modules[0].config.token).toBe("**SECRET_X**");
 	});
 
+	test("buildCoreConfig redacts under whenHidden when the core's defaults set hideConfigSecrets", () => {
+		// The stage config's top level comes only from the version's own
+		// js/defaults.js (2.35-2.37 ship `hideConfigSecrets: false`), so the
+		// redacting branch of core js/server.js getConfig is reached by a core
+		// whose defaults enable it: the 2.37.0 snippet with that one value
+		// changed.
+		process.env.SECRET_X = "real";
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "core-hidden-"));
+		tempDirs.push(root);
+		fs.cpSync(path.join(snippetsRoot, "2.37.0"), root, { recursive: true });
+		const defaultsPath = path.join(root, "js", "defaults.js");
+		const defaults = fs.readFileSync(defaultsPath, "utf8");
+		expect(defaults).toContain("hideConfigSecrets: false,");
+		fs.writeFileSync(
+			defaultsPath,
+			defaults.replace("hideConfigSecrets: false,", "hideConfigSecrets: true,")
+		);
+		const core: ActiveCore = { root, version: "2.37.0", key: "2.37.0" };
+
+		const served = JSON.parse(
+			buildCoreConfig(
+				core,
+				variantsFor("2.37.0", { redaction: "whenHidden" }),
+				"/__stage/",
+				sources({
+					position: "top_left",
+					config: { token: "**SECRET_X**", list: ["**SECRET_X**"] }
+				})
+			)
+		);
+		expect(served.hideConfigSecrets).toBe(true);
+		expect(served.modules[0].config.token).toBe("**SECRET_X**");
+		expect(served.modules[0].config.list).toEqual(["**SECRET_X**"]);
+	});
+
 	test("buildCoreConfig keeps a placeholder whose secret is not set", () => {
 		delete process.env.SECRET_X;
 		const body = buildCoreConfig(

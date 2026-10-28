@@ -36,15 +36,21 @@ const RELEASE_VERSION_RE = /^\d+\.\d+\.\d+$/;
  * throws instead: an explicit request must never degrade into a green run on
  * the built-in core only.
  *
- * @throws {Error} when the requested core is not installed in mmvm, has no
- *   built shims, has no readable version, or is a different release
+ * @throws {Error} when the built-in core has no readable version (every
+ *   version-gated test would then skip and the run would pass hollow), or
+ *   when the requested core is not installed in mmvm, has no built shims,
+ *   has no readable version, or is a different release
  */
 export function availableCores(
 	env: NodeJS.ProcessEnv = process.env
 ): CoreMatrixEntry[] {
-	const cores: CoreMatrixEntry[] = [
-		{ version: getBuiltInMmVersion() ?? "", key: null }
-	];
+	const builtInVersion = getBuiltInMmVersion();
+	if (!builtInVersion) {
+		throw new Error(
+			"[core-matrix] the built-in MagicMirror core has no readable version (its package.json in mmcore-source/node_modules/magicmirror/ or dist/core/). Run `node --run build` to sync it."
+		);
+	}
+	const cores: CoreMatrixEntry[] = [{ version: builtInVersion, key: null }];
 	const requested = env[TEST_CORE_VERSION_ENV]?.trim();
 	if (!requested) {
 		return cores;

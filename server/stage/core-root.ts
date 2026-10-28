@@ -3,6 +3,7 @@
  * inside it. Read-only: nothing is ever written into a core directory.
  */
 
+import * as fs from "node:fs";
 import * as path from "pathe";
 import { createRequire } from "node:module";
 import {
@@ -37,6 +38,42 @@ const CORE_DIRECTORIES = new Set([
 	"node_modules"
 ]);
 const CORE_FILES = new Set(["favicon.svg"]);
+
+/**
+ * `node_modules/` entries core `js/server.js` serves besides the `js/vendor.js`
+ * packages: `animate.css`, the `@fontsource` and `@fortawesome` scopes, and
+ * `suncalc` (listed from 2.37, a vendor entry before).
+ */
+const CORE_SERVED_PACKAGES: readonly string[] = [
+	"animate.css",
+	"@fontsource",
+	"@fortawesome",
+	"suncalc"
+];
+
+/** A `node_modules/<entry>/` reference in `js/vendor.js`. */
+const VENDOR_PACKAGE_REFERENCE = /["'`]node_modules\/([^/"'`]+)\//g;
+
+/**
+ * Returns the `node_modules/` entries (package names, or whole scopes) the
+ * core serves, as core `js/server.js` builds its `directories` list: the
+ * fixed packages plus the first path segment of every `js/vendor.js` entry
+ * under `node_modules/`. `js/vendor.js` is read as text, not required: from
+ * 2.38 it also assigns `globalThis.vendor`.
+ */
+function listServedNodeModules(core: ActiveCore): Set<string> {
+	const served = new Set(CORE_SERVED_PACKAGES);
+	let vendorSource = "";
+	try {
+		vendorSource = fs.readFileSync(path.join(core.root, "js", "vendor.js"), "utf8");
+	} catch {
+		// A core without js/vendor.js serves only the fixed packages.
+	}
+	for (const match of vendorSource.matchAll(VENDOR_PACKAGE_REFERENCE)) {
+		served.add(match[1]);
+	}
+	return served;
+}
 
 /**
  * Returns the built-in core root: the synced `mmcore-source/` in the source
@@ -86,6 +123,15 @@ function resolveNodeModulesPath(
 	if (segments.length <= packageLength) {
 		return null;
 	}
+	// Bounded to what the core serves, not every package Node can resolve
+	// from the core root (in a distribution install, the consumer's tree).
+	const served = listServedNodeModules(core);
+	if (
+		!served.has(segments[0]) &&
+		!served.has(segments.slice(0, packageLength).join("/"))
+	) {
+		return null;
+	}
 	const packageName = segments.slice(0, packageLength).join("/");
 	let packageRoot: string;
 	try {
@@ -102,6 +148,16 @@ function resolveNodeModulesPath(
 }
 
 /**
+ * Whether a path segment is one Win32 would open as a different name: an NTFS
+ * stream (`name:stream`, `name::$DATA`) or a trailing dot or space, which
+ * Win32 strips (`config.js.` opens `config.js`). No core ships such names,
+ * so they are refused on every platform.
+ */
+function isAliasedSegment(segment: string): boolean {
+	return segment.includes(":") || /[. ]$/.test(segment);
+}
+
+/**
  * Maps a request path (relative to the core root) to an absolute file path, or
  * null when the path is outside the served set or escapes its base.
  */
@@ -113,7 +169,11 @@ export function resolveCoreStaticPath(
 		return null;
 	}
 	const segments = requestPath.split("/").filter(Boolean);
-	if (segments.length === 0 || segments.includes("..")) {
+	if (
+		segments.length === 0 ||
+		segments.includes("..") ||
+		segments.some(isAliasedSegment)
+	) {
 		return null;
 	}
 	const [top] = segments;

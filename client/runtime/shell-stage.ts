@@ -11,8 +11,56 @@
 	 * itself. Writable for tests.
 	 */
 	core.coreReloadFallbackMs = 5000;
-	/** Pending fallback for a core-driven reload, cleared by the frame load. */
+	/**
+	 * How long after the stage document started unloading a core-driven
+	 * `harness:reload` still counts as describing that reload. The shell and
+	 * stage sockets are separate, so the event can arrive after the core
+	 * already reloaded the stage. Writable for tests.
+	 */
+	core.coreReloadRecentUnloadMs = 1000;
+	/**
+	 * Pending fallback for a core-driven reload, cleared as soon as the stage
+	 * document starts unloading (or, without that signal, by the frame load).
+	 */
 	let coreReloadFallbackTimer = null;
+	/** When the stage document last started unloading (`pagehide`). */
+	let lastStageUnloadAt = Number.NEGATIVE_INFINITY;
+
+	/**
+	 * The stage document is going away: the reload the shell may be waiting
+	 * for is under way, whoever drove it. Waiting for the new document's
+	 * `load` instead would let a slow core page trip the fallback and boot
+	 * the stage twice.
+	 *
+	 * @returns {void}
+	 */
+	function handleStageUnloading() {
+		globalScope.clearTimeout(coreReloadFallbackTimer);
+		coreReloadFallbackTimer = null;
+		lastStageUnloadAt = Date.now();
+	}
+
+	/**
+	 * Listen for `pagehide` on the stage document currently in the frame. A
+	 * message posted from an unloading document is not reliably attributed
+	 * to the frame, so the shell listens on the (same-origin) window itself,
+	 * and again on every new document.
+	 *
+	 * @param {HTMLIFrameElement} frame
+	 * @returns {void}
+	 */
+	function watchStageUnload(frame) {
+		try {
+			if (frame.contentWindow) {
+				frame.contentWindow.addEventListener(
+					"pagehide",
+					handleStageUnloading
+				);
+			}
+		} catch {
+			// Not same-origin; only the frame load clears the fallback then.
+		}
+	}
 
 	/**
 	 * Resolve the viewport iframe element.
@@ -426,6 +474,17 @@
 					return;
 				}
 
+				// The stage already started reloading, so this event describes
+				// a reload that is in flight or done: arming the fallback, or a
+				// backdrop only the next stage-ready clears, would be wrong.
+				if (
+					payload &&
+					payload.reloadedBy === "core" &&
+					Date.now() - lastStageUnloadAt < core.coreReloadRecentUnloadMs
+				) {
+					return;
+				}
+
 				core.showBackdrop("Loading\u2026");
 				// The core's own root-socket RELOAD already reloads the stage,
 				// as on a mirror. Navigating the frame too
@@ -472,10 +531,12 @@
 		}
 
 		if (frame) {
+			watchStageUnload(frame);
 			frame.addEventListener("load", () => {
 				// The stage reloaded, whoever drove it: no fallback needed.
 				globalScope.clearTimeout(coreReloadFallbackTimer);
 				coreReloadFallbackTimer = null;
+				watchStageUnload(frame);
 				core.stageReady = false;
 				core.bootComplete = false;
 				// The reloaded stage reports its own version again; until it

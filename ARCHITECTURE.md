@@ -175,8 +175,12 @@ concerns:
    `RELOAD` on the root namespace, which `main.js` answers by reloading the
    page, exactly as on a mirror. When no core page listens (the core never
    reached `modulesStarted`), the shell reloads the frame instead; when the
-   core took the reload but no document loads within 5 s, the shell reloads
-   the frame as a fallback. Saves, restarts and version switches use the same
+   core took the reload but the stage document does not even start unloading
+   within 5 s, the shell reloads the frame as a fallback. The fallback is
+   cancelled on the old document's `pagehide`, not on the new one's `load`, so
+   a slow core page never boots twice, and a core-driven `harness:reload` that
+   reaches the shell after the stage already reloaded (the two sockets are not
+   ordered) is ignored. Saves, restarts and version switches use the same
    path, so each reloads the stage exactly once
 
 **Sandbox watcher** — active only when `--watch` is passed:
@@ -307,7 +311,17 @@ candidate list, so the version badge reads the same core). Known limitation:
 only the vendor files the core references ship, so a module that links an
 unreferenced file inside those packages directly (for example a Font Awesome
 SVG) gets a 404 in a distribution install, while the source repository and
-mmvm versions serve whole packages.
+mmvm versions serve whole packages. Everywhere, `/__stage/node_modules/`
+serves only the entries core `js/server.js` serves: the `js/vendor.js`
+packages (read as text) plus `animate.css`, `@fontsource`, `@fortawesome` and
+`suncalc`, never any other package Node can resolve from the core root.
+
+A core replaced on disk under the same mmvm key (Redownload, or Delete cache
+and install again) is forgotten in-process by `deleteVersionCache`
+(`server/stage/core-cache.ts`): the `require.cache` entries under its install
+directory (`js/defaults.js`, `js/server_functions.js`, its `express`) and the
+stage's express sub-app for that root. The next stage request loads the new
+code, so the backend keeps matching the browser files without a restart.
 
 Inside this repository, `npm start` and `npm run dev:watch` still run against the
 source tree for maintainer workflows. The CLI falls back to `dist/` only when
@@ -335,7 +349,13 @@ The observer follows four rules:
 
 - **Transparent wrappers.** Each wrapper calls through first and records
   after, with the same arguments, `this`, return value and exceptions;
-  synchronous stays synchronous.
+  synchronous stays synchronous. Console arguments that are objects are
+  serialized for the Console panel in a later task, so their `toJSON`,
+  getters and Proxy traps never run inside the module's `console.*`/`Log.*`
+  call. One documented residual: a notification payload is copied with
+  `JSON.stringify` during the delivery, so the log shows it as delivered even
+  when the module mutates it; that copy runs the payload's own `toJSON` and
+  getters at that point.
 - **Instance-only hooks.** Hooks attach to the created module instance, never
   to `Module.prototype`, definitions or `MM`: 2.37+ assign module methods as
   instance properties, and wrapping a definition breaks `_super` in 2.35-2.36.
@@ -345,7 +365,8 @@ The observer follows four rules:
   the core delivers its own system notifications.
 - **`RELOAD` is the reload mechanism.** Saves, restarts and version switches
   reload the stage through the core's root-namespace `RELOAD`; the shell only
-  reloads the frame when no core page listens, or after a 5 s fallback.
+  reloads the frame when no core page listens, or when the stage document
+  has not started unloading after a 5 s fallback.
 
 The non-negotiable invariant: if a behavior causes a module to fail in real
 MagicMirror, it must fail identically in the sandbox. The sandbox must never

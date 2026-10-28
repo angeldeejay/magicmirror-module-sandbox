@@ -34,6 +34,7 @@ import {
 	renderPositionsJs,
 	renderStageHtml
 } from "./core-handlers.ts";
+import { isInsideInstall, onCoreForgotten } from "./core-cache.ts";
 import {
 	type ActiveCore,
 	resolveActiveCore,
@@ -82,6 +83,28 @@ const SERVER_FUNCTION_ROUTES = {
  * and `config.env` holds secrets, so both answer 404.
  */
 const BLOCKED_CORE_FILES = new Set(["config/config.js", "config/config.env"]);
+
+/**
+ * Whether a resolved core file is one of `BLOCKED_CORE_FILES` under its
+ * canonical name. The request path is checked too, but another spelling can
+ * open the same file (a link inside `config/`, a Windows short name), so the
+ * final path the file system reports is compared as well. Win32 aliases such
+ * as a trailing dot or an NTFS stream never get here: `resolveCoreStaticPath`
+ * refuses them.
+ */
+function isBlockedCoreFile(core: ActiveCore, filePath: string): boolean {
+	let relative: string;
+	try {
+		relative = path.relative(
+			fs.realpathSync.native(core.root),
+			fs.realpathSync.native(filePath)
+		);
+	} catch {
+		// Unresolvable: refuse rather than serve something unchecked.
+		return true;
+	}
+	return BLOCKED_CORE_FILES.has(relative.toLowerCase());
+}
 
 type NextFunction = (error?: unknown) => void;
 type Middleware = (
@@ -184,6 +207,17 @@ export async function registerStageRoutes(
 	}: StageRoutesOptions
 ): Promise<void> {
 	const serverFunctionApps = new Map<string, ExpressApp>();
+	// A core replaced on disk must not keep answering with its old code.
+	const stopForgetting = onCoreForgotten((installPrefix) => {
+		for (const root of serverFunctionApps.keys()) {
+			if (isInsideInstall(installPrefix, root)) {
+				serverFunctionApps.delete(root);
+			}
+		}
+	});
+	app.addHook("onClose", async () => {
+		stopForgetting();
+	});
 	const getServerFunctionsApp = (core: ActiveCore): ExpressApp => {
 		let subApp = serverFunctionApps.get(core.root);
 		if (!subApp) {
@@ -268,6 +302,7 @@ export async function registerStageRoutes(
 		});
 		scope.get(`${STAGE_PREFIX}*`, async (request, reply) => {
 			const requestPath = (request.params as { "*": string })["*"];
+			const core = getCore();
 			// Compared with empty segments collapsed, as resolveCoreStaticPath
 			// does, and lower-cased: Windows and macOS file systems ignore case.
 			const normalizedPath = requestPath
@@ -277,10 +312,11 @@ export async function registerStageRoutes(
 				.toLowerCase();
 			const filePath = BLOCKED_CORE_FILES.has(normalizedPath)
 				? null
-				: resolveCoreStaticPath(getCore(), requestPath);
+				: resolveCoreStaticPath(core, requestPath);
 			if (
 				!filePath ||
-				!fs.statSync(filePath, { throwIfNoEntry: false })?.isFile()
+				!fs.statSync(filePath, { throwIfNoEntry: false })?.isFile() ||
+				isBlockedCoreFile(core, filePath)
 			) {
 				return reply.callNotFound();
 			}

@@ -159,9 +159,13 @@
 		switch (message.type) {
 			case "request-stage-snapshot":
 				// Pass current boot state so a snapshot request that arrives after
-				// boot has already completed does not overwrite bootComplete back to false.
+				// boot has already completed does not overwrite bootComplete back to
+				// false. A disabled module creates no DOM, so `domCreated` alone
+				// would report its completed boot as pending.
 				core.publishStageReady(
-					Boolean(core.lifecycleState?.domCreated)
+					Boolean(
+						core.bootComplete || core.lifecycleState?.domCreated
+					)
 				);
 				return;
 			case "emit-notification":

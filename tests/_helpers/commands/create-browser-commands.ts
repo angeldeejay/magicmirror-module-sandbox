@@ -34,6 +34,11 @@ const sandboxPages = new Map();
 const stageFrameCache = new WeakMap<object, any>();
 // Page → console messages (shell and stage frames), in arrival order.
 const pageConsoleMessages = new WeakMap<object, string[]>();
+/** Per page: the requests `holdRequests` matched, and whether they are released. */
+const requestHolds = new WeakMap<
+	object,
+	{ count: number; released: boolean; waiting: Array<() => void> }
+>();
 type ModuleConfigEditor = HTMLElement & { json_value: unknown };
 
 /**
@@ -521,6 +526,77 @@ export function createSandboxBrowserCommands(suiteName) {
 	}
 
 	/**
+	 * Hold every request of the sandbox page whose URL matches `pattern` (a
+	 * Playwright glob) until `releaseRequests`, so a test controls exactly
+	 * when a slow resource arrives instead of racing a timer. Requests made
+	 * after the release pass straight through. Lasts until
+	 * `clearRequestHolds`.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @param {string} pattern
+	 * @returns {Promise<void>}
+	 */
+	async function holdRequests(context, pattern) {
+		const page = await getSandboxPage(context);
+		const hold = { count: 0, released: false, waiting: [] as Array<() => void> };
+		requestHolds.set(page, hold);
+		await page.route(pattern, async (route) => {
+			hold.count += 1;
+			if (!hold.released) {
+				await new Promise<void>((resolve) => {
+					hold.waiting.push(resolve);
+				});
+			}
+			await route.continue().catch(() => {
+				// The page navigated away while the request was held.
+			});
+		});
+	}
+
+	/**
+	 * Let every request held by `holdRequests` through, and every later one.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<number>} how many requests matched the hold so far
+	 */
+	async function releaseRequests(context) {
+		const page = await getSandboxPage(context);
+		const hold = requestHolds.get(page);
+		if (!hold) {
+			return 0;
+		}
+		hold.released = true;
+		for (const resolve of hold.waiting.splice(0)) {
+			resolve();
+		}
+		return hold.count;
+	}
+
+	/**
+	 * How many requests matched the current `holdRequests` pattern so far.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<number>}
+	 */
+	async function heldRequestCount(context) {
+		const page = await getSandboxPage(context);
+		return requestHolds.get(page)?.count ?? 0;
+	}
+
+	/**
+	 * Release and remove every hold installed by `holdRequests`.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<void>}
+	 */
+	async function clearRequestHolds(context) {
+		await releaseRequests(context);
+		const page = await getSandboxPage(context);
+		requestHolds.delete(page);
+		await page.unrouteAll({ behavior: "ignoreErrors" });
+	}
+
+	/**
 	 * Internal helper for stage click.
 	 */
 	async function stageClick(context, selector) {
@@ -788,6 +864,10 @@ export function createSandboxBrowserCommands(suiteName) {
 		sandboxPageCount: pageCount,
 		sandboxGoto: gotoSandbox,
 		sandboxReset: resetSandbox,
+		sandboxClearRequestHolds: clearRequestHolds,
+		sandboxHeldRequestCount: heldRequestCount,
+		sandboxHoldRequests: holdRequests,
+		sandboxReleaseRequests: releaseRequests,
 		sandboxPageDisabled: pageDisabled,
 		sandboxPageEvaluate: pageEvaluate,
 		sandboxPageFill: pageFill,

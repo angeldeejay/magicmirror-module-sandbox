@@ -16,6 +16,7 @@ import htmlModule from "../../../../server/html.ts";
 import { injectShimResolution } from "../../../../server/helper-runtime.ts";
 import { getBuiltInMmVersion } from "../../../../server/mm-version-manager.ts";
 import { harnessRoot } from "../../../../server/paths.ts";
+import { forgetCoreInstall } from "../../../../server/stage/core-cache.ts";
 import {
 	type CoreConfigSources,
 	renderStageHtml
@@ -153,6 +154,8 @@ describe("core static files", () => {
 
 	test("paths outside the served core set return 404", async () => {
 		for (const url of [
+			// Resolvable from the core root, but not a package the core serves.
+			"/__stage/node_modules/express/package.json",
 			"/__stage/index.html",
 			"/__stage/package.json",
 			"/__stage/js/missing-file.js",
@@ -209,6 +212,49 @@ describe("blocked config files", () => {
 		]) {
 			const response = await blockedApp.inject({ method: "GET", url });
 			expect(response.statusCode, url).toBe(404);
+		}
+	});
+
+	test("config.js and config.env stay blocked through spellings Win32 opens as the same file", async () => {
+		for (const url of [
+			"/__stage/config/config.js.",
+			"/__stage/config/config.env.",
+			"/__stage/config/config.env%20",
+			"/__stage/config/config.env::$DATA",
+			"/__stage/config/config.env:$DATA",
+			"/__stage/config./config.env"
+		]) {
+			const response = await blockedApp.inject({ method: "GET", url });
+			expect(response.statusCode, url).toBe(404);
+		}
+	});
+
+	test("config.env stays blocked when a link inside config/ reaches it", async () => {
+		// A directory junction (a plain symlink off Windows) that leads back
+		// to config/, so the request path never names config/config.env.
+		fs.symlinkSync(
+			path.join(tmp, "config"),
+			path.join(tmp, "config", "loop"),
+			"junction"
+		);
+		try {
+			for (const url of [
+				"/__stage/config/loop/config.env",
+				"/__stage/config/loop/config.js"
+			]) {
+				const response = await blockedApp.inject({ method: "GET", url });
+				expect(response.statusCode, url).toBe(404);
+			}
+			const allowed = await blockedApp.inject({
+				method: "GET",
+				url: "/__stage/config/loop/custom.css"
+			});
+			expect(allowed.statusCode).toBe(200);
+		} finally {
+			fs.rmSync(path.join(tmp, "config", "loop"), {
+				recursive: false,
+				force: true
+			});
 		}
 	});
 
@@ -368,6 +414,100 @@ describe("core server_functions endpoints", () => {
 		} finally {
 			await noExpress.close();
 		}
+	});
+});
+
+describe("a core replaced on disk", () => {
+	// An mmvm-shaped install: versions/<key>/node_modules/magicmirror, with the
+	// core's express next to it. Express is linked from the sandbox's own
+	// dependencies; only the core files change between the two "downloads".
+	let installDir = "";
+	let replacedApp: FastifyInstance;
+	let replacedUrl = "";
+
+	function writeCore(release: string): void {
+		const coreRoot = path.join(installDir, "node_modules", "magicmirror");
+		fs.rmSync(coreRoot, { recursive: true, force: true });
+		fs.mkdirSync(path.join(coreRoot, "js"), { recursive: true });
+		fs.writeFileSync(
+			path.join(coreRoot, "package.json"),
+			JSON.stringify({ name: "magicmirror", version: release })
+		);
+		fs.writeFileSync(
+			path.join(coreRoot, "index.html"),
+			"<html><body><script></script></body></html>"
+		);
+		fs.writeFileSync(
+			path.join(coreRoot, "js", "defaults.js"),
+			`module.exports = { release: ${JSON.stringify(release)} };`
+		);
+		fs.writeFileSync(
+			path.join(coreRoot, "js", "server_functions.js"),
+			[
+				"const reply = (req, res) => res.send(" +
+					JSON.stringify(release) +
+					");",
+				"module.exports = { cors: reply, getVersion: reply, getStartup: reply, getEnvVars: reply };",
+				""
+			].join("\n")
+		);
+	}
+
+	beforeAll(async () => {
+		installDir = fs.realpathSync(
+			fs.mkdtempSync(path.join(os.tmpdir(), "stage-replaced-core-"))
+		);
+		writeCore("1.0.0-old");
+		fs.symlinkSync(
+			path.join(harnessRoot, "node_modules", "express"),
+			path.join(installDir, "node_modules", "express"),
+			"junction"
+		);
+		const coreRoot = path.join(installDir, "node_modules", "magicmirror");
+		replacedApp = await bootApp({
+			getCore: () => ({ root: coreRoot, version: "1.0.0", key: "x" })
+		});
+		await replacedApp.listen({ port: 0, host: "127.0.0.1" });
+		const address = replacedApp.server.address() as AddressInfo;
+		replacedUrl = `http://127.0.0.1:${address.port}`;
+	});
+
+	afterAll(async () => {
+		await replacedApp.close();
+		fs.rmSync(installDir, { recursive: true, force: true });
+	});
+
+	async function servedReleases(): Promise<{
+		config: unknown;
+		version: string;
+	}> {
+		const config = await fetch(`${replacedUrl}/__stage/config/`);
+		const version = await fetch(`${replacedUrl}/__stage/version`);
+		return {
+			config: ((await config.json()) as { release?: unknown }).release,
+			version: await version.text()
+		};
+	}
+
+	test("a reinstalled core serves its new defaults and server_functions once forgotten", async () => {
+		expect(await servedReleases()).toEqual({
+			config: "1.0.0-old",
+			version: "1.0.0-old"
+		});
+
+		// Replaced on disk, the core's code is still cached in-process.
+		writeCore("2.0.0-new");
+		expect(await servedReleases()).toEqual({
+			config: "1.0.0-old",
+			version: "1.0.0-old"
+		});
+
+		// deleteVersionCache (redownload, delete-cache) forgets the install.
+		forgetCoreInstall(installDir);
+		expect(await servedReleases()).toEqual({
+			config: "2.0.0-new",
+			version: "2.0.0-new"
+		});
 	});
 });
 

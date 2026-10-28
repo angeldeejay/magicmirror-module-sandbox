@@ -21,6 +21,7 @@ import {
 import {
 	captureGlobalAssignment,
 	hookInstance,
+	watchCoreMM,
 	watchForModuleInstance
 } from "../../../client/stage-observer/instance-hooks.ts";
 import {
@@ -158,6 +159,146 @@ describe("captureGlobalAssignment", () => {
 		scope.MM = 1;
 		expect(scope.MM).toBe(1);
 		expect(error).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("watchCoreMM", () => {
+	/** A document stand-in whose readyState and DOMContentLoaded the test drives. */
+	function fakeDocument(readyState: DocumentReadyState) {
+		const target = new EventTarget() as EventTarget & {
+			readyState: DocumentReadyState;
+		};
+		target.readyState = readyState;
+		return target;
+	}
+
+	test("keeps capturing after DOMContentLoaded until the core assigns MM (2.38 top-level await)", () => {
+		const scope: Record<string, unknown> = {};
+		const doc = fakeDocument("loading");
+		const onAvailable = vi.fn();
+		const resolve = watchCoreMM(
+			scope,
+			doc as unknown as Document,
+			() => undefined,
+			onAvailable
+		);
+
+		doc.dispatchEvent(new Event("DOMContentLoaded"));
+		expect(onAvailable).not.toHaveBeenCalled();
+		expect(resolve()).toBeUndefined();
+		// Still the configurable, non-enumerable capture accessor.
+		expect(Object.getOwnPropertyDescriptor(scope, "MM")).toMatchObject({
+			configurable: true,
+			enumerable: false
+		});
+		expect(scope.MM).toBeUndefined();
+
+		const mm = { getModules: () => [] };
+		scope.MM = mm;
+		expect(onAvailable).toHaveBeenCalledTimes(1);
+		expect(onAvailable).toHaveBeenCalledWith(mm);
+		expect(resolve()).toBe(mm);
+		expect(Object.getOwnPropertyDescriptor(scope, "MM")).toEqual({
+			configurable: true,
+			enumerable: true,
+			writable: true,
+			value: mm
+		});
+	});
+
+	test("an assignment before DOMContentLoaded completes once (2.37)", () => {
+		const scope: Record<string, unknown> = {};
+		const doc = fakeDocument("loading");
+		const onAvailable = vi.fn();
+		watchCoreMM(scope, doc as unknown as Document, () => scope.MM, onAvailable);
+		scope.MM = { core: true };
+		doc.dispatchEvent(new Event("DOMContentLoaded"));
+		expect(onAvailable).toHaveBeenCalledTimes(1);
+	});
+
+	test("the lexical binding found at DOMContentLoaded completes and drops the accessor (2.35-2.36)", () => {
+		const scope: Record<string, unknown> = {};
+		const doc = fakeDocument("loading");
+		const lexical = { lexical: true };
+		const onAvailable = vi.fn();
+		const resolve = watchCoreMM(
+			scope,
+			doc as unknown as Document,
+			() => lexical,
+			onAvailable
+		);
+		expect(onAvailable).not.toHaveBeenCalled();
+
+		doc.dispatchEvent(new Event("DOMContentLoaded"));
+		expect(onAvailable).toHaveBeenCalledWith(lexical);
+		expect(Object.hasOwn(scope, "MM")).toBe(false);
+		expect(resolve()).toBe(lexical);
+	});
+
+	test("reads the lexical binding at once when the document already parsed, and reports callback failures", () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const scope: Record<string, unknown> = {};
+		const lexical = { lexical: true };
+		watchCoreMM(
+			scope,
+			fakeDocument("interactive") as unknown as Document,
+			() => lexical,
+			() => {
+				throw new Error("observer failed");
+			}
+		);
+		expect(error).toHaveBeenCalledTimes(1);
+		expect(Object.hasOwn(scope, "MM")).toBe(false);
+	});
+
+	test("a core that never provides MM never completes", () => {
+		const scope: Record<string, unknown> = {};
+		const doc = fakeDocument("loading");
+		const onAvailable = vi.fn();
+		const resolve = watchCoreMM(
+			scope,
+			doc as unknown as Document,
+			() => undefined,
+			onAvailable
+		);
+		doc.dispatchEvent(new Event("DOMContentLoaded"));
+		expect(onAvailable).not.toHaveBeenCalled();
+		expect(resolve()).toBeUndefined();
+		// The capture accessor stays, reading `undefined` as an absent
+		// property would.
+		const descriptor = Object.getOwnPropertyDescriptor(scope, "MM");
+		expect(typeof descriptor?.get).toBe("function");
+		expect(descriptor).toMatchObject({
+			enumerable: false,
+			configurable: true
+		});
+		expect(scope.MM).toBeUndefined();
+	});
+
+	test("a lexical read that throws (MM in its dead zone) counts as no MM and raises nothing", () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const scope: Record<string, unknown> = {};
+		const doc = fakeDocument("loading");
+		const onAvailable = vi.fn();
+		const resolve = watchCoreMM(
+			scope,
+			doc as unknown as Document,
+			() => {
+				throw new ReferenceError(
+					"Cannot access 'MM' before initialization"
+				);
+			},
+			onAvailable
+		);
+		expect(() =>
+			doc.dispatchEvent(new Event("DOMContentLoaded"))
+		).not.toThrow();
+		expect(onAvailable).not.toHaveBeenCalled();
+		expect(resolve()).toBeUndefined();
+		expect(error).not.toHaveBeenCalled();
+		expect(
+			typeof Object.getOwnPropertyDescriptor(scope, "MM")?.get
+		).toBe("function");
 	});
 });
 
@@ -425,7 +566,9 @@ describe("createStageFacade", () => {
 		expect(core.lifecycleState.domCreated).toBe(true);
 
 		const publishStageReady = vi.fn();
+		expect(core.bootComplete).toBe(false);
 		instance.notificationReceived("DOM_OBJECTS_CREATED");
+		expect(core.bootComplete).toBe(true);
 		core.publishStageReady = publishStageReady;
 		instance.notificationReceived("DOM_OBJECTS_CREATED");
 		expect(publishStageReady).toHaveBeenCalledWith(true);
@@ -439,6 +582,55 @@ describe("createStageFacade", () => {
 		expect(core.consoleLog).toHaveLength(200);
 		expect(core.consoleLog[0].args).toEqual([204]);
 		expect(events.at(-1)?.detail.maxEntries).toBe(200);
+	});
+
+	test("console objects are serialized outside the logging call, in order", async () => {
+		const { core, recordConsole, events } = createFacadeFixture();
+		const toJSON = vi.fn(() => ({ serialized: true }));
+		let getterReads = 0;
+		const logged = {
+			toJSON,
+			get count() {
+				getterReads += 1;
+				return 1;
+			}
+		};
+		const plain = {
+			get value() {
+				getterReads += 1;
+				return 2;
+			}
+		};
+
+		recordConsole("info", ["first", 1]);
+		recordConsole("log", ["object", logged]);
+		recordConsole("warn", ["after the object"]);
+		recordConsole("debug", [plain]);
+
+		// Only the all-primitive call before any object is recorded at once.
+		expect(toJSON).not.toHaveBeenCalled();
+		expect(getterReads).toBe(0);
+		expect(core.consoleLog.map((entry) => entry.method)).toEqual(["info"]);
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(toJSON).toHaveBeenCalledTimes(1);
+		expect(core.consoleLog.map((entry) => entry.args)).toEqual([
+			[{ value: 2 }],
+			["after the object"],
+			["object", { serialized: true }],
+			["first", 1]
+		]);
+		expect(
+			events
+				.filter(
+					(event) => event.type === "module-sandbox:console-log-updated"
+				)
+				.map((event) => event.detail.entry.method)
+		).toEqual(["info", "log", "warn", "debug"]);
+
+		// With nothing pending, primitive calls are recorded at once again.
+		recordConsole("error", ["sync again"]);
+		expect(core.consoleLog[0].args).toEqual(["sync again"]);
 	});
 
 	test("the notification log is capped", () => {

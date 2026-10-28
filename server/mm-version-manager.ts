@@ -14,6 +14,7 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import * as path from "pathe";
 import { findBuiltInCoreRoot } from "./stage/built-in-core.ts";
+import { forgetCoreInstall } from "./stage/core-cache.ts";
 import { detectCoreVariants } from "./stage/core-variants.ts";
 
 const _serverDir = path.dirname(
@@ -165,10 +166,14 @@ export type VersionActionResult = { ok: true } | { ok: false; error: string };
 
 /**
  * Deletes the cached install and shims for a version key so it can be re-downloaded.
+ * The core's server code already loaded in this process is forgotten too, so
+ * a version installed again under the same key runs its new code.
  */
 export function deleteVersionCache(version: string): void {
-	fs.rmSync(getVersionInstallDir(version), { recursive: true, force: true });
+	const installDir = getVersionInstallDir(version);
+	fs.rmSync(installDir, { recursive: true, force: true });
 	fs.rmSync(getVersionShimsDir(version), { recursive: true, force: true });
+	forgetCoreInstall(installDir);
 }
 
 const SAFE_SPEC_RE = /^[a-zA-Z0-9._@/#:+-]+$/;
