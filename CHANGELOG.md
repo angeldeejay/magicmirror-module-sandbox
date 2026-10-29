@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## v4.0.0
+
+- **Built-in core pinned to 2.36.0** — `build:00-sync-mmcore-source` now passes `--version 2.36.0`. It used to sync the latest stable release whenever `mmcore-source/` was empty, so a fresh checkout (CI) built on 2.38.0 while existing checkouts stayed on 2.36.0. Since the stage runs the built-in core itself, that made the transversal suites, whose fixture module relies on 2.36's `this._super()` in `getDom`, fail only on fresh checkouts.
+- **Dependency security update** — `@fastify/static` moves to `^10.1.8` and the lockfile takes the non-breaking `npm audit fix` updates (fastify, ws, socket.io-parser, engine.io, zod, fast-uri, find-my-way, moment, js-cookie), so `npm audit --omit=dev --audit-level=high` passes again. `@fastify/static` 10 required these changes:
+    - `setHeaders` now receives the Fastify reply, so `/__harness/` sets `Cache-Control` with `reply.header`.
+    - Its routes answer a doubled slash with 403, but the core requests module files as `modules/<ModuleName>//<file>`. The stage now serves the mounted module through a route that collapses empty segments, as `express.static` does on a real mirror.
 
 - **The viewport runs the real MagicMirror core of the active version** — the stage iframe no longer runs the sandbox's hand-ported 2.36 browser runtime. It loads the active version's own `index.html`, `js/`, `css/`, `translations/` and vendor files, served verbatim under `/__stage/`, with only the core's own `#VERSION#`/`#TESTMODE#` substitutions and one injection point (the stage observer script, the stage state and the isolation stylesheet). Switching versions in MM Version now changes the viewport too: frontend and backend always run the same version, including `develop`, so a module that calls `this._super()` in `getDom` fails on 2.37+ and `.mjs` scripts load from 2.37, as on a real mirror. Details:
     - `config/`, `config/basepath.js` and `js/positions.js` are generated in memory per version; `env`, `startup`, `version` and `cors` run the version's own `server_functions.js` handlers; the mounted module is served at `/__stage/modules/<ModuleName>/`.

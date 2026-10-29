@@ -134,8 +134,8 @@ async function registerRoutes({
 		root: path.join(harnessRoot, "client"),
 		prefix: "/__harness/",
 		decorateReply: false,
-		setHeaders(res) {
-			res.setHeader("Cache-Control", "no-store");
+		setHeaders(reply) {
+			reply.header("Cache-Control", "no-store");
 		}
 	});
 

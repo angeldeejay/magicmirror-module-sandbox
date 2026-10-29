@@ -1,6 +1,6 @@
 {
 	"name": "@angeldeejay/magicmirror-module-sandbox",
-	"version": "3.0.0",
+	"version": "4.0.0",
 	"description": "Single-module MagicMirror dev sandbox with a Fastify host, Preact shell, real node_helper wiring, and browser-based debugging",
 	"author": {
 		"name": "Andrés Vanegas Jiménez",
@@ -27,7 +27,7 @@
 	],
 	"scripts": {
 		"build": "run-s build:*",
-		"build:00-sync-mmcore-source": "tsx scripts/sync-mmcore-source.ts",
+		"build:00-sync-mmcore-source": "tsx scripts/sync-mmcore-source.ts --version 2.36.0",
 		"build:01-sync-mm-assets": "tsx bin/sync-magicmirror-assets.ts",
 		"build:02-sync-analyzer": "tsx scripts/sync-module-analyzer.ts",
 		"build:10-client": "tsx scripts/build-client-assets.ts",
@@ -88,7 +88,7 @@
 		"@eslint/js": "^10.0.1",
 		"@fastify/middie": "^9.3.2",
 		"@fastify/rate-limit": "^10.3.0",
-		"@fastify/static": "^9.1.3",
+		"@fastify/static": "^10.1.8",
 		"@fontsource/open-sans": "^5.2.7",
 		"animate.css": "^4.1.1",
 		"chokidar": "^5.0.0",

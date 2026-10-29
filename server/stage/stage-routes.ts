@@ -288,18 +288,25 @@ export async function registerStageRoutes(
 		return renderPositionsJs(core, detectCoreVariants(core));
 	});
 
-	await app.register(fastifyStatic, {
-		root: moduleRoot,
-		prefix: `${STAGE_PREFIX}modules/${moduleName}/`,
-		decorateReply: false
-	});
-
 	// Encapsulated so `reply.sendFile` does not leak to the rest of the app.
 	await app.register(async (scope) => {
 		await scope.register(fastifyStatic, {
 			root: moduleRoot,
 			serve: false
 		});
+		// The core requests module files with a doubled slash
+		// (`modules/<ModuleName>//<file>`, from module.js `file()`), which
+		// express.static serves and @fastify/static's own routes refuse with
+		// 403, so empty segments are collapsed before sending.
+		scope.get(
+			`${STAGE_PREFIX}modules/${moduleName}/*`,
+			async (request, reply) => {
+				const requestPath = (request.params as { "*": string })["*"];
+				return reply.sendFile(
+					requestPath.split("/").filter(Boolean).join("/")
+				);
+			}
+		);
 		scope.get(`${STAGE_PREFIX}*`, async (request, reply) => {
 			const requestPath = (request.params as { "*": string })["*"];
 			const core = getCore();
