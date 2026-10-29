@@ -208,6 +208,18 @@ describe("stage socket server", () => {
 		expect(getStageReloadGeneration()).toBe(start + 3);
 	});
 
+	test("the generation starts at the process start time, not at 0", () => {
+		// A shell left open across a sandbox restart still holds a page of
+		// the previous process; a counter restarting from 0 would make every
+		// new reload look already applied to it.
+		expect(getStageReloadGeneration()).toBeGreaterThan(
+			Date.now() - 24 * 60 * 60 * 1000
+		);
+		expect(getStageReloadGeneration()).toBeLessThanOrEqual(
+			Date.now() + 1000
+		);
+	});
+
 	test("the generation is bumped before the core's RELOAD goes out", () => {
 		const shellIo = { emit: vi.fn() };
 		let generationSeenByCore = -1;

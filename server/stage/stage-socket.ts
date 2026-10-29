@@ -52,8 +52,13 @@ export type StageSocketServer = {
  * served (`StageState.reloadGeneration`), so the shell can tell a stage that
  * already reloaded for an event from one that still shows an earlier
  * config.
+ *
+ * It starts at the process start time instead of 0, so it keeps growing
+ * across sandbox restarts: a shell left open still holds a stage page of the
+ * previous process, and a counter restarting from 0 would make every new
+ * reload look already applied to it.
  */
-let stageReloadGeneration = 0;
+let stageReloadGeneration = Date.now();
 
 /** The reload generation a stage page served now belongs to. */
 export function getStageReloadGeneration(): number {

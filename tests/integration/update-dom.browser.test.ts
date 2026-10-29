@@ -26,13 +26,23 @@ journeyTest(
 
 		const updateResult = await stageEvaluate(async () => {
 			const instance = globalThis.__moduleSandboxModule;
+			// The core replaces the content of a hidden module on every
+			// updateDom without comparing it (main.js updateDomWithContent), so
+			// the module must be visible before the check.
+			const visibleBy = Date.now() + 10_000;
+			while (instance.hidden) {
+				if (Date.now() > visibleBy) {
+					throw new Error("the module never became visible within 10 s");
+				}
+				await new Promise((resolve) => globalThis.setTimeout(resolve, 10));
+			}
 			const wrapper =
 				globalThis.document.querySelector("#test-module-root");
 			const beforeUpdateCount =
 				instance.coreNotificationCounts.moduleDomUpdated;
 
 			// module.js updateDom returns nothing; main.js sends
-			// MODULE_DOM_UPDATED once the update is applied (main.js:694-697).
+			// MODULE_DOM_UPDATED once the update is applied (`main.js` `MM.updateDom`).
 			instance.updateDom({
 				options: {
 					speed: 40,
