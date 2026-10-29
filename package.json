@@ -27,7 +27,7 @@
 	],
 	"scripts": {
 		"build": "run-s build:*",
-		"build:00-sync-mmcore-source": "tsx scripts/sync-mmcore-source.ts --version 2.36.0",
+		"build:00-sync-mmcore-source": "tsx scripts/sync-mmcore-source.ts",
 		"build:01-sync-mm-assets": "tsx bin/sync-magicmirror-assets.ts",
 		"build:02-sync-analyzer": "tsx scripts/sync-module-analyzer.ts",
 		"build:10-client": "tsx scripts/build-client-assets.ts",

@@ -3,12 +3,15 @@
 /**
  * Maintainer-mode MagicMirror core source sync.
  *
- * Downloads the latest (or specified) stable MM release from npm using the official
- * magicmirror package directly into mmcore-source/, replacing the magicmirror devDependency.
+ * Downloads the pinned built-in MM release (or a specified one) from npm using the
+ * official magicmirror package directly into mmcore-source/, replacing the magicmirror
+ * devDependency. The pin keeps the built-in core, which the stage runs, identical on
+ * every checkout; postinstall and build both use it, with no network call.
  *
  * Usage:
- *   tsx scripts/sync-mmcore-source.ts                # latest stable
- *   tsx scripts/sync-mmcore-source.ts --version 2.36.0
+ *   tsx scripts/sync-mmcore-source.ts                # pinned built-in version
+ *   tsx scripts/sync-mmcore-source.ts --version 2.38.0
+ *   tsx scripts/sync-mmcore-source.ts --latest       # latest stable (GitHub API)
  *   tsx scripts/sync-mmcore-source.ts --force        # re-download even if up-to-date
  */
 
@@ -23,6 +26,8 @@ const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
 const MMCORE_SOURCE_ROOT = path.join(root, "mmcore-source");
 const VERSION_MANIFEST_PATH = path.join(MMCORE_SOURCE_ROOT, "version.json");
+/** MagicMirror release used as the built-in core. */
+const BUILT_IN_CORE_VERSION = "2.36.0";
 
 type GhRelease = { tag_name: string; prerelease: boolean };
 type VersionManifest = { version: string; syncedAt: string };
@@ -88,40 +93,40 @@ function writeManifest(version: string): void {
 	fs.writeFileSync(VERSION_MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
-function parseArgs(): { version?: string; force: boolean } {
+function parseArgs(): { version?: string; latest: boolean; force: boolean } {
 	const args = process.argv.slice(2);
 	let version: string | undefined;
+	let latest = false;
 	let force = false;
 	for (let i = 0; i < args.length; i++) {
 		if ((args[i] === "--version" || args[i] === "-v") && args[i + 1]) {
 			version = args[++i].replace(/^v/, "");
+		} else if (args[i] === "--latest") {
+			latest = true;
 		} else if (args[i] === "--force" || args[i] === "-f") {
 			force = true;
 		}
 	}
-	return { version, force };
+	return { version, latest, force };
 }
 
 async function main(): Promise<void> {
-	const { version: pinnedVersion, force } = parseArgs();
+	const { version: requestedVersion, latest, force } = parseArgs();
 
 	const manifest = readCurrentManifest();
 
-	// Skip network call entirely when a manifest exists and no explicit version or force flag
-	if (!pinnedVersion && !force && manifest) {
-		process.stdout.write(`mmcore-source already at ${manifest.version} — skipping.\n`);
-		return;
-	}
-
-	let targetVersion: string;
-	try {
-		targetVersion = pinnedVersion ?? (await fetchLatestVersion());
-	} catch (err) {
-		if (manifest) {
-			process.stdout.write(`sync-mmcore-source: ${(err as Error).message} — keeping existing ${manifest.version}\n`);
-			return;
+	// Only --latest calls the GitHub API; the default is the pinned built-in version.
+	let targetVersion = requestedVersion ?? BUILT_IN_CORE_VERSION;
+	if (latest) {
+		try {
+			targetVersion = await fetchLatestVersion();
+		} catch (err) {
+			if (manifest) {
+				process.stdout.write(`sync-mmcore-source: ${(err as Error).message} — keeping existing ${manifest.version}\n`);
+				return;
+			}
+			throw err;
 		}
-		throw err;
 	}
 
 	if (!force && manifest?.version === targetVersion) {
