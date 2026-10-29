@@ -47,6 +47,20 @@ export type StageSocketServer = {
 };
 
 /**
+ * Counts stage reloads. Each `harness:reload` carries the generation it
+ * starts, and every stage page embeds the generation current when it was
+ * served (`StageState.reloadGeneration`), so the shell can tell a stage that
+ * already reloaded for an event from one that still shows an earlier
+ * config.
+ */
+let stageReloadGeneration = 0;
+
+/** The reload generation a stage page served now belongs to. */
+export function getStageReloadGeneration(): number {
+	return stageReloadGeneration;
+}
+
+/**
  * Emits one stage `harness:reload` to the shell, making sure exactly one
  * mechanism reloads the stage document.
  *
@@ -56,17 +70,26 @@ export type StageSocketServer = {
  * backdrop. When no core page listens (the core never reached
  * `modulesStarted`, for example a module whose `start()` threw, or the page is
  * still booting), nothing would reload the stage, so the shell reloads the
- * frame itself. Without `emitStageReload` the payload goes out unchanged.
+ * frame itself. Without `emitStageReload` nothing but the generation is
+ * added to the payload.
+ *
+ * The generation is bumped before the core's `RELOAD` goes out, so every
+ * stage page requested for this reload embeds it, and serves the config
+ * written before this call.
  */
 export function emitStageHarnessReload(
 	shellIo: Pick<Server, "emit">,
 	payload: Record<string, unknown>,
 	emitStageReload?: () => boolean
 ): void {
+	stageReloadGeneration += 1;
+	const generation = stageReloadGeneration;
 	const reloadedByCore = emitStageReload ? emitStageReload() : false;
 	shellIo.emit(
 		HARNESS_RELOAD_EVENT,
-		reloadedByCore ? { ...payload, reloadedBy: RELOADED_BY_CORE } : payload
+		reloadedByCore
+			? { ...payload, generation, reloadedBy: RELOADED_BY_CORE }
+			: { ...payload, generation }
 	);
 }
 

@@ -30,6 +30,7 @@ import {
 	renderStageInjection,
 	STAGE_PREFIX
 } from "../../../../server/stage/stage-routes.ts";
+import { getStageReloadGeneration } from "../../../../server/stage/stage-socket.ts";
 
 const MODULE_NAME = "MMM-TestModule";
 const moduleRoot = path.join(harnessRoot, "tests", "_fixtures", MODULE_NAME);
@@ -93,13 +94,21 @@ describe("stage page", () => {
 			renderStageHtml(
 				core,
 				detectCoreVariants(core),
-				renderStageInjection({ position: "top_left", disabled: false })
+				renderStageInjection({
+					position: "top_left",
+					disabled: false,
+					reloadGeneration: getStageReloadGeneration()
+				})
 			)
 		);
 		expect(
-			renderStageInjection({ position: "top_left", disabled: false })
+			renderStageInjection({
+				position: "top_left",
+				disabled: false,
+				reloadGeneration: 4
+			})
 		).toBe(
-			'<!-- module-sandbox:stage --><link rel="stylesheet" href="/__harness/generated/stage-isolation.css"><script type="application/json" id="module-sandbox-stage-state">{"position":"top_left","disabled":false}</script><script src="/__harness/generated/stage-observer.js"></script><!-- /module-sandbox:stage -->'
+			'<!-- module-sandbox:stage --><link rel="stylesheet" href="/__harness/generated/stage-isolation.css"><script type="application/json" id="module-sandbox-stage-state">{"position":"top_left","disabled":false,"reloadGeneration":4}</script><script src="/__harness/generated/stage-observer.js"></script><!-- /module-sandbox:stage -->'
 		);
 	});
 
@@ -109,17 +118,26 @@ describe("stage page", () => {
 				...sources,
 				getModuleConfig: () => ({ disabled: true })
 			})
-		).toEqual({ position: "", disabled: true });
+		).toEqual({
+			position: "",
+			disabled: true,
+			reloadGeneration: getStageReloadGeneration()
+		});
 		expect(
 			getStageState({
 				...sources,
 				getModuleConfig: () => ({ position: 3, disabled: "yes" })
 			})
-		).toEqual({ position: "", disabled: false });
+		).toEqual({
+			position: "",
+			disabled: false,
+			reloadGeneration: getStageReloadGeneration()
+		});
 		expect(
 			renderStageInjection({
 				position: "</script><script>alert(1)</script>",
-				disabled: false
+				disabled: false,
+				reloadGeneration: 0
 			})
 		).not.toContain("</script><script>alert");
 	});

@@ -11,7 +11,9 @@
  * The fallback must also never boot the stage a second time: the shell
  * listens for `pagehide` on the stage document, which cancels a pending
  * fallback however slowly the new document loads, and a core-driven
- * `harness:reload` that arrives after the stage already reloaded is ignored.
+ * `harness:reload` whose generation the stage page already carries is
+ * ignored. A page that loads with an earlier generation shows the previous
+ * config, so the shell reloads the frame into the awaited one.
  */
 import { afterAll, expect, test } from "vitest";
 import {
@@ -25,7 +27,6 @@ type ShellScope = typeof globalThis & {
 	__MICROCORE__: {
 		stageReady?: boolean;
 		coreReloadFallbackMs?: number;
-		coreReloadRecentUnloadMs?: number;
 		rootSocket: { listeners: (event: string) => Array<(p: unknown) => void> };
 	};
 	__fallbackLoads?: number;
@@ -146,45 +147,62 @@ async function openReadyStage(): Promise<void> {
 	});
 }
 
-/** Counts frame loads in the shell and shortens the fallback delays. */
-async function trackStageReloads(recentUnloadMs: number): Promise<void> {
-	await pageEvaluate(
-		({ fallbackMs, recentMs }) => {
-			const scope = globalThis as ShellScope;
-			scope.__fallbackLoads = 0;
-			document
-				.getElementById("module-stage-frame")
-				?.addEventListener("load", () => {
-					scope.__fallbackLoads = (scope.__fallbackLoads ?? 0) + 1;
-				});
-			scope.__MICROCORE__.coreReloadFallbackMs = fallbackMs;
-			scope.__MICROCORE__.coreReloadRecentUnloadMs = recentMs;
-		},
-		{ fallbackMs: FALLBACK_MS, recentMs: recentUnloadMs }
+/** Counts frame loads in the shell and shortens the fallback delay. */
+async function trackStageReloads(): Promise<void> {
+	await pageEvaluate((fallbackMs) => {
+		const scope = globalThis as ShellScope;
+		scope.__fallbackLoads = 0;
+		document
+			.getElementById("module-stage-frame")
+			?.addEventListener("load", () => {
+				scope.__fallbackLoads = (scope.__fallbackLoads ?? 0) + 1;
+			});
+		scope.__MICROCORE__.coreReloadFallbackMs = fallbackMs;
+	}, FALLBACK_MS);
+}
+
+/** The reload generation the stage page in the frame was served with. */
+async function readStageGeneration(): Promise<number> {
+	return stageEvaluate(
+		() =>
+			JSON.parse(
+				document.getElementById("module-sandbox-stage-state")
+					?.textContent ?? "null"
+			).reloadGeneration as number
 	);
 }
 
 /** Delivers a core-driven `harness:reload` to the shell, without any RELOAD. */
-async function deliverCoreReloadEvent(version: string): Promise<void> {
-	await pageEvaluate((reloadVersion) => {
-		const scope = globalThis as ShellScope;
-		for (const listener of scope.__MICROCORE__.rootSocket.listeners(
-			"harness:reload"
-		)) {
-			listener({
-				event: "manual-restart",
-				scope: "stage",
-				version: reloadVersion,
-				reloadedBy: "core"
-			});
-		}
-	}, version);
+async function deliverCoreReloadEvent(
+	version: string,
+	generation: number
+): Promise<void> {
+	await pageEvaluate(
+		({ reloadVersion, reloadGeneration }) => {
+			const scope = globalThis as ShellScope;
+			for (const listener of scope.__MICROCORE__.rootSocket.listeners(
+				"harness:reload"
+			)) {
+				listener({
+					event: "manual-restart",
+					scope: "stage",
+					version: reloadVersion,
+					generation: reloadGeneration,
+					reloadedBy: "core"
+				});
+			}
+		},
+		{ reloadVersion: version, reloadGeneration: generation }
+	);
 }
 
 test("the old stage document starting to unload cancels the pending fallback", async () => {
 	await openReadyStage();
-	await trackStageReloads(1000);
-	await deliverCoreReloadEvent("slow-core-reload");
+	await trackStageReloads();
+	await deliverCoreReloadEvent(
+		"slow-core-reload",
+		(await readStageGeneration()) + 1
+	);
 
 	// The old document starts unloading, and the slow core page that
 	// replaces it has not loaded yet.
@@ -208,8 +226,8 @@ test("the old stage document starting to unload cancels the pending fallback", a
 
 test("a harness:reload arriving after the core already reloaded the stage boots nothing more", async () => {
 	await openReadyStage();
-	// Wide enough to cover the whole reload below on a slow machine.
-	await trackStageReloads(30_000);
+	await trackStageReloads();
+	const generation = await readStageGeneration();
 
 	// The core's own RELOAD handler reloads the document in place.
 	await stageEvaluate(() => {
@@ -232,7 +250,8 @@ test("a harness:reload arriving after the core already reloaded the stage boots 
 		.toBe(1);
 
 	// The shell event of that same reload arrives late, on its own socket.
-	await deliverCoreReloadEvent("late-core-reload");
+	// Its generation is the one the reloaded page was served with.
+	await deliverCoreReloadEvent("late-core-reload", generation);
 
 	await new Promise((resolve) => setTimeout(resolve, FALLBACK_MS * 3));
 	expect(
@@ -247,4 +266,40 @@ test("a harness:reload arriving after the core already reloaded the stage boots 
 	expect(
 		await stageEvaluate(() => globalThis.location.search)
 	).not.toContain("late-core-reload");
+});
+
+test("a reload already in flight when the core reload went out is followed by one frame reload", async () => {
+	await openReadyStage();
+	await trackStageReloads();
+	// The shell learns of a reload one generation ahead of the page in the
+	// frame, whose RELOAD reached no live page.
+	await deliverCoreReloadEvent(
+		"stale-core-reload",
+		(await readStageGeneration()) + 1
+	);
+
+	// A reload that was already in flight lands first: the page it loads is
+	// served with the previous generation (no RELOAD went out, so the server
+	// never bumped it), so it shows the previous config.
+	await stageEvaluate(() => {
+		setTimeout(() => {
+			globalThis.location.reload();
+		}, 0);
+	});
+
+	// The shell reloads the frame into the awaited reload, once.
+	await expect
+		.poll(() => stageEvaluate(() => globalThis.location.search))
+		.toBe("?v=stale-core-reload");
+	await expect
+		.poll(() =>
+			stageEvaluate(() =>
+				Boolean((globalThis as StageScope).__moduleSandboxModule)
+			)
+		)
+		.toBe(true);
+	await new Promise((resolve) => setTimeout(resolve, FALLBACK_MS * 3));
+	expect(
+		await pageEvaluate(() => (globalThis as ShellScope).__fallbackLoads)
+	).toBe(2);
 });

@@ -178,10 +178,15 @@ concerns:
    core took the reload but the stage document does not even start unloading
    within 5 s, the shell reloads the frame as a fallback. The fallback is
    cancelled on the old document's `pagehide`, not on the new one's `load`, so
-   a slow core page never boots twice, and a core-driven `harness:reload` that
-   reaches the shell after the stage already reloaded (the two sockets are not
-   ordered) is ignored. Saves, restarts and version switches use the same
-   path, so each reloads the stage exactly once
+   a slow core page never boots twice. Every stage `harness:reload` carries a
+   reload generation, bumped before the core's `RELOAD` goes out, and every
+   stage page embeds the generation it was served with (`StageState`). A
+   core-driven `harness:reload` whose generation the page in the frame
+   already carries reached the shell after the stage reloaded for it (the two
+   sockets are not ordered) and is ignored; a page that loads with an earlier
+   generation was requested before the config was saved, so the shell
+   reloads the frame once more. Saves, restarts and version switches use the
+   same path, so each reloads the stage exactly once, into the saved config
 
 **Sandbox watcher** — active only when `--watch` is passed:
 

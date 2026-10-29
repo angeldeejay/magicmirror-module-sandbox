@@ -842,16 +842,24 @@ describe("log value serialization", () => {
 });
 
 describe("stage state contract", () => {
-	const valid: StageState = { position: "top_left", disabled: false };
+	const valid: StageState = {
+		position: "top_left",
+		disabled: false,
+		reloadGeneration: 0
+	};
 
 	test("the browser guard accepts exactly what the server schema accepts", () => {
 		const candidates: unknown[] = [
 			valid,
+			{ position: "", disabled: true, reloadGeneration: 7 },
 			{ position: "", disabled: true },
-			{ position: 1, disabled: false },
-			{ position: "top_left", disabled: "false" },
+			{ position: 1, disabled: false, reloadGeneration: 0 },
+			{ position: "top_left", disabled: "false", reloadGeneration: 0 },
+			{ position: "top_left", disabled: false, reloadGeneration: -1 },
+			{ position: "top_left", disabled: false, reloadGeneration: 1.5 },
+			{ position: "top_left", disabled: false, reloadGeneration: "1" },
 			{ position: "top_left" },
-			{ position: "top_left", disabled: false, extra: 1 },
+			{ position: "top_left", disabled: false, reloadGeneration: 0, extra: 1 },
 			[],
 			null,
 			"text"
@@ -871,7 +879,11 @@ describe("stage state contract", () => {
 	});
 
 	test("serialized state round-trips and escapes element-closing text", () => {
-		const hostile = { position: "</script>", disabled: true };
+		const hostile = {
+			position: "</script>",
+			disabled: true,
+			reloadGeneration: 3
+		};
 		const text = serializeStageState(hostile);
 		expect(text).not.toContain("<");
 		expect(parseStageState(text)).toEqual(hostile);

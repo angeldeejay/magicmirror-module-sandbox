@@ -12,32 +12,54 @@
 	 */
 	core.coreReloadFallbackMs = 5000;
 	/**
-	 * How long after the stage document started unloading a core-driven
-	 * `harness:reload` still counts as describing that reload. The shell and
-	 * stage sockets are separate, so the event can arrive after the core
-	 * already reloaded the stage. Writable for tests.
+	 * Id of the stage state element every stage page embeds
+	 * (`STAGE_STATE_ELEMENT_ID` in config/stage-state.ts).
 	 */
-	core.coreReloadRecentUnloadMs = 1000;
+	const STAGE_STATE_ELEMENT_ID = "module-sandbox-stage-state";
 	/**
 	 * Pending fallback for a core-driven reload, cleared as soon as the stage
 	 * document starts unloading (or, without that signal, by the frame load).
 	 */
 	let coreReloadFallbackTimer = null;
-	/** When the stage document last started unloading (`pagehide`). */
-	let lastStageUnloadAt = Number.NEGATIVE_INFINITY;
+	/**
+	 * The core-driven reload the shell still waits for, as
+	 * `{ generation, version }`, until a stage page of that generation loads.
+	 */
+	let pendingCoreReload = null;
 
 	/**
 	 * The stage document is going away: the reload the shell may be waiting
 	 * for is under way, whoever drove it. Waiting for the new document's
 	 * `load` instead would let a slow core page trip the fallback and boot
-	 * the stage twice.
+	 * the stage twice. The frame load still checks that the new page belongs
+	 * to the awaited generation.
 	 *
 	 * @returns {void}
 	 */
 	function handleStageUnloading() {
 		globalScope.clearTimeout(coreReloadFallbackTimer);
 		coreReloadFallbackTimer = null;
-		lastStageUnloadAt = Date.now();
+	}
+
+	/**
+	 * Reads the reload generation the stage page in the frame was served
+	 * with (`StageState.reloadGeneration`).
+	 *
+	 * @param {HTMLIFrameElement|null} frame
+	 * @returns {number|null} null when the page carries none or is unreadable
+	 */
+	function readStageGeneration(frame) {
+		try {
+			const element = frame?.contentDocument?.getElementById(
+				STAGE_STATE_ELEMENT_ID
+			);
+			const generation = element
+				? JSON.parse(element.textContent || "null")?.reloadGeneration
+				: undefined;
+			return Number.isSafeInteger(generation) ? generation : null;
+		} catch {
+			return null;
+		}
 	}
 
 	/**
@@ -474,15 +496,29 @@
 					return;
 				}
 
-				// The stage already started reloading, so this event describes
-				// a reload that is in flight or done: arming the fallback, or a
-				// backdrop only the next stage-ready clears, would be wrong.
-				if (
-					payload &&
-					payload.reloadedBy === "core" &&
-					Date.now() - lastStageUnloadAt < core.coreReloadRecentUnloadMs
-				) {
-					return;
+				const generation =
+					payload && Number.isSafeInteger(payload.generation)
+						? payload.generation
+						: null;
+				const version =
+					payload && typeof payload.version === "string"
+						? payload.version
+						: undefined;
+				// The shell and stage sockets are separate, so this event can
+				// arrive after the core already reloaded the stage for it. A
+				// page of this generation or later shows its config: arming the
+				// fallback, or a backdrop only the next stage-ready clears,
+				// would be wrong.
+				if (payload && payload.reloadedBy === "core") {
+					const frameGeneration = readStageGeneration(core.getStageFrame());
+					if (
+						generation !== null &&
+						frameGeneration !== null &&
+						frameGeneration >= generation
+					) {
+						return;
+					}
+					pendingCoreReload = { generation, version };
 				}
 
 				core.showBackdrop("Loading\u2026");
@@ -498,19 +534,15 @@
 					globalScope.clearTimeout(coreReloadFallbackTimer);
 					coreReloadFallbackTimer = globalScope.setTimeout(() => {
 						coreReloadFallbackTimer = null;
-						core.reloadStage(
-							typeof payload.version === "string"
-								? payload.version
-								: undefined
-						);
+						pendingCoreReload = null;
+						core.reloadStage(version);
 					}, core.coreReloadFallbackMs);
 					return;
 				}
-				core.reloadStage(
-					payload && typeof payload.version === "string"
-						? payload.version
-						: undefined
-				);
+				// The shell navigates the frame itself, so the page it loads
+				// is served after this event.
+				pendingCoreReload = null;
+				core.reloadStage(version);
 			});
 
 			rootSocket.on("harness:quality-result", (result) => {
@@ -536,6 +568,21 @@
 				// The stage reloaded, whoever drove it: no fallback needed.
 				globalScope.clearTimeout(coreReloadFallbackTimer);
 				coreReloadFallbackTimer = null;
+				// A page served before the awaited reload's generation was
+				// requested before its config was saved (a reload already in
+				// flight when the core's RELOAD went to the unloading page), so
+				// it shows the previous config: reload the frame into it.
+				const awaited = pendingCoreReload;
+				pendingCoreReload = null;
+				if (awaited && awaited.generation !== null) {
+					const loadedGeneration = readStageGeneration(frame);
+					if (
+						loadedGeneration !== null &&
+						loadedGeneration < awaited.generation
+					) {
+						core.reloadStage(awaited.version);
+					}
+				}
 				watchStageUnload(frame);
 				core.stageReady = false;
 				core.bootComplete = false;

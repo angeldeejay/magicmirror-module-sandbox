@@ -8,7 +8,8 @@ import type { StageState } from "../../config/stage-state.ts";
 
 export const stageStateSchema = z.strictObject({
 	position: z.string(),
-	disabled: z.boolean()
+	disabled: z.boolean(),
+	reloadGeneration: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 }) satisfies z.ZodType<StageState>;
 
 /**

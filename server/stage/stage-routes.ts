@@ -41,6 +41,7 @@ import {
 	resolveCoreStaticPath
 } from "./core-root.ts";
 import { detectCoreVariants } from "./core-variants.ts";
+import { getStageReloadGeneration } from "./stage-socket.ts";
 import { serializeStageState } from "./stage-state-schema.ts";
 
 /** Stage prefix, also the `basePath` served to the core. */
@@ -63,7 +64,8 @@ export function getStageState(sources: CoreConfigSources): StageState {
 	return {
 		position:
 			typeof envelope.position === "string" ? envelope.position : "",
-		disabled: envelope.disabled === true
+		disabled: envelope.disabled === true,
+		reloadGeneration: getStageReloadGeneration()
 	};
 }
 

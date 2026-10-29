@@ -11,6 +11,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
 	createStageSocketServer,
 	emitStageHarnessReload,
+	getStageReloadGeneration,
 	WebsocketLogEntry
 } from "../../../../server/stage/stage-socket.ts";
 
@@ -190,16 +191,35 @@ describe("stage socket server", () => {
 	test("emitStageHarnessReload marks a reload the core performs", () => {
 		const shellIo = { emit: vi.fn() };
 		const payload = { scope: "stage", version: "v1" };
+		const start = getStageReloadGeneration();
 
 		emitStageHarnessReload(shellIo, payload, () => true);
 		emitStageHarnessReload(shellIo, payload, () => false);
 		emitStageHarnessReload(shellIo, payload);
 
 		expect(shellIo.emit.mock.calls).toEqual([
-			["harness:reload", { ...payload, reloadedBy: "core" }],
-			["harness:reload", payload],
-			["harness:reload", payload]
+			[
+				"harness:reload",
+				{ ...payload, generation: start + 1, reloadedBy: "core" }
+			],
+			["harness:reload", { ...payload, generation: start + 2 }],
+			["harness:reload", { ...payload, generation: start + 3 }]
 		]);
+		expect(getStageReloadGeneration()).toBe(start + 3);
+	});
+
+	test("the generation is bumped before the core's RELOAD goes out", () => {
+		const shellIo = { emit: vi.fn() };
+		let generationSeenByCore = -1;
+
+		emitStageHarnessReload(shellIo, { scope: "stage" }, () => {
+			generationSeenByCore = getStageReloadGeneration();
+			return true;
+		});
+
+		expect(generationSeenByCore).toBe(
+			shellIo.emit.mock.calls[0][1].generation
+		);
 	});
 
 	test("WebsocketLogEntry rejects malformed entries", () => {
