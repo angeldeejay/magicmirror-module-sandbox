@@ -25,6 +25,7 @@ type StageScope = typeof globalThis & {
 	};
 	mmVersion?: string;
 	__versionSwitchMarker?: boolean;
+	__versionSwitchPreSwitch?: boolean;
 };
 type LogEntry = { direction?: string; notification?: string };
 type ShellScope = typeof globalThis & {
@@ -138,8 +139,9 @@ let pingCount = 0;
 
 /**
  * Ping the fixture helper once through the module instance; it must answer
- * exactly once. The instance API works on every core, while the fixture's
- * ping button only renders where its `this._super()` getDom does (2.36).
+ * exactly once. The instance API sends the ping without waiting for the
+ * button to be bound after a reload (the button itself is covered by
+ * `module-mount.browser.test.ts`).
  */
 async function expectOnePongPerPing(): Promise<void> {
 	pingCount += 1;
@@ -176,12 +178,20 @@ async function expectOnePongPerPing(): Promise<void> {
 	);
 }
 
-/** Switch the core through the MM Version routes and wait for the stage. */
+/**
+ * Switch the core through the MM Version routes and wait for the stage. The
+ * pre-switch document is marked and must be gone first: the other core can be
+ * the same release as the built-in one (an mmvm copy of it), and then its
+ * version alone cannot tell the two documents apart.
+ */
 async function switchCore(
 	request: { activate: string } | "reset",
 	version: string
 ): Promise<void> {
 	await countStageDocumentLoads();
+	await stageEvaluate(() => {
+		(globalThis as StageScope).__versionSwitchPreSwitch = true;
+	});
 	const status = await pageEvaluate(
 		(body) =>
 			(body === "reset"
@@ -195,6 +205,17 @@ async function switchCore(
 		request
 	);
 	expect(status).toBe(200);
+	await expect
+		.poll(
+			() =>
+				stageEvaluate(
+					() =>
+						(globalThis as StageScope).__versionSwitchPreSwitch ===
+						undefined
+				),
+			{ timeout: 60_000 }
+		)
+		.toBe(true);
 	await waitForStageOn(version);
 	await expectNoFurtherBoot(version);
 	expect(await stageDocumentLoads()).toBe(1);

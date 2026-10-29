@@ -11,12 +11,39 @@ import { writeFixtureStylesheet } from "./test-module-style-fixture.ts";
 
 const helpersDir = dirname(fileURLToPath(import.meta.url));
 
+/** Default fixture: no getDom override, renders on every supported core. */
 export const sourceFixtureRoot = join(
 	helpersDir,
 	"..",
 	"_fixtures",
 	"MMM-TestModule"
 );
+/**
+ * Fixture variant whose getDom awaits `this._super()`: it renders on 2.35-2.36
+ * and fails from 2.37 (D1). Only the version-pinned core-fidelity suites
+ * mount it; the module still registers, and is mounted, as `MMM-TestModule`.
+ */
+export const superGetDomFixtureRoot = join(
+	helpersDir,
+	"..",
+	"_fixtures",
+	"MMM-TestModule-super-getdom"
+);
+
+/** Which fixture source a browser session mounts. */
+export type FixtureVariant = "default" | "super-getdom";
+
+/**
+ * Resolve the source directory of one fixture variant.
+ *
+ * @param {FixtureVariant} variant
+ * @returns {string}
+ */
+export function getFixtureSourceRoot(variant: FixtureVariant): string {
+	return variant === "super-getdom"
+		? superGetDomFixtureRoot
+		: sourceFixtureRoot;
+}
 export const browserSuiteFixtureRoot = join(
 	helpersDir,
 	"..",

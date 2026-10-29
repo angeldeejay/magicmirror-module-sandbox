@@ -14,7 +14,10 @@ import {
 	getBrowserInspectionOptions
 } from "../browser-inspection.ts";
 import { writeFixtureStylesheet } from "../test-module-style-fixture.ts";
-import { resetBrowserSuiteFixtureFiles } from "../test-module-fixture.ts";
+import {
+	type FixtureVariant,
+	resetBrowserSuiteFixtureFiles
+} from "../test-module-fixture.ts";
 import { resetPersistedStateForModuleRoot } from "../test-module-persistence.ts";
 import { createSandboxRuntimeController } from "./runtime-controller.ts";
 
@@ -305,7 +308,11 @@ export function createSandboxBrowserCommands(suiteName) {
 	 */
 	async function gotoSandbox(
 		context,
-		options: { coreKey?: string | null; privateCoreHome?: string } = {}
+		options: {
+			coreKey?: string | null;
+			privateCoreHome?: string;
+			fixture?: FixtureVariant;
+		} = {}
 	) {
 		// The built-in core unless the caller pins another one, always through
 		// an isolated home: the run never follows the maintainer's own
@@ -314,7 +321,8 @@ export function createSandboxBrowserCommands(suiteName) {
 			context,
 			{
 				coreKey: options.coreKey ?? null,
-				privateCoreHome: options.privateCoreHome
+				privateCoreHome: options.privateCoreHome,
+				fixture: options.fixture
 			}
 		);
 		if (runtimeController.usesPerSessionRuntime) {

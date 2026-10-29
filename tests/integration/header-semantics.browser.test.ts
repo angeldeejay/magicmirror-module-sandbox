@@ -4,7 +4,7 @@
  * The stage runs the built-in MagicMirror core, so the header is the one
  * `main.js` renders: `updateModuleContent` writes `getHeader()` with
  * `innerHTML` and shows the header only for a truthy value
- * (main.js:253-258). The version-pinned files under
+ * (`main.js` `updateModuleContent`). The version-pinned files under
  * `tests/integration/core-fidelity/pinned/` carry the same contract per core.
  */
 import { afterAll, expect } from "vitest";
@@ -43,7 +43,7 @@ journeyTest(
 
 			/**
 			 * Applies one header value and waits for the core to report the
-			 * update (MODULE_DOM_UPDATED, main.js:694-697).
+			 * update (MODULE_DOM_UPDATED, `main.js` `MM.updateDom`).
 			 */
 			const render = async (apply: () => void) => {
 				const before = instance.coreNotificationCounts.moduleDomUpdated;

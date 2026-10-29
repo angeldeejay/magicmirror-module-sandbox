@@ -146,7 +146,7 @@ journeyTest(
 
 			expect(optionDetails.position).toBe("bottom_right");
 			expect(optionDetails.header).toBe("Custom integration header");
-			// loader.js:136 appends the module name to the configured classes.
+			// `loader.js` `getModuleData` appends the module name to the configured classes.
 			expect(optionDetails.classes).toBe(
 				"integration-shell highlight MMM-TestModule"
 			);
@@ -197,7 +197,7 @@ journeyTest(
 			});
 			await pageClick("#module-config-save");
 
-			// The core skips a disabled module (loader.js:119); the sandbox
+			// The core skips a disabled module (`loader.js` `getModuleData`); the sandbox
 			// draws its disabled notice outside every region
 			// (client/scss/stage-isolation.scss).
 			await expect

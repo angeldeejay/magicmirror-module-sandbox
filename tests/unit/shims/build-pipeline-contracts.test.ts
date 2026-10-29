@@ -28,11 +28,19 @@ const nodeRequire = createRequire(import.meta.url);
 const EXPECTED_COMPAT_FILES = [
 	"js/logger.js",
 	"js/node_helper.js",
-	"js/class.js",
 	"js/http_fetcher.js",
 	"js/server_functions.js",
 	"package.json"
 ];
+// Copied only when the built-in core ships it: removed in 2.37.0, when
+// node_helper became an ES6 class (scripts/build-node-compat.ts).
+const OPTIONAL_COMPAT_FILES = ["js/class.js"];
+const builtInCoreRoot = path.join(
+	sandboxRoot,
+	"mmcore-source",
+	"node_modules",
+	"magicmirror"
+);
 
 for (const relPath of EXPECTED_COMPAT_FILES) {
 	test(`build pipeline: shims/generated/magicmirror-core/${relPath} exists after build`, () => {
@@ -41,6 +49,18 @@ for (const relPath of EXPECTED_COMPAT_FILES) {
 			fs.existsSync(fullPath),
 			true,
 			`Artifact missing: ${fullPath} — MM core structure may have changed`
+		);
+	});
+}
+
+for (const relPath of OPTIONAL_COMPAT_FILES) {
+	test(`build pipeline: shims/generated/magicmirror-core/${relPath} follows the built-in core`, () => {
+		assert.equal(
+			fs.existsSync(
+				path.join(shimsGenerated, "magicmirror-core", relPath)
+			),
+			fs.existsSync(path.join(builtInCoreRoot, relPath)),
+			`${relPath} in shims/generated must exist exactly when the built-in core ships it`
 		);
 	});
 }

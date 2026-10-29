@@ -70,7 +70,7 @@ journeyTest(
 				.toBe("Hello Reloaded Developer from the test module fixture.");
 			await expect.poll(() => pageValue("#config-language")).toBe("en");
 			// The saved header is "": the core hides an empty header
-			// (main.js:253-258) instead of showing the module name.
+			// (`main.js` `updateModuleContent`) instead of showing the module name.
 			await expect.poll(() => stageText(".module-header")).toBe("");
 			await expect.poll(() => stageVisible(".module-header")).toBe(false);
 			await expect

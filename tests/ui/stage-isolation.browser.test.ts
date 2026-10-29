@@ -34,12 +34,6 @@ const moduleCount = () =>
 	(globalThis.eval("MM") as { getModules: () => unknown[] }).getModules()
 		.length;
 
-/** Whether the fixture's `getDom` renders (`this._super()` works up to 2.36). */
-function rendersFixture(version: string): boolean {
-	const [major, minor] = version.split(".").map(Number);
-	return major === 2 && minor <= 36;
-}
-
 afterAll(async () => {
 	await closeSandbox();
 });
@@ -114,7 +108,7 @@ async function bootWith(
 		.toBe("object");
 }
 
-describe.each(cores)("core $version", ({ version, key }) => {
+describe.each(cores)("core $version", ({ key }) => {
 	test("only the module region and its ancestors are visible", async () => {
 		await bootWith(key, { position: "top_left" });
 
@@ -142,9 +136,6 @@ describe.each(cores)("core $version", ({ version, key }) => {
 		});
 		expect(barContainer).toBe("none");
 
-		if (!rendersFixture(version)) {
-			return;
-		}
 		const box = await stageEvaluate(() => {
 			const module = globalThis.document.querySelector(
 				".region.top.left .module"
@@ -331,9 +322,7 @@ describe.each(cores)("core $version", ({ version, key }) => {
 			expect(withSheet).toEqual(withoutSheet);
 			expect(withSheet.region?.position).toBe("absolute");
 			expect(Boolean(withSheet.ancestor)).toBe(ancestor !== null);
-			if (rendersFixture(version)) {
-				expect(withSheet.wrapper).not.toBeNull();
-			}
+			expect(withSheet.wrapper).not.toBeNull();
 		}
 	);
 

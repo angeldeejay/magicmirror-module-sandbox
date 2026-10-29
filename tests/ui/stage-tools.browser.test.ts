@@ -6,12 +6,9 @@
  * language switch and the style refresh) must keep working when the stage
  * runs the real MagicMirror core, and a panel whose hook point the core does
  * not offer must say so. Runs once per core in
- * `tests/_helpers/core-matrix.ts`.
- *
- * 2.37+ reject the fixture's `this._super()` in getDom, exactly as a real
- * mirror does, so on those cores the module renders nothing: every
- * assertion here reads the panels and the created instance, never the
- * module's own DOM.
+ * `tests/_helpers/core-matrix.ts`. The fixture has no getDom of its own, so
+ * it renders on every core; the assertions read the panels and the created
+ * instance.
  */
 import { afterAll, describe, expect, inject, test } from "vitest";
 import {
@@ -55,17 +52,8 @@ type ShellScope = typeof globalThis & {
 
 const cores = inject("stageCoreMatrix");
 
-/** Error the getDom-throwing fixture variant raises. */
+/** Error the getDom-throwing fixture edit raises. */
 const GETDOM_FAILURE = "stage-tools getDom failure";
-
-/**
- * Whether a core uses the classic `Class.extend` modules (2.35-2.36), where
- * the fixture's `this._super()` works.
- */
-function isClassicCore(version: string): boolean {
-	const [major, minor] = version.split(".").map(Number);
-	return major === 2 && minor <= 36;
-}
 
 /**
  * The core's `config` global. 2.35-2.36 declare it with a top-level `let` in
@@ -149,7 +137,7 @@ const reloadStage = () =>
 		});
 	});
 
-describe.each(cores)("core $version", ({ version, key }) => {
+describe.each(cores)("core $version", ({ key }) => {
 	test("the lifecycle panel drives hide/show and suspend/resume", async () => {
 		await boot(key);
 		await openDomain("runtime");
@@ -157,7 +145,7 @@ describe.each(cores)("core $version", ({ version, key }) => {
 		await expect.poll(() => pageText("#lifecycle-started")).toBe("Yes");
 		await expect
 			.poll(() => pageText("#lifecycle-dom-ready"))
-			.toBe(isClassicCore(version) ? "Yes" : "No");
+			.toBe("Yes");
 		// The fixture has every observed method, so no hook is missing.
 		expect(await pageVisible("#lifecycle-observation-notice")).toBe(false);
 		// A core whose instance lacks a hook point gets a visible notice.
@@ -274,12 +262,6 @@ describe.each(cores)("core $version", ({ version, key }) => {
 		await expect
 			.poll(() => pageText("#console-log"))
 			.toContain("stage tools console probe");
-		if (!isClassicCore(version)) {
-			// The core's own report of the fixture's rejected `_super()`.
-			await expect
-				.poll(() => pageText("#console-log"))
-				.toContain("_super");
-		}
 	});
 
 	test("config save reloads the stage with the saved module config", async () => {
@@ -368,13 +350,15 @@ describe.each(cores)("core $version", ({ version, key }) => {
 	});
 
 	// Review Focus 1: the core's own handling of a getDom that throws stays
-	// visible, and the tools keep reporting.
+	// visible, and the tools keep reporting. The fixture has no getDom of its
+	// own, so the test gives it one that throws: the boot fails the same way
+	// on every core (main.js awaits getDom and logs the rejection).
 	test("module that throws in getDom under the real core", async () => {
 		await boot(key);
 		const original = await readFixtureTextFile("MMM-TestModule.js");
 		const throwing = original.replace(
-			"async getDom() {",
-			`getDom() {\n\t\tthrow new Error(${JSON.stringify(GETDOM_FAILURE)});\n\t},\n\n\tasync unusedGetDom() {`
+			"\tgetTemplate() {",
+			`\tgetDom() {\n\t\tthrow new Error(${JSON.stringify(GETDOM_FAILURE)});\n\t},\n\n\tgetTemplate() {`
 		);
 		expect(throwing).not.toBe(original);
 

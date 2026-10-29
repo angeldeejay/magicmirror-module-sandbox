@@ -50,15 +50,6 @@ type StageScope = typeof globalThis & {
 
 const cores = inject("stageCoreMatrix");
 
-/**
- * Whether a core uses the classic `Class.extend` modules (2.35-2.36), where
- * `this._super()` works.
- */
-function isClassicCore(version: string): boolean {
-	const [major, minor] = version.split(".").map(Number);
-	return major === 2 && minor <= 36;
-}
-
 afterAll(async () => {
 	await closeSandbox();
 });
@@ -122,57 +113,50 @@ describe.each(cores)("core $version", ({ version, key }) => {
 			.toEqual({ stageReady: true, backdrop: "false" });
 	});
 
-	// 2.37+ reject the fixture's `this._super()` in getDom, as a real mirror
-	// does, so only the classic cores deliver MODULE_DOM_CREATED and
-	// DOM_OBJECTS_CREATED to it.
-	test.runIf(isClassicCore(version))(
-		"the classic core completes the boot through DOM_OBJECTS_CREATED",
-		async () => {
-			await expect
-				.poll(() =>
-					stageEvaluate(() => {
-						const core = (globalThis as StageScope)
-							.__MICROCORE__ as ObserverCore;
-						return {
-							domCreated: core.lifecycleState.domCreated,
-							observed: core.notificationLog
-								.filter((entry) =>
-									[
-										"MODULE_DOM_CREATED",
-										"DOM_OBJECTS_CREATED"
-									].includes(entry.notification)
-								)
-								.map((entry) => [
-									entry.notification,
-									entry.origin
-								])
-						};
-					})
-				)
-				.toEqual({
-					domCreated: true,
-					observed: [
-						["DOM_OBJECTS_CREATED", "core"],
-						["MODULE_DOM_CREATED", "core"]
-					]
-				});
-			// The DOM_OBJECTS_CREATED hook publishes stage-ready with
-			// bootComplete, which the shell mirrors.
-			await expect
-				.poll(() =>
-					pageEvaluate(() =>
-						Boolean(
-							(
-								globalThis as typeof globalThis & {
-									__MICROCORE__: { bootComplete?: boolean };
-								}
-							).__MICROCORE__.bootComplete
-						)
+	// The fixture has no getDom of its own, so every core renders it and
+	// delivers MODULE_DOM_CREATED and DOM_OBJECTS_CREATED to it.
+	test("the core completes the boot through DOM_OBJECTS_CREATED", async () => {
+		await expect
+			.poll(() =>
+				stageEvaluate(() => {
+					const core = (globalThis as StageScope)
+						.__MICROCORE__ as ObserverCore;
+					return {
+						domCreated: core.lifecycleState.domCreated,
+						observed: core.notificationLog
+							.filter((entry) =>
+								[
+									"MODULE_DOM_CREATED",
+									"DOM_OBJECTS_CREATED"
+								].includes(entry.notification)
+							)
+							.map((entry) => [entry.notification, entry.origin])
+					};
+				})
+			)
+			.toEqual({
+				domCreated: true,
+				observed: [
+					["DOM_OBJECTS_CREATED", "core"],
+					["MODULE_DOM_CREATED", "core"]
+				]
+			});
+		// The DOM_OBJECTS_CREATED hook publishes stage-ready with
+		// bootComplete, which the shell mirrors.
+		await expect
+			.poll(() =>
+				pageEvaluate(() =>
+					Boolean(
+						(
+							globalThis as typeof globalThis & {
+								__MICROCORE__: { bootComplete?: boolean };
+							}
+						).__MICROCORE__.bootComplete
 					)
 				)
-				.toBe(true);
-		}
-	);
+			)
+			.toBe(true);
+	});
 
 	test("wrapped notificationReceived returns what the original returns and rethrows what it throws", async () => {
 		const result = await stageEvaluate(() => {

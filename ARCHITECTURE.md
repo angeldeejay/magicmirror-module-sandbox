@@ -377,7 +377,9 @@ The non-negotiable invariant: if a behavior causes a module to fail in real
 MagicMirror, it must fail identically in the sandbox. The sandbox must never
 mask a real bug by being more permissive than the core. Fidelity is checked
 per version: cross-version transparency tests and version-pinned tests (see
-`AGENTS.md`).
+`AGENTS.md`). The transversal suites mount a fixture module without a `getDom`
+of its own, which renders on every core; the pinned suites mount a variant
+whose `getDom` awaits `this._super()`, the behaviour D1 pins per version.
 
 ## Asset sync
 
@@ -391,7 +393,8 @@ fonts instead.
   filename heuristics
 - published installs consume the generated assets; maintainers refresh them from
   `mmcore-source/`, which `build:00-sync-mmcore-source` fills with the pinned
-  MagicMirror release
+  MagicMirror release (the latest one, 2.38.0, pinned so builds stay
+  deterministic)
 
 ## Mounted-module autodiscovery
 

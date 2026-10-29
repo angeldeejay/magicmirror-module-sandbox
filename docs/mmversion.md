@@ -29,8 +29,8 @@ MagicMirror core. Both halves follow the selected version:
 - the viewport reloads into that version's own browser core (`index.html`,
   `js/main.js`, its CSS and translations), so the module renders, and fails,
   exactly as it would on that version's mirror. A module that calls
-  `this._super()` in `getDom` works on 2.35-2.36 and fails on 2.37+; a `.mjs`
-  script loads from 2.37.
+  `this._super()` in `getDom` works on 2.35-2.36 and fails on 2.37+, including
+  the built-in core (2.38.0); a `.mjs` script loads from 2.37.
 
 The topbar badge names the core the viewport actually runs, as the viewport
 reports it.
@@ -38,8 +38,9 @@ reports it.
 ### Reset to built-in
 
 Click **Reset to built-in** in the active version indicator to revert to the
-MagicMirror version bundled with the sandbox (the backend and the viewport
-both switch back). This is the safest fallback if a
+MagicMirror version bundled with the sandbox, the latest release when the
+sandbox was published (currently 2.38.0); the backend and the viewport
+both switch back. This is the safest fallback if a
 custom version causes unexpected behavior.
 
 ### Download a release

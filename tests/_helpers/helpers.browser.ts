@@ -2,6 +2,7 @@
  * Thin facade over custom sandbox browser commands for browser-backed suites.
  */
 import { commands } from "vitest/browser";
+import type { FixtureVariant } from "./test-module-fixture.ts";
 
 /**
  * Thin, test-friendly facade over the custom Vitest browser commands used by
@@ -31,13 +32,20 @@ export async function closeSandbox() {
  * (`.runtime-cache/core-homes/`), never the maintainer's own
  * `~/.mmvm/active`. A test that switches the active core at runtime also
  * passes `privateCoreHome`, so the switch stays in a home of its own instead
- * of the one shared by every server pinned to the same core.
+ * of the one shared by every server pinned to the same core. `fixture`
+ * picks the fixture source the session mounts (`"default"` when omitted on a
+ * fresh session; see `tests/_helpers/test-module-fixture.ts`); one test file
+ * cannot mix variants.
  *
- * @param {{ coreKey?: string | null, privateCoreHome?: string }} [options]
+ * @param {{ coreKey?: string | null, privateCoreHome?: string, fixture?: FixtureVariant }} [options]
  * @returns {Promise<void>}
  */
 export async function gotoSandbox(
-	options: { coreKey?: string | null; privateCoreHome?: string } = {}
+	options: {
+		coreKey?: string | null;
+		privateCoreHome?: string;
+		fixture?: FixtureVariant;
+	} = {}
 ) {
 	await commands.sandboxGoto(options);
 }

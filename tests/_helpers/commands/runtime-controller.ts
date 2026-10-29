@@ -17,7 +17,10 @@ import {
 } from "../sandbox-test-environment.ts";
 import { terminateChildProcess } from "../child-process-cleanup.ts";
 import { getSandboxServerInvocation } from "../sandbox-process.ts";
-import { sourceFixtureRoot } from "../test-module-fixture.ts";
+import {
+	type FixtureVariant,
+	getFixtureSourceRoot
+} from "../test-module-fixture.ts";
 import { writeFixtureStylesheet } from "../test-module-style-fixture.ts";
 
 /**
@@ -151,6 +154,8 @@ type SandboxSessionRuntime = {
 	coreKey: string | null;
 	/** Name of the private core home the server runs under, if any. */
 	privateCoreHome?: string;
+	/** Fixture source the mounted module copy was made from. */
+	fixture: FixtureVariant;
 };
 
 /**
@@ -173,6 +178,13 @@ type SandboxRuntimeOptions = {
 	 * for the same name reuses such a server. Takes effect with `coreKey`.
 	 */
 	privateCoreHome?: string;
+	/**
+	 * Fixture source to mount (see `tests/_helpers/test-module-fixture.ts`).
+	 * A fresh session defaults to `"default"`; only a session asking for the
+	 * same variant reuses a pooled server, and one test file cannot mix
+	 * variants.
+	 */
+	fixture?: FixtureVariant;
 };
 
 const coreHomesRoot = path.join(sandboxRoot, ".runtime-cache", "core-homes");
@@ -290,7 +302,8 @@ function createPerSessionFixtureRuntime(
 	suiteName,
 	sessionId,
 	coreKey: string | null = null,
-	privateCoreHome: string | undefined = undefined
+	privateCoreHome: string | undefined = undefined,
+	fixture: FixtureVariant = "default"
 ): SandboxSessionRuntime {
 	const safeSuiteName = sanitizePathSegment(suiteName);
 	const safeSessionId = sanitizePathSegment(sessionId) || "session";
@@ -309,7 +322,8 @@ function createPerSessionFixtureRuntime(
 		fixtureRoot,
 		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css"),
 		coreKey,
-		privateCoreHome
+		privateCoreHome,
+		fixture
 	};
 }
 
@@ -324,7 +338,7 @@ function ensurePerSessionFixtureFiles(runtime) {
 		fs.mkdirSync(path.dirname(runtime.fixtureRoot), {
 			recursive: true
 		});
-		fs.cpSync(sourceFixtureRoot, runtime.fixtureRoot, {
+		fs.cpSync(getFixtureSourceRoot(runtime.fixture), runtime.fixtureRoot, {
 			recursive: true
 		});
 	}
@@ -439,13 +453,22 @@ async function ensureSandboxSessionRuntime(
 				`Sandbox session "${sessionId}" already runs with privateCoreHome=${existingRuntime.privateCoreHome}; one test file cannot mix core homes.`
 			);
 		}
+		if (
+			options.fixture !== undefined &&
+			options.fixture !== existingRuntime.fixture
+		) {
+			throw new Error(
+				`Sandbox session "${sessionId}" already mounts the ${existingRuntime.fixture} fixture; one test file cannot mix fixture variants.`
+			);
+		}
 		return existingRuntime;
 	}
 	const coreKey = options.coreKey ?? null;
 	const { privateCoreHome } = options;
+	const fixture = options.fixture ?? "default";
 
 	// Acquire a warm server from the pool to avoid a cold start. Only servers
-	// booted with the same core (and core home) are reusable.
+	// booted with the same core, core home and fixture variant are reusable.
 	// Cancel the TTL timer and re-ref the child + pipe handles so the parent
 	// process stays alive while this session is using the server.
 	const pool = getWorkerPool(suiteName);
@@ -453,7 +476,8 @@ async function ensureSandboxSessionRuntime(
 	while (
 		pooledIndex >= 0 &&
 		(pool[pooledIndex].runtime.coreKey !== coreKey ||
-			pool[pooledIndex].runtime.privateCoreHome !== privateCoreHome)
+			pool[pooledIndex].runtime.privateCoreHome !== privateCoreHome ||
+			pool[pooledIndex].runtime.fixture !== fixture)
 	) {
 		pooledIndex -= 1;
 	}
@@ -483,7 +507,8 @@ async function ensureSandboxSessionRuntime(
 		suiteName,
 		sessionId,
 		coreKey,
-		privateCoreHome
+		privateCoreHome,
+		fixture
 	);
 	runtime.port = await allocateLoopbackPort();
 	runtime.baseUrl = getSandboxBaseUrl(runtime.port);
@@ -809,6 +834,11 @@ export function createSandboxRuntimeController(suiteName) {
 				if ("coreKey" in options) {
 					throw new Error(
 						`Suite "${suiteName}" shares one sandbox server and cannot pin a core.`
+					);
+				}
+				if ((options.fixture ?? "default") !== "default") {
+					throw new Error(
+						`Suite "${suiteName}" shares one sandbox server and cannot mount a fixture variant.`
 					);
 				}
 				return suiteRuntime;

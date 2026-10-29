@@ -26,8 +26,14 @@ const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
 const MMCORE_SOURCE_ROOT = path.join(root, "mmcore-source");
 const VERSION_MANIFEST_PATH = path.join(MMCORE_SOURCE_ROOT, "version.json");
-/** MagicMirror release used as the built-in core. */
-const BUILT_IN_CORE_VERSION = "2.36.0";
+/**
+ * MagicMirror release used as the built-in core: the latest MagicMirrorOrg
+ * release, pinned here rather than resolved at build time, so every build and
+ * CI run is deterministic and needs no GitHub API call. Bump it by hand on a
+ * new release, and keep a CI core-matrix entry for every version that has a
+ * pinned core-fidelity suite.
+ */
+const BUILT_IN_CORE_VERSION = "2.38.0";
 
 type GhRelease = { tag_name: string; prerelease: boolean };
 type VersionManifest = { version: string; syncedAt: string };

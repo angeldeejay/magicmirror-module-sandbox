@@ -41,11 +41,16 @@ export function resolvePinnedCore(version: string): PinnedCore {
  * module instances to `MM.modulesStarted`, so `MM.getModules()` returns the
  * mounted module.
  *
+ * The pinned suites mount the `super-getdom` fixture variant, whose getDom
+ * awaits `this._super()`: their D1 expectations (and the probes that build on
+ * the fixture's getDom) are written against it. The transversal suites mount
+ * the version-portable default fixture.
+ *
  * @param {CoreMatrixEntry} core
  * @returns {Promise<void>}
  */
 export async function openPinnedStage(core: CoreMatrixEntry): Promise<void> {
-	await gotoSandbox({ coreKey: core.key });
+	await gotoSandbox({ coreKey: core.key, fixture: "super-getdom" });
 	const timeoutAt = Date.now() + 20_000;
 	while (
 		!(await stageEvaluate(() =>

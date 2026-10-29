@@ -12,6 +12,7 @@ declare module "vitest/browser" {
 		sandboxGoto(options?: {
 			coreKey?: string | null;
 			privateCoreHome?: string;
+			fixture?: "default" | "super-getdom";
 		}): Promise<void>;
 		sandboxOpenDomain(domain: string): Promise<void>;
 		sandboxOpenSidebarTab(domain: string, tab: string): Promise<void>;

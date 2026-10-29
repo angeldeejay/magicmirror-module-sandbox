@@ -68,8 +68,11 @@ jobs:
     # Runs the integration and UI suites again on another MagicMirror core
     # installed through the sandbox's own mmvm: the cross-version
     # transparency, tool, isolation and badge tests on both cores, and each
-    # version-pinned fidelity file on its own core. 2.37.0 is the hybrid
-    # layout (classic basepath/positions, ES module main.js/module.js).
+    # version-pinned fidelity file on its own core. 2.36.0 is the last
+    # classic core and runs its pinned file here, since the built-in core is
+    # 2.38.0. 2.37.0 is the hybrid layout (classic basepath/positions, ES
+    # module main.js/module.js). 2.38.0 matches the built-in release, served
+    # from mmvm instead of the packaged core.
     # `develop` moves daily, so its entry is informational and never blocks.
     core-matrix:
         runs-on: ubuntu-latest
@@ -80,6 +83,7 @@ jobs:
             fail-fast: false
             matrix:
                 core:
+                    - 2.36.0
                     - 2.37.0
                     - 2.38.0
                     - develop
