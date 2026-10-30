@@ -45,7 +45,9 @@ Open Quality when you want to:
 - Like the official check, Quality also runs `npm-check-updates` and
   `npm-deprecated-check` when the module has few enough other findings (the
   official issue budget). Both need network access; when it is unavailable
-  they are skipped without failing the analysis.
+  they are skipped without failing the analysis. They are not installed with
+  the sandbox: npm fetches their pinned versions into its cache the first
+  time Quality runs them, so that first run takes longer.
 - Files your repository ignores (per `.gitignore`, `.git/info/exclude` and
   your global git excludes) are not analyzed. The official check never sees
   them because it analyzes a fresh clone.

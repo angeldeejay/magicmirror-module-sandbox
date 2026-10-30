@@ -750,6 +750,98 @@ async function runInstalledSmokeBinary(moduleRoot, smokePort) {
 }
 
 /**
+ * Seed one mmvm version into an isolated home from the repository's synced
+ * built-in core (`mmcore-source/`), linked rather than copied, so the
+ * packaged sandbox can activate a version without downloading it.
+ *
+ * @param {string} home
+ * @returns {string} the mmvm version key
+ */
+function seedMmvmVersionFromBuiltInCore(home: string): string {
+	const coreNodeModules = path.join(repoRoot, "mmcore-source", "node_modules");
+	const version = JSON.parse(
+		fs.readFileSync(
+			path.join(coreNodeModules, "magicmirror", "package.json"),
+			"utf8"
+		)
+	).version as string;
+	const installDir = path.join(home, ".mmvm", "versions", version);
+	fs.mkdirSync(installDir, { recursive: true });
+	fs.symlinkSync(
+		coreNodeModules,
+		path.join(installDir, "node_modules"),
+		"junction"
+	);
+	return version;
+}
+
+/**
+ * Launch the installed sandbox CLI under an isolated home holding one mmvm
+ * version, activate it through the MM Version routes, and assert that the
+ * packaged server builds its helper shims and the stage boots that core.
+ *
+ * @param {string} moduleRoot
+ * @param {number} smokePort
+ * @returns {Promise<void>}
+ */
+async function runInstalledVersionActivation(moduleRoot, smokePort) {
+	const isolatedHome = createIsolatedHomeEnv();
+	const version = seedMmvmVersionFromBuiltInCore(isolatedHome.env.HOME);
+	const child = spawn(
+		process.execPath,
+		[getInstalledSandboxBinPath(moduleRoot)],
+		{
+			cwd: moduleRoot,
+			env: {
+				...process.env,
+				...isolatedHome.env,
+				MM_SANDBOX_PORT: String(smokePort)
+			},
+			stdio: ["ignore", "pipe", "pipe"],
+			detached: process.platform !== "win32"
+		}
+	);
+
+	try {
+		await waitForServerReady(child, smokePort);
+		const response = await fetch(
+			`http://127.0.0.1:${smokePort}/__harness/mm-versions/activate`,
+			{
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ version })
+			}
+		);
+		if (!response.ok) {
+			throw new Error(
+				`Activating mmvm version ${version} answered HTTP ${response.status}: ${await response.text()}`
+			);
+		}
+		const state = await (
+			await fetch(`http://127.0.0.1:${smokePort}/__harness/mm-versions`)
+		).json();
+		const info = state.versions?.find((entry) => entry.key === version);
+		if (state.active !== version || info?.shimsBuilt !== true) {
+			throw new Error(
+				`mmvm version ${version} is not active with built shims: ${JSON.stringify({ active: state.active, info })}`
+			);
+		}
+		const stage = await fetch(`http://127.0.0.1:${smokePort}/__stage/`);
+		if (
+			!stage.ok ||
+			!(await stage.text()).includes(`window.mmVersion = "${version}"`)
+		) {
+			throw new Error(
+				`The stage does not serve the activated core ${version} (HTTP ${stage.status}).`
+			);
+		}
+	} finally {
+		await killChildProcessTree(child);
+		isolatedHome.cleanup();
+	}
+}
+
+/**
  * Pack the current repository, create a temporary consumer module, run the
  * supplied callback, and clean up both artifacts afterward.
  *
@@ -782,6 +874,7 @@ export {
 	installTarballAsDevDependency,
 	preparePackedSandboxTarball,
 	runInstalledSmokeBinary,
+	runInstalledVersionActivation,
 	runSmokeCommand,
 	withPackedSandbox
 };

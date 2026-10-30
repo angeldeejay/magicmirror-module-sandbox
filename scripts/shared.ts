@@ -6,7 +6,11 @@ import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as path from "pathe";
 
-const nodeRequire = createRequire(import.meta.url);
+// Also loaded from dist/scripts/ as CommonJS, where import.meta is empty.
+const nodeRequire = createRequire(
+	/* v8 ignore next */
+	typeof __filename === "string" ? __filename : import.meta.url
+);
 
 /**
  * Normalizes a Windows path to forward slashes.

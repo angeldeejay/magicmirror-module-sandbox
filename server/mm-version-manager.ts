@@ -248,11 +248,16 @@ export async function buildShimsForVersion(
 	const outputDir = getVersionShimsDir(version);
 
 	try {
-		const scriptPath = path.join(
-			harnessRoot,
-			"scripts",
-			"build-node-compat.ts"
-		);
+		// The source tree runs the TypeScript file; the packaged sandbox runs
+		// the CommonJS build of it shipped in dist/scripts/.
+		const scriptPath = ["build-node-compat.ts", "build-node-compat.cjs"]
+			.map((file) => path.join(harnessRoot, "scripts", file))
+			.find((candidate) => fs.existsSync(candidate));
+		if (!scriptPath) {
+			throw new Error(
+				`The shim builder is missing from ${path.join(harnessRoot, "scripts")}.`
+			);
+		}
 		const { buildNodeCompat } = await import(
 			/* @vite-ignore */ pathToFileURL(scriptPath).href
 		);

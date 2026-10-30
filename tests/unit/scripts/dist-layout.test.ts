@@ -7,7 +7,9 @@ import * as path from "pathe";
 import { expect, test } from "vitest";
 import {
 	distCopyTargets,
-	distCoreDirectory
+	distCoreDirectory,
+	distScriptSources,
+	distShimBuilderSources
 } from "../../../scripts/dist-layout.ts";
 import { PACKAGED_CORE_DIRECTORY } from "../../../server/stage/built-in-core.ts";
 import {
@@ -43,4 +45,26 @@ test("every core piece has a reviewed snapshot file to ship", () => {
 
 test("dist packages the built-in core where the server looks for it", () => {
 	expect(distCoreDirectory).toBe(PACKAGED_CORE_DIRECTORY);
+});
+
+test("dist ships the shim builder with every file it reads and imports", () => {
+	for (const source of [...distShimBuilderSources, ...distScriptSources]) {
+		expect(fs.existsSync(path.join(repoRoot, source))).toBe(true);
+	}
+	expect(distCopyTargets).toEqual(
+		expect.arrayContaining([...distShimBuilderSources])
+	);
+	// Every sandbox file the builder imports must be transpiled next to it.
+	const builder = fs.readFileSync(
+		path.join(repoRoot, "scripts", "build-node-compat.ts"),
+		"utf8"
+	);
+	const relativeImports = [...builder.matchAll(/from "(\.[^"]+)"/g)].map(
+		(match) => path.join("scripts", match[1])
+	);
+	expect(relativeImports.length).toBeGreaterThan(0);
+	expect(distScriptSources).toEqual(expect.arrayContaining(relativeImports));
+	// The shim sources and templates it compiles, as it names them.
+	expect(builder).toContain('["logger.ts", "node_helper.ts"]');
+	expect(builder).toContain('path.join(root, "scripts", "templates")');
 });

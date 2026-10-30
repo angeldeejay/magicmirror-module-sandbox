@@ -8,6 +8,8 @@ import path from "node:path";
 import { afterAll, beforeAll } from "vitest";
 import {
 	applyOfficialDependencyIntegrations,
+	buildNpmExecCommand,
+	DEPENDENCY_TOOL_VERSIONS,
 	NCU_COOLDOWN,
 	OFFICIAL_DEPENDENCY_INTEGRATION_DEFAULTS
 } from "../../../server/official-dependency-integrations.ts";
@@ -163,4 +165,48 @@ test("tool failures and clean results add no issues", async () => {
 		runBin
 	);
 	assert.deepEqual(issues, []);
+});
+
+test("the pinned tool versions match the devDependencies installed for development", () => {
+	const repoRoot = path.resolve(import.meta.dirname, "../../..");
+	const manifest = JSON.parse(
+		fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")
+	);
+	for (const [packageName, version] of Object.entries(
+		DEPENDENCY_TOOL_VERSIONS
+	)) {
+		// Not a runtime dependency: npm exec fetches the pinned version.
+		assert.equal(manifest.dependencies[packageName], undefined);
+		assert.ok(manifest.devDependencies[packageName]);
+		const installed = JSON.parse(
+			fs.readFileSync(
+				path.join(repoRoot, "node_modules", packageName, "package.json"),
+				"utf8"
+			)
+		).version;
+		assert.equal(version, installed, packageName);
+	}
+});
+
+test("buildNpmExecCommand runs the pinned tool bin through npm exec", () => {
+	const npmArgs = [
+		"exec",
+		"--yes",
+		`--package=npm-deprecated-check@${DEPENDENCY_TOOL_VERSIONS["npm-deprecated-check"]}`,
+		"--",
+		"ndc",
+		"current"
+	];
+	assert.deepEqual(
+		buildNpmExecCommand("npm-deprecated-check", "ndc", ["current"], "linux"),
+		{ command: "npm", args: npmArgs }
+	);
+	assert.deepEqual(
+		buildNpmExecCommand("npm-deprecated-check", "ndc", ["current"], "win32"),
+		{ command: "cmd.exe", args: ["/d", "/s", "/c", "npm", ...npmArgs] }
+	);
+	assert.throws(
+		() => buildNpmExecCommand("left-pad", "left-pad", [], "linux"),
+		/no pinned version/
+	);
 });

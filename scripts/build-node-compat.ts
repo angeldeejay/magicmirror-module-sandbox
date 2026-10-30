@@ -9,13 +9,18 @@ import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
 import { ensureDirectory, fromOS, resolveMagicMirrorRoot } from "./shared.ts";
 
-const __filename = fromOS(fileURLToPath(import.meta.url));
-const __dirname = path.dirname(__filename);
-const root = path.resolve(__dirname, "..");
+// The packaged sandbox runs this file from dist/scripts/ as CommonJS (the
+// MM Version domain builds an activated version's shims with it), where
+// import.meta is empty and __filename is defined.
+const currentFilePath = fromOS(
+	/* v8 ignore next */
+	typeof __filename === "string" ? __filename : fileURLToPath(import.meta.url)
+);
+const root = path.resolve(path.dirname(currentFilePath), "..");
 const shimsRoot = path.join(root, "shims");
 const templatesRoot = path.join(root, "scripts", "templates");
 const generatedRoot = path.join(shimsRoot, "generated");
-const nodeRequire = createRequire(import.meta.url);
+const nodeRequire = createRequire(currentFilePath);
 const entryPoints = ["logger.ts", "node_helper.ts"].map((fileName) =>
 	path.join(shimsRoot, fileName)
 );
@@ -320,7 +325,7 @@ export function buildNodeCompat(options: BuildNodeCompatOptions = {}): void {
 }
 
 const isMain = process.argv[1]
-	? path.resolve(fromOS(process.argv[1])) === __filename
+	? path.resolve(fromOS(process.argv[1])) === currentFilePath
 	: false;
 
 if (isMain) {
