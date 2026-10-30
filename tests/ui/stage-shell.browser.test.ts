@@ -7,6 +7,7 @@
  */
 import { afterAll, describe, expect, inject, test } from "vitest";
 import {
+	badgeLabel,
 	closeSandbox,
 	gotoSandbox,
 	pageAttribute,
@@ -59,7 +60,7 @@ describe.each(cores)("core $version", ({ version, key }) => {
 		).toBe(version);
 		await expect
 			.poll(() => pageText(".mmv-topbar-badge__label"))
-			.toBe(version);
+			.toBe(badgeLabel(version));
 		// The value came from the stage's own report, not the server state.
 		expect(
 			await pageEvaluate(
@@ -102,6 +103,6 @@ describe.each(cores)("core $version", ({ version, key }) => {
 		).toEqual({ sameDocument: true, hasModule: true, mmVersion: version });
 		await expect
 			.poll(() => pageText(".mmv-topbar-badge__label"))
-			.toBe(version);
+			.toBe(badgeLabel(version));
 	});
 });

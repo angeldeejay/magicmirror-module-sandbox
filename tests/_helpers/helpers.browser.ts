@@ -207,6 +207,17 @@ export function pageText(selector) {
 }
 
 /**
+ * The label the topbar badge shows for a core version: the badge drops the
+ * `-develop` suffix (`client/app/components/Topbar.tsx` `normalizeVersion`).
+ *
+ * @param {string} version
+ * @returns {string}
+ */
+export function badgeLabel(version: string): string {
+	return version.replace(/-develop$/i, "");
+}
+
+/**
  * Read the current sandbox shell URL.
  *
  * @returns {Promise<string>}

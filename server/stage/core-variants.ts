@@ -154,7 +154,9 @@ function readCoreLines(
 export function extractCorePieces(
 	core: ActiveCore
 ): Record<CorePiece, string | null> {
-	const server = readCoreLines(core, "js/server.js");
+	// Cores past 2.38 moved the server to ESM (js/server.mjs).
+	const server =
+		readCoreLines(core, "js/server.mjs") ?? readCoreLines(core, "js/server.js");
 	const functions = readCoreLines(core, "js/server_functions.js");
 	const utils = readCoreLines(core, "js/utils.js");
 

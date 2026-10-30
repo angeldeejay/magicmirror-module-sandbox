@@ -92,6 +92,15 @@ describe("detectCoreVariants", () => {
 		expect(variants.redaction).toBe("always");
 	});
 
+	test("detectCoreVariants reads js/server.mjs on cores that moved the server to ESM", () => {
+		const core = copyFixture("2.38.0");
+		fs.renameSync(
+			path.join(core.root, "js", "server.js"),
+			path.join(core.root, "js", "server.mjs")
+		);
+		expect(detectCoreVariants(core).unreviewed).toEqual([]);
+	});
+
 	test("detectCoreVariants ignores CRLF line endings", () => {
 		const core = copyFixture("2.36.0");
 		for (const file of [

@@ -205,6 +205,28 @@ describe("resolveCoreStaticPath", () => {
 		).toBe(path.join(tmp, "node_modules", "@fontsource", "roboto", "index.css"));
 	});
 
+	test("resolveCoreStaticPath reads the vendor list from js/vendor.mjs on cores that moved it to ESM", () => {
+		const esm = path.join(tmp, "esm-core");
+		write(path.join(esm, "package.json"), '{"name":"magicmirror"}');
+		write(
+			path.join(esm, "js", "vendor.mjs"),
+			[
+				"const vendor = {",
+				'\t"moment.js": "node_modules/moment/min/moment-with-locales.js"',
+				"};",
+				"globalThis.vendor = vendor;",
+				"export default vendor;",
+				""
+			].join("\n")
+		);
+		expect(
+			resolveCoreStaticPath(
+				{ root: esm, version: "0.0.0", key: null },
+				"node_modules/moment/min/moment-with-locales.js"
+			)
+		).toBe(path.join(tmp, "node_modules", "moment", "min", "moment-with-locales.js"));
+	});
+
 	test("resolveCoreStaticPath rejects names Win32 opens as another file", () => {
 		for (const requestPath of [
 			"js/main.js.",

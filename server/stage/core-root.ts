@@ -59,15 +59,19 @@ const VENDOR_PACKAGE_REFERENCE = /["'`]node_modules\/([^/"'`]+)\//g;
  * core serves, as core `js/server.js` builds its `directories` list: the
  * fixed packages plus the first path segment of every `js/vendor.js` entry
  * under `node_modules/`. `js/vendor.js` is read as text, not required: from
- * 2.38 it also assigns `globalThis.vendor`.
+ * 2.38 it also assigns `globalThis.vendor`. Cores past 2.38 moved it to
+ * `js/vendor.mjs`, which is read first.
  */
 function listServedNodeModules(core: ActiveCore): Set<string> {
 	const served = new Set(CORE_SERVED_PACKAGES);
 	let vendorSource = "";
-	try {
-		vendorSource = fs.readFileSync(path.join(core.root, "js", "vendor.js"), "utf8");
-	} catch {
-		// A core without js/vendor.js serves only the fixed packages.
+	for (const file of ["vendor.mjs", "vendor.js"]) {
+		try {
+			vendorSource = fs.readFileSync(path.join(core.root, "js", file), "utf8");
+			break;
+		} catch {
+			// A core without a vendor list serves only the fixed packages.
+		}
 	}
 	for (const match of vendorSource.matchAll(VENDOR_PACKAGE_REFERENCE)) {
 		served.add(match[1]);

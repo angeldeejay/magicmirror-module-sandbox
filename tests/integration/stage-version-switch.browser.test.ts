@@ -11,6 +11,7 @@
  */
 import { afterAll, describe, expect, inject, test } from "vitest";
 import {
+	badgeLabel,
 	closeSandbox,
 	gotoSandbox,
 	pageEvaluate,
@@ -263,16 +264,18 @@ describe.skipIf(!other)(
 			await waitForStageOn(builtIn!.version);
 			await expectOnePongPerPing();
 
-			await switchCore({ activate: other!.version }, other!.version);
+			// Activate by mmvm key: a develop core reports a version (e.g.
+			// 2.39.0-develop) that is not its key, nor a published release.
+			await switchCore({ activate: other!.key! }, other!.version);
 			await expect
 				.poll(() => pageText(".mmv-topbar-badge__label"))
-				.toBe(other!.version);
+				.toBe(badgeLabel(other!.version));
 			await expectOnePongPerPing();
 
 			await switchCore("reset", builtIn!.version);
 			await expect
 				.poll(() => pageText(".mmv-topbar-badge__label"))
-				.toBe(builtIn!.version);
+				.toBe(badgeLabel(builtIn!.version));
 			await expectOnePongPerPing();
 		});
 	}
