@@ -37,7 +37,21 @@ Open Quality when you want to:
 
 - Analysis runs against the mounted module's source files, not a built bundle.
 - Results reflect the criteria from the MagicMirror 3rd-party module
-  repository at the time the sandbox was built.
+  repository at the time the sandbox was built. The sandbox runs the same two
+  passes as the official module check: the text/README/package analyzer and
+  the official ESLint pass (`eslint.testconfig.js`), with the official
+  defaults. The built-in MagicMirror rules always run; general ESLint
+  findings appear grouped under **ESLint issues**.
+- Like the official check, Quality also runs `npm-check-updates` and
+  `npm-deprecated-check` when the module has few enough other findings (the
+  official issue budget). Both need network access; when it is unavailable
+  they are skipped without failing the analysis.
+- Files your repository ignores (per `.gitignore`, `.git/info/exclude` and
+  your global git excludes) are not analyzed. The official check never sees
+  them because it analyzes a fresh clone.
+- The ESLint pass uses only the official configuration. ESLint configs in the
+  module repository are never loaded, and inline `eslint-disable` comments
+  are ignored, exactly as in the official check.
 - Quality is a diagnostic aid, not a strict pass/fail gate. Errors are
   worth fixing; warnings and recommendations are worth reviewing.
 - The panel shows results for one module at a time — whichever module is

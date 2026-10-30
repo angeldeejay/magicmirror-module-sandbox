@@ -188,6 +188,15 @@
 	flex-wrap: wrap;
 }
 
+.mmv-version-row__warning {
+	display: flex;
+	flex-basis: 100%;
+	align-items: flex-start;
+	gap: 6px;
+	color: var(--hns-sev-warning-icon);
+	word-break: break-word;
+}
+
 .mmv-version-row--active {
 	border-color: var(--hns-accent);
 	background: var(--hns-bg-elevated);

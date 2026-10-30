@@ -34,6 +34,7 @@ slice.
 - Runtime language/locale persistence stays in a sandbox-owned temp file beside the module config.
 - Each module repo keeps its own saved config by default; switching projects does not silently reuse another module's persisted editor state.
 - `node_helper.js` is optional. Frontend-only modules still mount as long as the frontend entry can be detected.
-- Watch mode emits reload events with fresh versioned stage URLs so stage-local changes refresh the iframe without keeping stale browser-cached assets.
+- Module edits and saves reload the viewport through the MagicMirror core's own `RELOAD`, as on a mirror; the stage page is never cached, and module files are revalidated on every load.
+- The viewport runs the active MagicMirror version's own browser core, and the `config` global is the real MagicMirror config built from the saved module config.
 - The sandbox mounts one real MagicMirror module at a time, not a multi-module layout.
 - The screenshots in this manual are maintained from the preview fixture so they track the current sandbox UI rather than a stale mockup.

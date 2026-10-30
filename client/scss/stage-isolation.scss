@@ -1,0 +1,91 @@
+@use "sass:list";
+
+// Isolation stylesheet for the stage (`/__stage/`). Injected into the active
+// version's own index.html.
+//
+// The view is "isolated": only the mounted module's region (plus the region
+// containers it sits in) is visible, inside the version's real DOM and CSS.
+// Nothing is stretched, re-positioned or centered here: geometry always comes
+// from the core's region CSS. This sheet only toggles presentation
+// (`display`) of the other regions and draws the sandbox "disabled" overlay.
+//
+// Contract: keyed on `data-sandbox-position` and `data-sandbox-disabled`,
+// which the stage observer sets on <html> before the core boots.
+
+// position -> (module region selector, ancestor region selector or empty string).
+// Sub-regions of the top and bottom bars live inside the bar's region, so the
+// bar stays visible as the ancestor while its own container is hidden.
+$positions: (
+	"top_bar": (".top.bar", ""),
+	"top_left": (".top.left", ".top.bar"),
+	"top_center": (".top.center", ".top.bar"),
+	"top_right": (".top.right", ".top.bar"),
+	"upper_third": (".upper.third", ""),
+	"middle_center": (".middle.center", ""),
+	"lower_third": (".lower.third", ""),
+	"bottom_left": (".bottom.left", ".bottom.bar"),
+	"bottom_center": (".bottom.center", ".bottom.bar"),
+	"bottom_right": (".bottom.right", ".bottom.bar"),
+	"bottom_bar": (".bottom.bar", ""),
+	"fullscreen_above": (".fullscreen.above", ""),
+	"fullscreen_below": (".fullscreen.below", "")
+);
+
+@each $position, $regions in $positions {
+	$module-region: list.nth($regions, 1);
+	$ancestor-region: list.nth($regions, 2);
+
+	@if $ancestor-region != "" {
+		html[data-sandbox-position="#{$position}"] .region:not(#{$module-region}):not(#{$ancestor-region}) {
+			display: none;
+		}
+
+		// The bar's own container belongs to the bar position, not to the
+		// sub-region the module is mounted in. It is empty in the sandbox, so
+		// hiding it changes neither the bar height nor the sub-region placement
+		// (sub-regions are absolutely positioned against the bar).
+		html[data-sandbox-position="#{$position}"] #{$ancestor-region} > .container {
+			display: none;
+		}
+	} @else {
+		html[data-sandbox-position="#{$position}"] .region:not(#{$module-region}) {
+			display: none;
+		}
+	}
+}
+
+// Disabled module: the served config keeps `disabled: true` and the core's
+// loader skips the module, so the regions stay empty. The overlay is pure
+// sandbox chrome (no DOM nodes), outside every region.
+html[data-sandbox-disabled="true"] .region {
+	display: none;
+}
+
+html[data-sandbox-disabled="true"] body::before,
+html[data-sandbox-disabled="true"] body::after {
+	position: fixed;
+	right: 0;
+	left: 0;
+	z-index: 2147483647;
+	max-width: 36rem;
+	margin-inline: auto;
+	padding-inline: 1rem;
+	text-align: center;
+	font-family: "Open Sans", sans-serif;
+	box-sizing: border-box;
+}
+
+html[data-sandbox-disabled="true"] body::before {
+	top: 40%;
+	content: "Module disabled";
+	font-size: 1.5rem;
+	font-weight: 600;
+	color: #fff;
+}
+
+html[data-sandbox-disabled="true"] body::after {
+	top: calc(40% + 2.5rem);
+	content: "The mounted module is disabled in the saved config. Re-enable it from Config to boot the viewport again.";
+	font-size: 1rem;
+	color: #999;
+}

@@ -1,0 +1,137 @@
+{
+	"name": "magicmirror",
+	"version": "2.37.0",
+	"description": "The open source modular smart mirror platform.",
+	"keywords": [
+		"magic mirror",
+		"magicmirror",
+		"smart mirror",
+		"mirror UI",
+		"modular"
+	],
+	"homepage": "https://magicmirror.builders",
+	"bugs": {
+		"url": "https://github.com/MagicMirrorOrg/MagicMirror/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MagicMirrorOrg/MagicMirror"
+	},
+	"license": "MIT",
+	"author": "Michael Teeuw",
+	"contributors": [
+		{
+			"name": "MagicMirror contributors",
+			"url": "https://github.com/MagicMirrorOrg/MagicMirror/graphs/contributors"
+		}
+	],
+	"type": "commonjs",
+	"imports": {
+		"#server_functions": {
+			"default": "./js/server_functions.js"
+		},
+		"#http_fetcher": {
+			"default": "./js/http_fetcher.js"
+		}
+	},
+	"main": "js/electron.js",
+	"exports": "./js/electron.js",
+	"files": [
+		"clientonly",
+		"css",
+		"defaultmodules",
+		"js",
+		"serveronly",
+		"translations",
+		"favicon.svg",
+		"index.html"
+	],
+	"sideEffects": true,
+	"scripts": {
+		"config:check": "node js/check_config.js",
+		"install-mm": "npm install --no-audit --no-fund --no-update-notifier --only=prod --omit=dev",
+		"install-mm:dev": "npm install --no-audit --no-fund --no-update-notifier && npx playwright install chromium",
+		"lint:fix": "eslint --fix && prettier . --write",
+		"prepare": "[ -f node_modules/.bin/husky ] && husky || echo no husky installed.",
+		"server": "node ./serveronly",
+		"server:watch": "node ./serveronly/watcher.js",
+		"start": "node --run start:wayland",
+		"start:dev": "node --run start:wayland -- dev",
+		"start:wayland": "WAYLAND_DISPLAY=\"${WAYLAND_DISPLAY:=wayland-1}\" ./node_modules/.bin/electron js/electron.js --ozone-platform=wayland",
+		"start:wayland:dev": "node --run start:wayland -- dev",
+		"start:windows": ".\\node_modules\\.bin\\electron js\\electron.js",
+		"start:windows:dev": "node --run start:windows -- dev",
+		"start:x11": "DISPLAY=\"${DISPLAY:=:0}\" ./node_modules/.bin/electron js/electron.js",
+		"start:x11:dev": "node --run start:x11 -- dev",
+		"test": "vitest run",
+		"test:calendar": "node ./defaultmodules/calendar/debug.js",
+		"test:coverage": "vitest run --coverage",
+		"test:e2e": "vitest run tests/e2e",
+		"test:electron": "vitest run tests/electron",
+		"test:lint": "eslint && prettier . --check",
+		"test:spelling": "cspell . --gitignore",
+		"test:ui": "vitest --ui",
+		"test:unit": "vitest run tests/unit",
+		"test:watch": "vitest"
+	},
+	"lint-staged": {
+		"*": [
+			"eslint --fix",
+			"prettier --write --ignore-unknown"
+		]
+	},
+	"dependencies": {
+		"@fontsource/roboto": "^5.2.10",
+		"@fontsource/roboto-condensed": "^5.2.8",
+		"@fortawesome/fontawesome-free": "^7.3.0",
+		"animate.css": "^4.1.1",
+		"croner": "^10.0.1",
+		"eslint": "^10.6.0",
+		"express": "^5.2.1",
+		"feedme": "^2.0.2",
+		"globals": "^17.7.0",
+		"helmet": "^8.2.0",
+		"html-to-text": "^10.0.0",
+		"iconv-lite": "^0.7.2",
+		"ics-filter": "^1.0.3",
+		"ipaddr.js": "^2.4.0",
+		"moment": "^2.30.1",
+		"moment-timezone": "^0.6.2",
+		"node-ical": "^0.26.1",
+		"nunjucks": "^3.2.4",
+		"socket.io": "^4.8.3",
+		"suncalc": "^2.0.0",
+		"systeminformation": "^5.31.11",
+		"undici": "^8.5.0",
+		"weathericons": "^2.1.0"
+	},
+	"devDependencies": {
+		"@eslint/css": "^1.3.0",
+		"@eslint/js": "^10.0.1",
+		"@eslint/markdown": "^8.0.2",
+		"@stylistic/eslint-plugin": "^5.10.0",
+		"@vitest/coverage-v8": "^4.1.9",
+		"@vitest/eslint-plugin": "^1.6.20",
+		"@vitest/ui": "^4.1.9",
+		"cspell": "^10.0.1",
+		"eslint-plugin-import-x": "^4.17.1",
+		"eslint-plugin-jsdoc": "^63.0.10",
+		"eslint-plugin-package-json": "^1.5.0",
+		"eslint-plugin-playwright": "^2.10.4",
+		"express-basic-auth": "^1.2.1",
+		"husky": "^9.1.7",
+		"jsdom": "^29.1.1",
+		"lint-staged": "^17.0.8",
+		"msw": "^2.14.6",
+		"playwright": "^1.61.1",
+		"prettier": "^3.9.4",
+		"prettier-plugin-jinja-template": "^2.2.0",
+		"vitest": "^4.1.9"
+	},
+	"optionalDependencies": {
+		"electron": "^42.5.2"
+	},
+	"engines": {
+		"node": ">=22.21.1 <23 || >=24"
+	}
+}

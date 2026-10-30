@@ -10,17 +10,10 @@ import fastifyMiddie from "@fastify/middie";
 import fastifyRateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { Server } from "socket.io";
-import {
-	resolveAnimateCss,
-	resolveCronerPath,
-	resolveFontAwesomeCss,
-	resolveMomentPath,
-	resolveMomentTimezonePath,
-	resolveWebfontsRoot
-} from "./asset-paths.ts";
+import { resolveWebfontsRoot } from "./asset-paths.ts";
 import { createConfigApi } from "./config.ts";
 import { createHelperRuntime, injectShimResolution } from "./helper-runtime.ts";
-import { createHtmlPage, createStagePage } from "./html.ts";
+import { createHtmlPage } from "./html.ts";
 import { attachSocketServer, getHelperLogEntries } from "./log-store.ts";
 import {
 	VendorModuleAnalyzer,
@@ -28,11 +21,7 @@ import {
 	getLastAnalysisResult,
 	setAnalysisResult
 } from "./module-analysis.ts";
-import {
-	fromOS,
-	getActiveShimsRoot,
-	resolveRepoRoot
-} from "./paths.ts";
+import { fromOS, getActiveShimsRoot, resolveRepoRoot } from "./paths.ts";
 import {
 	downloadVersion,
 	buildShimsForVersion,
@@ -42,6 +31,8 @@ import {
 	setActiveVersion
 } from "./mm-version-manager.ts";
 import { registerRoutes } from "./routes.ts";
+import { createStageSocketServer } from "./stage/stage-socket.ts";
+import { assignCoreGlobalConfig } from "./stage/stage-routes.ts";
 import { runStartupScripts } from "./startup-scripts.ts";
 import { startAnalysisWatcher } from "./analysis-watcher.ts";
 import { startModuleWatcher, startSandboxWatcher } from "./watch.ts";
@@ -64,6 +55,7 @@ function resolveTsxCli(): string {
 type ShutdownOptions = {
 	app: import("fastify").FastifyInstance;
 	io: import("socket.io").Server;
+	stageSocket: { dispose: () => void };
 	moduleWatcher: import("chokidar").FSWatcher | null;
 	sandboxWatcher: import("chokidar").FSWatcher | null;
 	analysisWatcher: import("chokidar").FSWatcher | null;
@@ -226,6 +218,7 @@ async function rebuildNodeCompat(): Promise<void> {
 function registerShutdownHandlers({
 	app,
 	io,
+	stageSocket,
 	moduleWatcher,
 	sandboxWatcher,
 	analysisWatcher,
@@ -260,6 +253,7 @@ function registerShutdownHandlers({
 			}
 			await helperRuntime.stopHelper();
 			await startupController.stopAll();
+			stageSocket.dispose();
 			app.server.closeAllConnections();
 			await new Promise<void>((resolve, reject) => {
 				io.close((error?: Error) => {
@@ -315,7 +309,9 @@ async function applyPinnedMmVersion(repoRoot: string): Promise<void> {
 		const active = getActiveVersion();
 		if (active === key) return;
 
-		console.log(`[module-sandbox] mmvm: activating pinned version "${pinned}"`);
+		console.log(
+			`[module-sandbox] mmvm: activating pinned version "${pinned}"`
+		);
 
 		const harnessRoot = path.join(currentDirPath, "..");
 		const info = getVersionInfo(key);
@@ -324,13 +320,17 @@ async function applyPinnedMmVersion(repoRoot: string): Promise<void> {
 			console.log(`[module-sandbox] mmvm: downloading "${pinned}"…`);
 			const dl = downloadVersion(pinned);
 			if (!dl.ok) {
-				console.error(`[module-sandbox] mmvm: download failed — ${dl.error}`);
+				console.error(
+					`[module-sandbox] mmvm: download failed — ${dl.error}`
+				);
 				return;
 			}
 		}
 
 		if (!info.shimsBuilt) {
-			console.log(`[module-sandbox] mmvm: building shims for "${pinned}"…`);
+			console.log(
+				`[module-sandbox] mmvm: building shims for "${pinned}"…`
+			);
 			const built = await buildShimsForVersion(key, harnessRoot);
 			if (!built.ok) {
 				console.error(
@@ -343,7 +343,10 @@ async function applyPinnedMmVersion(repoRoot: string): Promise<void> {
 		setActiveVersion(pinned);
 		console.log(`[module-sandbox] mmvm: active version set to "${pinned}"`);
 	} catch (err) {
-		console.warn("[module-sandbox] mmvm: could not apply pinned version", err);
+		console.warn(
+			"[module-sandbox] mmvm: could not apply pinned version",
+			err
+		);
 	}
 }
 
@@ -381,11 +384,28 @@ async function startServer(): Promise<void> {
 		serveClient: true
 	});
 	attachSocketServer(io);
+	const stageSocket = createStageSocketServer(
+		app.server,
+		io,
+		() => getHarnessConfig().moduleName
+	);
+	// The helper's module namespace lives on the stage socket server, where
+	// the core page connects.
 	const helperRuntime = createHelperRuntime({
 		app,
 		io,
+		getHelperIo: () => stageSocket.io,
 		getHarnessConfig,
-		getHarnessCacheDir
+		getHarnessCacheDir,
+		getModuleConfig,
+		// Core js/app.js assigns global.config before loading helpers; the
+		// sandbox does the same before every helper (re)start.
+		prepareHelperGlobals: () =>
+			assignCoreGlobalConfig({
+				getModuleConfig,
+				getRuntimeConfig,
+				getHarnessConfig
+			})
 	});
 	const clientAssetsScriptPath = path.join(
 		currentDirPath,
@@ -432,13 +452,7 @@ async function startServer(): Promise<void> {
 		},
 		assetService: {
 			resolveWebfontsRoot,
-			resolveAnimateCss,
-			resolveCronerPath,
-			resolveMomentPath,
-			resolveMomentTimezonePath,
-			resolveFontAwesomeCss,
-			createHtmlPage,
-			createStagePage
+			createHtmlPage
 		},
 		runtimeService: {
 			io,
@@ -446,7 +460,8 @@ async function startServer(): Promise<void> {
 			injectShimResolution,
 			watchEnabled,
 			getHelperLogEntries,
-			harnessRoot: path.join(currentDirPath, "..")
+			harnessRoot: path.join(currentDirPath, ".."),
+			emitStageReload: stageSocket.emitReload
 		},
 		analysisService: {
 			getAnalysisResult: getLastAnalysisResult,
@@ -481,7 +496,7 @@ async function startServer(): Promise<void> {
 	console.log(`[module-sandbox] cache dir ${getHarnessCacheDir()}`);
 	const activeMmVersion = getActiveVersion();
 	console.log(
-		`[module-sandbox] mm core ${activeMmVersion ? `mmvm:${activeMmVersion}` : "built-in (shims/generated)"}`
+		`[module-sandbox] mm core ${activeMmVersion ? `mmvm:${activeMmVersion}` : "built-in"}`
 	);
 	console.log(
 		`[module-sandbox] ${watchEnabled ? "watch mode enabled" : "watch mode disabled"}`
@@ -490,7 +505,8 @@ async function startServer(): Promise<void> {
 	// Module watcher: always-on. Observes repoRoot only. Scope always "stage".
 	const moduleWatcher = startModuleWatcher({
 		io,
-		restartHelper: helperRuntime.restartHelper
+		restartHelper: helperRuntime.restartHelper,
+		emitStageReload: stageSocket.emitReload
 	});
 
 	// Sandbox watcher: active only in --watch mode. Observes harness paths. Scope always "shell".
@@ -527,6 +543,7 @@ async function startServer(): Promise<void> {
 	registerShutdownHandlers({
 		app,
 		io,
+		stageSocket,
 		moduleWatcher,
 		sandboxWatcher,
 		analysisWatcher,

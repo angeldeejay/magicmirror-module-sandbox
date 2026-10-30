@@ -14,7 +14,10 @@ import {
 	getBrowserInspectionOptions
 } from "../browser-inspection.ts";
 import { writeFixtureStylesheet } from "../test-module-style-fixture.ts";
-import { resetBrowserSuiteFixtureFiles } from "../test-module-fixture.ts";
+import {
+	type FixtureVariant,
+	resetBrowserSuiteFixtureFiles
+} from "../test-module-fixture.ts";
 import { resetPersistedStateForModuleRoot } from "../test-module-persistence.ts";
 import { createSandboxRuntimeController } from "./runtime-controller.ts";
 
@@ -32,6 +35,13 @@ const sandboxPages = new Map();
 // repeated mid-test calls to waitForStageFrame (stageClick, stageText, …).
 // Invalidated before page.goto() and before any action that triggers a stage reload.
 const stageFrameCache = new WeakMap<object, any>();
+// Page → console messages (shell and stage frames), in arrival order.
+const pageConsoleMessages = new WeakMap<object, string[]>();
+/** Per page: the requests `holdRequests` matched, and whether they are released. */
+const requestHolds = new WeakMap<
+	object,
+	{ count: number; released: boolean; waiting: Array<() => void> }
+>();
 type ModuleConfigEditor = HTMLElement & { json_value: unknown };
 
 /**
@@ -103,6 +113,11 @@ export function createSandboxBrowserCommands(suiteName) {
 		}
 
 		const page = await context.context.newPage();
+		const consoleMessages: string[] = [];
+		pageConsoleMessages.set(page, consoleMessages);
+		page.on("console", (message) => {
+			consoleMessages.push(message.text());
+		});
 		if (inspectionOptions.showCursor) {
 			await page.addInitScript({
 				content: browserInspectionCursorInitScript
@@ -174,28 +189,46 @@ export function createSandboxBrowserCommands(suiteName) {
 			stageFrameCache.delete(page);
 		}
 
-		// Wait for the stage frame element to be visible first.
-		await page.waitForSelector(stageFrameSelector, { state: "visible" });
-
-		// Wait for boot to complete by polling core.bootComplete on the SHELL page.
-		//
-		// Protocol:
-		//   - iframe calls publishStageReady(bootComplete) after every boot settle.
-		//   - shell-stage.js sets core.bootComplete from the postMessage payload.
-		//   - bootComplete is true only when runtime.ts's boot() promise settles
-		//     (resolved or rejected); false for the early snapshot fired by
-		//     requestStageSnapshot (which can arrive before boot finishes).
-		//   - shell-stage.js resets bootComplete to false on DOMContentLoaded and
-		//     on every iframe "load" event, so a harness:reload cycle also resets it.
-		//
-		// Checking the shell page avoids stale frame-handle issues entirely.
+		// The stage iframe runs the real MagicMirror core (`/__stage/`). Its
+		// observer publishes bootComplete only once the core sends
+		// DOM_OBJECTS_CREATED, which a module failing in getDom never gets, so
+		// readiness is the observer marker plus the core-created module
+		// wrapper, or the observer's disabled marker (a disabled module is
+		// never created).
+		const frameElement = await page.waitForSelector(stageFrameSelector, {
+			state: "visible"
+		});
+		const timeoutAt = Date.now() + 20_000;
+		let frame: any = null;
+		while (Date.now() < timeoutAt) {
+			frame = await frameElement.contentFrame();
+			if (frame) break;
+			await sleep(50);
+		}
+		if (!frame) {
+			throw new Error("Timed out waiting for the stage iframe frame.");
+		}
 		try {
-			await page.waitForFunction(
-				() => Boolean((window as any).__MICROCORE__?.bootComplete),
+			await frame.waitForFunction(
+				() => {
+					const root = globalThis.document.documentElement;
+					return (
+						root.dataset.sandboxStage === "core" &&
+						(root.dataset.sandboxDisabled === "true" ||
+							Boolean(globalThis.document.querySelector(".module")))
+					);
+				},
 				undefined,
 				{ timeout: 20_000 }
 			);
-		} catch {
+			// The shell received the stage's first snapshot, so its panels
+			// mirror this document.
+			await page.waitForFunction(
+				() => Boolean((window as any).__MICROCORE__?.stageReady),
+				undefined,
+				{ timeout: 20_000 }
+			);
+		} catch (error) {
 			const diagState = await page
 				.evaluate(() => {
 					const core = (window as any).__MICROCORE__;
@@ -210,27 +243,9 @@ export function createSandboxBrowserCommands(suiteName) {
 				})
 				.catch(() => ({ evalError: true }));
 			throw new Error(
-				`waitForStageFrame: boot timeout after 20 s. Shell state: ${JSON.stringify(diagState)}`
+				`waitForStageFrame: stage not ready after 20 s (${String(error)}). Shell state: ${JSON.stringify(diagState)}`
 			);
 		}
-
-		// Acquire a live frame handle now that boot is confirmed complete.
-		const frameElement = await page.waitForSelector(stageFrameSelector, {
-			state: "visible"
-		});
-		const timeoutAt = Date.now() + 5_000;
-		let frame = null;
-		while (Date.now() < timeoutAt) {
-			frame = await frameElement.contentFrame();
-			if (frame) break;
-			await sleep(50);
-		}
-		if (!frame) {
-			throw new Error(
-				"Timed out waiting for the mounted-module iframe frame."
-			);
-		}
-
 		stageFrameCache.set(page, frame);
 		return frame;
 	}
@@ -242,9 +257,10 @@ export function createSandboxBrowserCommands(suiteName) {
 	 * Protocol:
 	 *   1. Reset fixture files (same as gotoSandbox).
 	 *   2. Arm the stage-ready listener before triggering any reload.
-	 *   3. POST /__harness/restart → server restarts helper AND emits
-	 *      Socket.IO "harness:reload" → shell calls core.reloadStage() →
-	 *      stage iframe reloads → module boots fresh.
+	 *   3. POST /__harness/restart → server restarts helper AND sends the
+	 *      core its root-socket RELOAD (or, when no core page listens, the
+	 *      shell reloads the frame on "harness:reload") → stage iframe
+	 *      reloads → module boots fresh.
 	 *   4. Wait for stage-ready event and confirm bootComplete.
 	 *
 	 * Falls back to gotoSandbox when the shell is not yet loaded (e.g. first
@@ -290,9 +306,25 @@ export function createSandboxBrowserCommands(suiteName) {
 	 * @param {SandboxCommandContext} context
 	 * @returns {Promise<void>}
 	 */
-	async function gotoSandbox(context) {
-		const runtime =
-			await runtimeController.getLiveRuntimeForContext(context);
+	async function gotoSandbox(
+		context,
+		options: {
+			coreKey?: string | null;
+			privateCoreHome?: string;
+			fixture?: FixtureVariant;
+		} = {}
+	) {
+		// The built-in core unless the caller pins another one, always through
+		// an isolated home: the run never follows the maintainer's own
+		// `~/.mmvm/active`.
+		const runtime = await runtimeController.getLiveRuntimeForContext(
+			context,
+			{
+				coreKey: options.coreKey ?? null,
+				privateCoreHome: options.privateCoreHome,
+				fixture: options.fixture
+			}
+		);
 		if (runtimeController.usesPerSessionRuntime) {
 			writeFixtureStylesheet(runtime.fixtureStylePath);
 		} else {
@@ -499,6 +531,77 @@ export function createSandboxBrowserCommands(suiteName) {
 				value: arg
 			}
 		);
+	}
+
+	/**
+	 * Hold every request of the sandbox page whose URL matches `pattern` (a
+	 * Playwright glob) until `releaseRequests`, so a test controls exactly
+	 * when a slow resource arrives instead of racing a timer. Requests made
+	 * after the release pass straight through. Lasts until
+	 * `clearRequestHolds`.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @param {string} pattern
+	 * @returns {Promise<void>}
+	 */
+	async function holdRequests(context, pattern) {
+		const page = await getSandboxPage(context);
+		const hold = { count: 0, released: false, waiting: [] as Array<() => void> };
+		requestHolds.set(page, hold);
+		await page.route(pattern, async (route) => {
+			hold.count += 1;
+			if (!hold.released) {
+				await new Promise<void>((resolve) => {
+					hold.waiting.push(resolve);
+				});
+			}
+			await route.continue().catch(() => {
+				// The page navigated away while the request was held.
+			});
+		});
+	}
+
+	/**
+	 * Let every request held by `holdRequests` through, and every later one.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<number>} how many requests matched the hold so far
+	 */
+	async function releaseRequests(context) {
+		const page = await getSandboxPage(context);
+		const hold = requestHolds.get(page);
+		if (!hold) {
+			return 0;
+		}
+		hold.released = true;
+		for (const resolve of hold.waiting.splice(0)) {
+			resolve();
+		}
+		return hold.count;
+	}
+
+	/**
+	 * How many requests matched the current `holdRequests` pattern so far.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<number>}
+	 */
+	async function heldRequestCount(context) {
+		const page = await getSandboxPage(context);
+		return requestHolds.get(page)?.count ?? 0;
+	}
+
+	/**
+	 * Release and remove every hold installed by `holdRequests`.
+	 *
+	 * @param {SandboxCommandContext} context
+	 * @returns {Promise<void>}
+	 */
+	async function clearRequestHolds(context) {
+		await releaseRequests(context);
+		const page = await getSandboxPage(context);
+		requestHolds.delete(page);
+		await page.unrouteAll({ behavior: "ignoreErrors" });
 	}
 
 	/**
@@ -732,6 +835,15 @@ export function createSandboxBrowserCommands(suiteName) {
 	}
 
 	/**
+	 * Returns the console messages the sandbox page (shell and stage frames)
+	 * printed so far.
+	 */
+	async function consoleMessages(context): Promise<string[]> {
+		const page = await getSandboxPage(context);
+		return (pageConsoleMessages.get(page) ?? []).slice();
+	}
+
+	/**
 	 * Closes sandbox.
 	 */
 	async function closeSandbox(context) {
@@ -754,11 +866,16 @@ export function createSandboxBrowserCommands(suiteName) {
 		sandboxClickAndWaitForStageReady: clickAndWaitForStageReady,
 		sandboxClickAndWaitForStylesRefreshed: clickAndWaitForStylesRefreshed,
 		sandboxClose: closeSandbox,
+		sandboxConsoleMessages: consoleMessages,
 		sandboxPageAttribute: pageAttribute,
 		sandboxPageCheck: pageCheck,
 		sandboxPageCount: pageCount,
 		sandboxGoto: gotoSandbox,
 		sandboxReset: resetSandbox,
+		sandboxClearRequestHolds: clearRequestHolds,
+		sandboxHeldRequestCount: heldRequestCount,
+		sandboxHoldRequests: holdRequests,
+		sandboxReleaseRequests: releaseRequests,
 		sandboxPageDisabled: pageDisabled,
 		sandboxPageEvaluate: pageEvaluate,
 		sandboxPageFill: pageFill,

@@ -459,3 +459,75 @@ test("restartHelper boots and reuses helper wiring while stopHelper shuts down t
 		cleanupTempHelper(tempPath);
 	}
 });
+
+test("restartHelper runs prepareHelperGlobals so the helper sees the core config at start()", async () => {
+	const { assignCoreGlobalConfig } =
+		await import("../../../server/stage/stage-routes.ts");
+	const { resolveMagicMirrorRoot } =
+		await import("../../../scripts/shared.ts");
+	const core = {
+		root: resolveMagicMirrorRoot(repoRoot),
+		version: "",
+		key: null
+	};
+	const sandboxGlobals = global as typeof global & {
+		config?: Record<string, unknown>;
+		__MODULE_SANDBOX_CONFIG_AT_START__?: unknown;
+	};
+	const previousConfig = sandboxGlobals.config;
+	const tempPath = writeTempHelper(
+		`const NodeHelper = require("node_helper");
+
+module.exports = NodeHelper.create({
+	start() {
+		global.__MODULE_SANDBOX_CONFIG_AT_START__ = {
+			basePath: global.config.basePath,
+			foreignModulesDir: global.config.foreignModulesDir,
+			modules: global.config.modules.map((entry) => entry.module)
+		};
+	}
+});\n`
+	);
+	const prepareHelperGlobals = vi.fn(() =>
+		assignCoreGlobalConfig(
+			{
+				getModuleConfig: () => ({ position: "top_left", config: {} }),
+				getRuntimeConfig: () => ({ language: "en", locale: "en-US" }),
+				getHarnessConfig: () => ({ moduleName: "MMM-TestModule" })
+			},
+			() => core
+		)
+	);
+
+	try {
+		injectShimResolution();
+		// What server/index.ts sets before the first helper start.
+		sandboxGlobals.config = { hideConfigSecrets: false };
+		const helperRuntime = createHelperRuntime({
+			app: { use() {} },
+			io: {
+				of() {
+					return { removeAllListeners() {}, on() {} };
+				}
+			} as never,
+			getHarnessConfig: () => ({ moduleName: "MMM-TestModule" }),
+			getHarnessCacheDir: () => ".runtime-cache/default",
+			prepareHelperGlobals,
+			helperPath: tempPath
+		});
+
+		await helperRuntime.restartHelper();
+		await helperRuntime.restartHelper();
+
+		assert.equal(prepareHelperGlobals.mock.calls.length, 2);
+		assert.deepEqual(sandboxGlobals.__MODULE_SANDBOX_CONFIG_AT_START__, {
+			basePath: "/__stage/",
+			foreignModulesDir: "modules",
+			modules: ["MMM-TestModule"]
+		});
+	} finally {
+		sandboxGlobals.config = previousConfig;
+		delete sandboxGlobals.__MODULE_SANDBOX_CONFIG_AT_START__;
+		cleanupTempHelper(tempPath);
+	}
+});

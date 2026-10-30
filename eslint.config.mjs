@@ -19,7 +19,9 @@ const config = [
 			"playwright-report/**",
 			"scripts/templates/**",
 			"shims/generated/**",
-			"test-results/**"
+			"test-results/**",
+			// Verbatim MagicMirror core files extracted from release tags.
+			"tests/_fixtures/core-snippets/**"
 		]
 	},
 	js.configs.recommended,

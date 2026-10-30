@@ -1,15 +1,23 @@
 /**
  * Build the publishable `dist/` package contents for npm distribution.
  *
- * The script copies runtime assets, server code, and shims, then minifies the
- * shipped browser JavaScript and CSS so installed consumers only receive the
- * lean runtime package.
+ * The script copies runtime assets, server code, shims, and the built-in
+ * MagicMirror core's browser files (`dist/core/`, see `package-core.ts`), then
+ * minifies the sandbox's own browser JavaScript and CSS so installed consumers
+ * only receive the lean runtime package.
  */
 import * as fs from "node:fs";
 import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
 import { buildNodeCompat } from "./build-node-compat.ts";
+import { distCopyTargets, distCoreDirectory } from "./dist-layout.ts";
+import {
+	packageBuiltInCore,
+	packageCoreServerDependencies
+} from "./package-core.ts";
+import { getBuiltInMmVersion } from "../server/mm-version-manager.ts";
+import { resolveBuiltInCoreRoot } from "../server/stage/core-root.ts";
 import { ensureDirectory, fromOS } from "./shared.ts";
 
 const __filename = fromOS(fileURLToPath(import.meta.url));
@@ -18,14 +26,6 @@ const root: string = path.resolve(__dirname, "..");
 const distRoot: string = path.join(root, "dist");
 const distClientRoot: string = path.join(distRoot, "client");
 
-const copyTargets: string[] = [
-	path.join("server", "templates"),
-	path.join("client", "fonts"),
-	path.join("client", "generated"),
-	path.join("client", "styles"),
-	path.join("client", "webfonts"),
-	path.join("shims", "generated")
-];
 const nodeEntryTargets: string[] = [
 	path.join("bin", "magicmirror-module-sandbox.ts"),
 	path.join("bin", "install-guard.ts"),
@@ -156,10 +156,15 @@ function minifyClientJavaScript(): void {
 }
 
 /**
- * Minifies dist css assets.
+ * Minifies dist css assets. The packaged core (`dist/core/`) is left as is:
+ * core files are served verbatim.
  */
 function minifyDistCss(): void {
+	const packagedCoreRoot = path.join(distRoot, distCoreDirectory);
 	getFilesByExtension(distRoot, ".css").forEach((filePath) => {
+		if (filePath.startsWith(`${packagedCoreRoot}/`)) {
+			return;
+		}
 		const source = fs.readFileSync(filePath, "utf8");
 		const result = transformSync(source, {
 			loader: "css",
@@ -233,7 +238,19 @@ function buildNodeEntrypoints(): void {
 buildNodeCompat();
 clearDirectory(distRoot);
 
-copyTargets.forEach(copyTarget);
+distCopyTargets.forEach(copyTarget);
+packageBuiltInCore(
+	{
+		root: resolveBuiltInCoreRoot(root),
+		version: getBuiltInMmVersion() ?? "",
+		key: null
+	},
+	path.join(distRoot, distCoreDirectory)
+);
+packageCoreServerDependencies(
+	path.join(root, "shims", "generated", "node_modules"),
+	path.join(distRoot, distCoreDirectory)
+);
 transpileNodeSourceTrees();
 buildNodeEntrypoints();
 minifyClientJavaScript();

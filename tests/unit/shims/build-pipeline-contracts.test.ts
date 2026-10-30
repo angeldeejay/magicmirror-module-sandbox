@@ -28,11 +28,19 @@ const nodeRequire = createRequire(import.meta.url);
 const EXPECTED_COMPAT_FILES = [
 	"js/logger.js",
 	"js/node_helper.js",
-	"js/class.js",
 	"js/http_fetcher.js",
 	"js/server_functions.js",
 	"package.json"
 ];
+// Copied only when the built-in core ships it: removed in 2.37.0, when
+// node_helper became an ES6 class (scripts/build-node-compat.ts).
+const OPTIONAL_COMPAT_FILES = ["js/class.js"];
+const builtInCoreRoot = path.join(
+	sandboxRoot,
+	"mmcore-source",
+	"node_modules",
+	"magicmirror"
+);
 
 for (const relPath of EXPECTED_COMPAT_FILES) {
 	test(`build pipeline: shims/generated/magicmirror-core/${relPath} exists after build`, () => {
@@ -41,6 +49,18 @@ for (const relPath of EXPECTED_COMPAT_FILES) {
 			fs.existsSync(fullPath),
 			true,
 			`Artifact missing: ${fullPath} — MM core structure may have changed`
+		);
+	});
+}
+
+for (const relPath of OPTIONAL_COMPAT_FILES) {
+	test(`build pipeline: shims/generated/magicmirror-core/${relPath} follows the built-in core`, () => {
+		assert.equal(
+			fs.existsSync(
+				path.join(shimsGenerated, "magicmirror-core", relPath)
+			),
+			fs.existsSync(path.join(builtInCoreRoot, relPath)),
+			`${relPath} in shims/generated must exist exactly when the built-in core ships it`
 		);
 	});
 }
@@ -146,5 +166,55 @@ test("undici bundle: resolves from shims/generated/node_modules when required fr
 		resolvedPath.includes("/shims/generated/"),
 		true,
 		`undici resolved from unexpected path: ${resolvedPath}`
+	);
+});
+
+// ── ipaddr.js bundle ──────────────────────────────────────────────────────────
+// server_functions.js requires "ipaddr.js" for SSRF protection. mmvm shims
+// under ~/.mmvm/shims/<version>/ have no parent node_modules, so the package
+// must be bundled next to express and undici.
+
+const EXPECTED_IPADDR_BUNDLE = path.join(
+	shimsGenerated,
+	"node_modules",
+	"ipaddr.js",
+	"index.js"
+);
+
+test("ipaddr.js bundle: shims/generated/node_modules/ipaddr.js/index.js exists after build", () => {
+	assert.equal(
+		fs.existsSync(EXPECTED_IPADDR_BUNDLE),
+		true,
+		`ipaddr.js bundle not found at ${EXPECTED_IPADDR_BUNDLE}`
+	);
+});
+
+test("ipaddr.js bundle: exports parse and isValid", () => {
+	const ipaddr = nodeRequire(EXPECTED_IPADDR_BUNDLE) as Record<
+		string,
+		unknown
+	>;
+	assert.equal(
+		typeof ipaddr.parse,
+		"function",
+		"ipaddr.parse is not a function"
+	);
+	assert.equal(
+		typeof ipaddr.isValid,
+		"function",
+		"ipaddr.isValid is not a function"
+	);
+});
+
+test("ipaddr.js bundle: resolves from shims/generated/node_modules when required from magicmirror-core context", () => {
+	const magicMirrorCoreRoot = path.join(shimsGenerated, "magicmirror-core");
+	const resolvedPath = nodeRequire
+		.resolve("ipaddr.js", { paths: [magicMirrorCoreRoot] })
+		.split("\\")
+		.join("/");
+	assert.equal(
+		resolvedPath.includes("/shims/generated/"),
+		true,
+		`ipaddr.js resolved from unexpected path: ${resolvedPath}`
 	);
 });

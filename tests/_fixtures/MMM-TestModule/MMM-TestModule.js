@@ -5,6 +5,16 @@
  * The generated template module is adapted to exercise translations, helper
  * traffic, DOM updates, style loading, lifecycle hooks, and config merge
  * behavior through a realistic third-party module shape.
+ *
+ * It does not override getDom: the core's base getDom renders
+ * MMM-TestModule.njk, so the module renders identically on every supported
+ * MagicMirror version. Work on the rendered DOM runs once the core inserted
+ * it (MODULE_DOM_CREATED / MODULE_DOM_UPDATED) and leaves the markup as the
+ * template rendered it, so an updateDom() with unchanged data keeps the
+ * same DOM node (main.js moduleNeedsUpdate compares the markup).
+ *
+ * The pinned core-fidelity suites mount the MMM-TestModule-super-getdom
+ * variant instead, whose getDom calls this._super() (D1).
  */
 Module.register("MMM-TestModule", {
 	requiresVersion: "2.0.0",
@@ -38,7 +48,7 @@ Module.register("MMM-TestModule", {
 	},
 
 	getScripts() {
-		return ["test-script.js"];
+		return ["test-script.js", "fixture-esm.mjs"];
 	},
 
 	getStyles() {
@@ -69,66 +79,55 @@ Module.register("MMM-TestModule", {
 		};
 	},
 
-	async getDom() {
-		// The base getDom() (module.js:82-107) always returns Promise<HTMLElement>.
-		// A module that calls this._super() in getDom MUST await the result.
-		// Treating _super() as synchronous works in old sandbox versions but FAILS
-		// in real MagicMirror — which is exactly the class of bug this fixture
-		// is designed to catch. Do NOT revert to synchronous _super() usage.
-		const wrapper = await this._super();
-		const root = wrapper.querySelector("#test-module-root");
-		const dynamicSlot = wrapper.querySelector("#test-module-dynamic-slot");
-		const helperButton = wrapper.querySelector("#test-module-helper-ping");
-		this.superAdapterSnapshot = {
-			immediateChildElementCount: wrapper.children.length,
-			immediateTextContent: wrapper.textContent,
-			// wrapper is the resolved HTMLElement — isThenable MUST be false.
-			// If this becomes true the base getDom is returning a Promise that
-			// was not awaited, meaning _super() broke the contract again.
-			isThenable: typeof wrapper.then === "function",
-			hasImmediateRoot: Boolean(root),
-			hasImmediateDynamicSlot: Boolean(dynamicSlot),
-			hasImmediateHelperButton: Boolean(helperButton)
-		};
-		wrapper.classList.add("test-module-super-wrapper");
-		if (dynamicSlot) {
-			dynamicSlot.textContent = "Injected from getDom";
-		}
-		if (root) {
-			const adapterMarker = globalThis.document.createElement("div");
-			adapterMarker.id = "test-module-super-adapter";
-			adapterMarker.textContent = "Super adapter active";
-			root.appendChild(adapterMarker);
-		}
-		if (helperButton && helperButton.__sandboxPingBound !== true) {
-			helperButton.__sandboxPingBound = true;
-			helperButton.dataset.boundInGetDom = "true";
-			helperButton.addEventListener("click", () => {
+	/**
+	 * Post-render work on the DOM the core just inserted: bind the helper
+	 * ping button and record what the module found in the live document.
+	 * Only expando properties and instance state change, never the markup.
+	 */
+	afterRender() {
+		const root = globalThis.document.getElementById("test-module-root");
+		const button = globalThis.document.getElementById(
+			"test-module-helper-ping"
+		);
+		if (button && button.__sandboxPingBound !== true) {
+			button.__sandboxPingBound = true;
+			button.addEventListener("click", () => {
 				this.sendSocketNotification("TEST_MODULE_PING", {
 					message: this.config.pingMessage
 				});
 			});
 		}
-		return wrapper;
+		const moduleWrapper = globalThis.document.getElementById(
+			this.identifier
+		);
+		this.renderSnapshot = {
+			renderCount: (this.renderSnapshot?.renderCount ?? 0) + 1,
+			rootInModuleContent: Boolean(
+				root &&
+				moduleWrapper &&
+				moduleWrapper.querySelector(".module-content")?.contains(root)
+			),
+			hasHelperButton: Boolean(button),
+			helperButtonBound: Boolean(button && button.__sandboxPingBound)
+		};
 	},
 
-	attachPingHandler() {
-		const button = globalThis.document.getElementById(
-			"test-module-helper-ping"
-		);
-		if (!button || button.__sandboxPingBound === true) {
-			return;
+	notificationReceived(notification, payload, sender) {
+		// Transparency probes for the real-core stage observer: the echo returns
+		// its payload synchronously and records how it was called; the throw
+		// rethrows through any wrapper.
+		if (notification === "TEST_MODULE_ECHO") {
+			this.lastEcho = {
+				argumentCount: arguments.length,
+				senderIsUndefined: sender === undefined
+			};
+			return payload;
 		}
 
-		button.__sandboxPingBound = true;
-		button.addEventListener("click", () => {
-			this.sendSocketNotification("TEST_MODULE_PING", {
-				message: this.config.pingMessage
-			});
-		});
-	},
+		if (notification === "TEST_MODULE_THROW") {
+			throw new Error(String(payload));
+		}
 
-	notificationReceived(notification, payload) {
 		if (notification === "ALL_MODULES_STARTED") {
 			this.coreNotificationCounts.allModulesStarted += 1;
 			return;
@@ -136,7 +135,7 @@ Module.register("MMM-TestModule", {
 
 		if (notification === "MODULE_DOM_CREATED") {
 			this.coreNotificationCounts.moduleDomCreated += 1;
-			this.attachPingHandler();
+			this.afterRender();
 			return;
 		}
 
@@ -147,7 +146,7 @@ Module.register("MMM-TestModule", {
 
 		if (notification === "MODULE_DOM_UPDATED") {
 			this.coreNotificationCounts.moduleDomUpdated += 1;
-			this.attachPingHandler();
+			this.afterRender();
 			return;
 		}
 

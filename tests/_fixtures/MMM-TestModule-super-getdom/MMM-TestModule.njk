@@ -1,0 +1,11 @@
+<div id="test-module-root" class="test-module-root">
+	<div id="test-module-translation">{{ "GREETING" | translate({"operator": operatorName}) }}</div>
+	<div id="test-module-script-status">Script: {{ scriptStatus }}</div>
+	<div id="test-module-style-probe">{{ badgeLabel }}</div>
+	<div id="test-module-notice">Notice: {{ noticeMessage }}</div>
+	<div id="test-module-helper-reply">Helper: {{ helperReply }}</div>
+	<div id="test-module-lifecycle">Suspend: {{ suspendCount }} / Resume: {{ resumeCount }}</div>
+	<div id="test-module-config-merge">Nested: {{ nestedConfigJson }}</div>
+	<div id="test-module-dynamic-slot"></div>
+	<button id="test-module-helper-ping" type="button">Ping helper</button>
+</div>

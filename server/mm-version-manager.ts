@@ -13,9 +13,14 @@ import * as fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import * as path from "pathe";
+import { findBuiltInCoreRoot } from "./stage/built-in-core.ts";
+import { forgetCoreInstall } from "./stage/core-cache.ts";
+import { detectCoreVariants } from "./stage/core-variants.ts";
 
 const _serverDir = path.dirname(
-	typeof __filename === "string" ? __filename.replace(/\\/g, "/") : fileURLToPath(import.meta.url)
+	typeof __filename === "string"
+		? __filename.replace(/\\/g, "/")
+		: fileURLToPath(import.meta.url)
 );
 const _projectRoot = path.resolve(_serverDir, "..");
 
@@ -49,7 +54,7 @@ export function sanitizeVersion(version: string): string {
 /**
  * Resolves the npm install spec for a version string.
  * "2.35.0" → "magicmirror@2.35.0"
- * "develop" → fork develop branch
+ * "develop" → upstream MagicMirrorOrg develop branch (bleeding edge)
  * "github:..." → passed through
  */
 export function resolveNpmSpec(version: string): string {
@@ -57,7 +62,7 @@ export function resolveNpmSpec(version: string): string {
 		return version;
 	}
 	if (version === "develop") {
-		return "github:angeldeejay/MagicMirror#develop";
+		return "github:MagicMirrorOrg/MagicMirror#develop";
 	}
 	return `magicmirror@${version}`;
 }
@@ -125,7 +130,13 @@ export function listCachedVersions(): string[] {
 				(e) =>
 					e.isDirectory() &&
 					fs.existsSync(
-						path.join(VERSIONS_ROOT, e.name, "node_modules", "magicmirror", "package.json")
+						path.join(
+							VERSIONS_ROOT,
+							e.name,
+							"node_modules",
+							"magicmirror",
+							"package.json"
+						)
 					)
 			)
 			.map((e) => e.name);
@@ -138,9 +149,7 @@ export function listCachedVersions(): string[] {
  * Returns true if the MM package is installed for the given version key.
  */
 export function isVersionInstalled(version: string): boolean {
-	return fs.existsSync(
-		path.join(getMmVersionRoot(version), "package.json")
-	);
+	return fs.existsSync(path.join(getMmVersionRoot(version), "package.json"));
 }
 
 /**
@@ -153,16 +162,18 @@ export function areShimsBuilt(version: string): boolean {
 	);
 }
 
-export type VersionActionResult =
-	| { ok: true }
-	| { ok: false; error: string };
+export type VersionActionResult = { ok: true } | { ok: false; error: string };
 
 /**
  * Deletes the cached install and shims for a version key so it can be re-downloaded.
+ * The core's server code already loaded in this process is forgotten too, so
+ * a version installed again under the same key runs its new code.
  */
 export function deleteVersionCache(version: string): void {
-	fs.rmSync(getVersionInstallDir(version), { recursive: true, force: true });
+	const installDir = getVersionInstallDir(version);
+	fs.rmSync(installDir, { recursive: true, force: true });
 	fs.rmSync(getVersionShimsDir(version), { recursive: true, force: true });
+	forgetCoreInstall(installDir);
 }
 
 const SAFE_SPEC_RE = /^[a-zA-Z0-9._@/#:+-]+$/;
@@ -180,13 +191,27 @@ export function downloadVersion(version: string): VersionActionResult {
 	const installDir = getVersionInstallDir(version);
 	ensureDir(installDir);
 
+	const npmArgs = [
+		"install",
+		"--prefix",
+		installDir,
+		spec,
+		"--no-save",
+		"--ignore-scripts"
+	];
+	// npm 12 refuses git specs by default (allow-git=none); allow only the
+	// top-level spec so transitive git dependencies stay blocked.
+	if (spec.startsWith("github:") || spec.startsWith("git+")) {
+		npmArgs.push("--allow-git=root");
+	}
+
 	const result =
 		process.platform === "win32"
-			? spawnSync("cmd.exe", ["/c", "npm", "install", "--prefix", installDir, spec, "--no-save", "--ignore-scripts"], {
+			? spawnSync("cmd.exe", ["/c", "npm", ...npmArgs], {
 					stdio: "pipe",
 					encoding: "utf8"
 				})
-			: spawnSync("npm", ["install", "--prefix", installDir, spec, "--no-save", "--ignore-scripts"], {
+			: spawnSync("npm", npmArgs, {
 					stdio: "pipe",
 					encoding: "utf8"
 				});
@@ -197,7 +222,11 @@ export function downloadVersion(version: string): VersionActionResult {
 	if (result.status !== 0) {
 		return {
 			ok: false,
-			error: (result.stderr || result.stdout || "npm install failed").trim()
+			error: (
+				result.stderr ||
+				result.stdout ||
+				"npm install failed"
+			).trim()
 		};
 	}
 	return { ok: true };
@@ -219,7 +248,11 @@ export async function buildShimsForVersion(
 	const outputDir = getVersionShimsDir(version);
 
 	try {
-		const scriptPath = path.join(harnessRoot, "scripts", "build-node-compat.ts");
+		const scriptPath = path.join(
+			harnessRoot,
+			"scripts",
+			"build-node-compat.ts"
+		);
 		const { buildNodeCompat } = await import(
 			/* @vite-ignore */ pathToFileURL(scriptPath).href
 		);
@@ -249,24 +282,23 @@ export function getInstalledMmVersion(versionKey: string): string | null {
 }
 
 /**
- * Returns the version of the baseline MagicMirror package used for built-in shims.
- * Prefers mmcore-source/ (populated by sync-mmcore-source.ts) over node_modules/.
+ * Returns the version of the built-in MagicMirror core: the same root the
+ * stage serves (`server/stage/built-in-core.ts`), so the badge and the stage
+ * never disagree. Null when no built-in core is present.
  */
 export function getBuiltInMmVersion(): string | null {
-	const candidates = [
-		path.join(_projectRoot, "mmcore-source", "node_modules", "magicmirror", "package.json"),
-		path.join(_projectRoot, "node_modules", "magicmirror", "package.json")
-	];
-	for (const pkgPath of candidates) {
-		try {
-			if (!fs.existsSync(pkgPath)) continue;
-			const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { version?: unknown };
-			if (typeof pkg.version === "string") return pkg.version;
-		} catch {
-			// try next candidate
-		}
+	const root = findBuiltInCoreRoot(_projectRoot);
+	if (!root) {
+		return null;
 	}
-	return null;
+	try {
+		const pkg = JSON.parse(
+			fs.readFileSync(path.join(root, "package.json"), "utf8")
+		) as { version?: unknown };
+		return typeof pkg.version === "string" ? pkg.version : null;
+	} catch {
+		return null;
+	}
 }
 
 // ── Capability map ────────────────────────────────────────────────────────────
@@ -385,7 +417,9 @@ export function deriveCapabilities(mmVersion: string | null): MmCapabilities {
 		hideConfigSecrets: gte(semver, [2, 28, 0]),
 		getUserAgent: gte(semver, [2, 30, 0]),
 		expressVersion: hasExpressV5 ? "5" : "4",
-		defaultModulesDir: hasDefaultModulesDir ? "/defaultmodules" : "/modules/default",
+		defaultModulesDir: hasDefaultModulesDir
+			? "/defaultmodules"
+			: "/modules/default",
 		configLoading: hasConfigEndpoint ? "endpoint" : "filesystem",
 		configFunctions: hasConfigFunctions,
 		socketNamespace: "name"
@@ -401,6 +435,8 @@ export type MmVersionInfo = {
 	installed: boolean;
 	shimsBuilt: boolean;
 	capabilities: MmCapabilities;
+	/** Ported core pieces whose source matches no reviewed snapshot. */
+	unreviewedCoreChanges: string[];
 };
 
 export function getVersionInfo(versionKey: string): MmVersionInfo {
@@ -412,6 +448,13 @@ export function getVersionInfo(versionKey: string): MmVersionInfo {
 		displayVersion,
 		installed,
 		shimsBuilt,
-		capabilities: deriveCapabilities(displayVersion)
+		capabilities: deriveCapabilities(displayVersion),
+		unreviewedCoreChanges: installed
+			? detectCoreVariants({
+					root: getMmVersionRoot(versionKey),
+					version: displayVersion ?? versionKey,
+					key: versionKey
+				}).unreviewed
+			: []
 	};
 }

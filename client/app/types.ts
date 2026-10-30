@@ -41,6 +41,8 @@ export type MmVersionInfo = {
 	installed: boolean;
 	shimsBuilt: boolean;
 	capabilities: MmCapabilities;
+	/** Ported core pieces whose source matches no reviewed snapshot. */
+	unreviewedCoreChanges?: string[];
 };
 
 export type MmVersionState = {

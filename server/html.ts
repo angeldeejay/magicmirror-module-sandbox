@@ -1,5 +1,6 @@
 /**
- * Eta-backed host and stage page rendering for the sandbox shell.
+ * Eta-backed host page rendering for the sandbox shell. The stage iframe loads
+ * the active MagicMirror core itself from `/__stage/` (`server/stage/`).
  */
 
 import fs from "node:fs";
@@ -43,6 +44,9 @@ export type HtmlPageOptions = {
 	getContract: () => Record<string, unknown>;
 	getHelperLogEntries: () => Array<Record<string, unknown>>;
 };
+
+/** The stage iframe source: the real core served by `server/stage/`. */
+const STAGE_URL = "/__stage/";
 
 const templateEngine = new Eta({
 	cache: false,
@@ -180,8 +184,6 @@ function createHtmlPage({
 	});
 	const runtimeScripts = [
 		"/__harness/generated/runtime/shared.js",
-		"/__harness/generated/runtime/notifications.js",
-		"/__harness/generated/runtime/lifecycle.js",
 		"/__harness/generated/runtime/debug-panel-renderers.js",
 		"/__harness/generated/runtime/debug-panel-sidebar.js",
 		"/__harness/generated/vendor/json-editor.js",
@@ -199,7 +201,7 @@ function createHtmlPage({
 
 	return templateEngine.render("page.eta", {
 		sandboxUrl,
-		stageUrl: appendAssetVersion("/__harness/stage", assetVersion),
+		stageUrl: STAGE_URL,
 		runtimeStylesheetUrl: appendAssetVersion(
 			"/__harness/styles/harness.css",
 			assetVersion
@@ -216,62 +218,9 @@ function createHtmlPage({
 	});
 }
 
-/**
- * Creates stage page.
- */
-function createStagePage({
-	getAvailableLanguages,
-	getHarnessConfig,
-	getModuleConfig,
-	getContract,
-	getHelperLogEntries
-}: Omit<HtmlPageOptions, "watchEnabled">): string {
-	const { runtimeState, assetVersion } = buildRuntimeState({
-		getAvailableLanguages,
-		getHarnessConfig,
-		getModuleConfig,
-		getContract,
-		getHelperLogEntries
-	});
-	const runtimeScripts = [
-		"/__harness/generated/runtime/shared.js",
-		"/__harness/generated/runtime/notifications.js",
-		"/__harness/generated/runtime/lifecycle.js",
-		"/__harness/generated/runtime/assets.js",
-		"/__harness/generated/runtime/translations.js",
-		"/__harness/generated/vendor/nunjucks.js",
-		"/__harness/generated/runtime/module.js",
-		"/__harness/generated/runtime/stage-bridge.js",
-		"/__harness/generated/runtime.js"
-	].map((src) => appendAssetVersion(src, assetVersion));
-
-	return templateEngine.render("stage-page.eta", {
-		animationStylesheetUrl: appendAssetVersion(
-			"/animate.css",
-			assetVersion
-		),
-		magicMirrorStageStylesheetUrl: appendAssetVersion(
-			"/__harness/styles/magicmirror-stage.css",
-			assetVersion
-		),
-		runtimeStylesheetUrl: appendAssetVersion(
-			"/__harness/styles/harness.css",
-			assetVersion
-		),
-		runtimeScripts,
-		runtimeState,
-		runtimeStateJson: JSON.stringify(runtimeState),
-		socketScriptUrl: appendAssetVersion(
-			"/socket.io/socket.io.js",
-			assetVersion
-		)
-	});
-}
-
-export { appendAssetVersion, createHtmlPage, createStagePage };
+export { appendAssetVersion, createHtmlPage };
 
 export default {
 	appendAssetVersion,
-	createHtmlPage,
-	createStagePage
+	createHtmlPage
 };

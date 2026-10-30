@@ -7,9 +7,17 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("node:fs");
 vi.mock("node:child_process");
+vi.mock("../../../server/stage/core-variants.ts", () => ({
+	detectCoreVariants: vi.fn()
+}));
+vi.mock("../../../server/stage/core-cache.ts", () => ({
+	forgetCoreInstall: vi.fn()
+}));
 
 import * as fs from "node:fs";
 import * as childProcess from "node:child_process";
+import { forgetCoreInstall } from "../../../server/stage/core-cache.ts";
+import { detectCoreVariants } from "../../../server/stage/core-variants.ts";
 import {
 	areShimsBuilt,
 	deleteVersionCache,
@@ -43,7 +51,9 @@ test("sanitizeVersion keeps valid semver unchanged", () => {
 });
 
 test("sanitizeVersion replaces invalid chars with hyphens", () => {
-	expect(sanitizeVersion("github:org/repo#branch")).toBe("github-org-repo-branch");
+	expect(sanitizeVersion("github:org/repo#branch")).toBe(
+		"github-org-repo-branch"
+	);
 	expect(sanitizeVersion("a/b\\c")).toBe("a-b-c");
 });
 
@@ -60,7 +70,9 @@ test("resolveNpmSpec wraps semver as magicmirror@version", () => {
 });
 
 test("resolveNpmSpec maps 'develop' to fork branch ref", () => {
-	expect(resolveNpmSpec("develop")).toBe("github:angeldeejay/MagicMirror#develop");
+	expect(resolveNpmSpec("develop")).toBe(
+		"github:MagicMirrorOrg/MagicMirror#develop"
+	);
 });
 
 test("resolveNpmSpec passes through github: prefix verbatim", () => {
@@ -175,7 +187,8 @@ test("listCachedVersions returns keys for directories with installed magicmirror
 test("listCachedVersions excludes directories missing magicmirror/package.json", () => {
 	vi.mocked(fs.existsSync).mockImplementation((p) => {
 		const ps = String(p);
-		if (ps.includes("versions") && !ps.includes("package.json")) return true;
+		if (ps.includes("versions") && !ps.includes("package.json"))
+			return true;
 		if (ps.includes("2.35.0") && ps.includes("package.json")) return true;
 		if (ps.includes("develop") && ps.includes("package.json")) return false;
 		return false;
@@ -217,8 +230,7 @@ test("areShimsBuilt returns true when all shim artifacts exist", () => {
 });
 
 test("areShimsBuilt returns false when any shim artifact is missing", () => {
-	vi.mocked(fs.existsSync)
-		.mockReturnValueOnce(false);
+	vi.mocked(fs.existsSync).mockReturnValueOnce(false);
 	expect(areShimsBuilt("2.35.0")).toBe(false);
 });
 
@@ -231,6 +243,16 @@ test("deleteVersionCache removes both install dir and shims dir", () => {
 	const calls = vi.mocked(fs.rmSync).mock.calls.map((c) => String(c[0]));
 	expect(calls.some((p) => p.includes("versions"))).toBe(true);
 	expect(calls.some((p) => p.includes("shims"))).toBe(true);
+});
+
+test("deleteVersionCache forgets the core code loaded from the deleted install", () => {
+	vi.mocked(fs.rmSync).mockReturnValue(undefined);
+	vi.mocked(forgetCoreInstall).mockClear();
+	deleteVersionCache("2.35.0");
+	expect(forgetCoreInstall).toHaveBeenCalledTimes(1);
+	expect(forgetCoreInstall).toHaveBeenCalledWith(
+		getVersionInstallDir("2.35.0")
+	);
 });
 
 // ── getInstalledMmVersion ──────────────────────────────────────────────────────
@@ -272,14 +294,23 @@ test("getBuiltInMmVersion returns version from first available candidate", () =>
 	expect(getBuiltInMmVersion()).toBe("2.36.0");
 });
 
-test("getBuiltInMmVersion falls back to second candidate", () => {
+test("getBuiltInMmVersion falls back to the packaged core (dist/core)", () => {
 	vi.mocked(fs.existsSync)
 		.mockReturnValueOnce(false)
 		.mockReturnValueOnce(true);
-	vi.mocked(fs.readFileSync).mockReturnValueOnce(
-		JSON.stringify({ version: "2.35.0" }) as unknown as Buffer
-	);
+	vi.mocked(fs.readFileSync).mockImplementationOnce(((file: string) => {
+		expect(String(file).endsWith("/core/package.json")).toBe(true);
+		return JSON.stringify({ version: "2.35.0" });
+	}) as unknown as typeof fs.readFileSync);
 	expect(getBuiltInMmVersion()).toBe("2.35.0");
+});
+
+test("getBuiltInMmVersion returns null when the core package.json is unreadable", () => {
+	vi.mocked(fs.existsSync).mockReturnValueOnce(true);
+	vi.mocked(fs.readFileSync).mockImplementationOnce(() => {
+		throw new Error("EACCES");
+	});
+	expect(getBuiltInMmVersion()).toBeNull();
 });
 
 test("getBuiltInMmVersion returns null when no candidate exists", () => {
@@ -394,8 +425,12 @@ describe("deriveCapabilities", () => {
 	});
 
 	test("patch version boundary respected for 2.36.0", () => {
-		expect(deriveCapabilities("2.35.9").corsProxyEnabledByDefault).toBe(true);
-		expect(deriveCapabilities("2.36.0").corsProxyEnabledByDefault).toBe(false);
+		expect(deriveCapabilities("2.35.9").corsProxyEnabledByDefault).toBe(
+			true
+		);
+		expect(deriveCapabilities("2.36.0").corsProxyEnabledByDefault).toBe(
+			false
+		);
 	});
 });
 
@@ -460,25 +495,73 @@ test("downloadVersion falls back to stdout when stderr is empty", () => {
 	});
 	const result = downloadVersion("2.35.0");
 	expect(result.ok).toBe(false);
-	expect((result as { error: string }).error).toContain("Something went wrong");
+	expect((result as { error: string }).error).toContain(
+		"Something went wrong"
+	);
+});
+
+test("downloadVersion allows only the top-level git spec for develop", () => {
+	vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
+	vi.mocked(childProcess.spawnSync).mockReturnValue({
+		status: 0,
+		error: undefined,
+		stderr: "",
+		stdout: "",
+		pid: 0,
+		output: [],
+		signal: null
+	});
+	expect(downloadVersion("develop")).toEqual({ ok: true });
+	const args = vi.mocked(childProcess.spawnSync).mock
+		.lastCall?.[1] as string[];
+	expect(args).toContain("github:MagicMirrorOrg/MagicMirror#develop");
+	expect(args).toContain("--allow-git=root");
+	expect(args).toContain("--ignore-scripts");
+});
+
+test("downloadVersion does not pass --allow-git for registry versions", () => {
+	vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
+	vi.mocked(childProcess.spawnSync).mockReturnValue({
+		status: 0,
+		error: undefined,
+		stderr: "",
+		stdout: "",
+		pid: 0,
+		output: [],
+		signal: null
+	});
+	downloadVersion("2.38.0");
+	const args = vi.mocked(childProcess.spawnSync).mock
+		.lastCall?.[1] as string[];
+	expect(args).toContain("magicmirror@2.38.0");
+	expect(args.some((arg) => arg.startsWith("--allow-git"))).toBe(false);
 });
 
 // ── buildShimsForVersion ───────────────────────────────────────────────────────
 
 test("buildShimsForVersion returns error when version is not installed", async () => {
 	vi.mocked(fs.existsSync).mockReturnValue(false);
-	const { buildShimsForVersion } = await import("../../../server/mm-version-manager.ts");
+	const { buildShimsForVersion } =
+		await import("../../../server/mm-version-manager.ts");
 	const result = await buildShimsForVersion("2.35.0", "/harness");
 	expect(result.ok).toBe(false);
-	expect((result as { ok: false; error: string }).error).toMatch(/not installed/);
+	expect((result as { ok: false; error: string }).error).toMatch(
+		/not installed/
+	);
 });
 
 test("buildShimsForVersion catches dynamic import error and returns ok:false", async () => {
 	vi.mocked(fs.existsSync).mockReturnValue(true);
-	const { buildShimsForVersion } = await import("../../../server/mm-version-manager.ts");
-	const result = await buildShimsForVersion("2.35.0", "/nonexistent-harness-___xyz");
+	const { buildShimsForVersion } =
+		await import("../../../server/mm-version-manager.ts");
+	const result = await buildShimsForVersion(
+		"2.35.0",
+		"/nonexistent-harness-___xyz"
+	);
 	expect(result.ok).toBe(false);
-	expect(typeof (result as { ok: false; error: string }).error).toBe("string");
+	expect(typeof (result as { ok: false; error: string }).error).toBe(
+		"string"
+	);
 });
 
 // ── getVersionInfo ─────────────────────────────────────────────────────────────
@@ -488,18 +571,49 @@ test("getVersionInfo returns full info for an installed version with all shims",
 	vi.mocked(fs.readFileSync).mockReturnValue(
 		JSON.stringify({ version: "2.35.0" }) as unknown as Buffer
 	);
+	vi.mocked(detectCoreVariants).mockReturnValue({
+		config: "plain",
+		redaction: "whenHidden",
+		basepath: "classic",
+		positions: "classic",
+		unreviewed: []
+	});
 	const info = getVersionInfo("2.35.0");
 	expect(info.key).toBe("2.35.0");
 	expect(info.installed).toBe(true);
 	expect(info.shimsBuilt).toBe(true);
 	expect(info.displayVersion).toBe("2.35.0");
 	expect(info.capabilities.configLoading).toBe("endpoint");
+	expect(info.unreviewedCoreChanges).toEqual([]);
+});
+
+test("getVersionInfo reports unreviewed core changes of an installed version", () => {
+	vi.mocked(fs.existsSync).mockReturnValue(true);
+	vi.mocked(fs.readFileSync).mockReturnValue(
+		JSON.stringify({ version: "2.39.0-develop" }) as unknown as Buffer
+	);
+	vi.mocked(detectCoreVariants).mockReturnValue({
+		config: "mmFunction",
+		redaction: "always",
+		basepath: "global",
+		positions: "global",
+		unreviewed: ["config", "positions"]
+	});
+	const info = getVersionInfo("develop");
+	expect(info.unreviewedCoreChanges).toEqual(["config", "positions"]);
+	expect(detectCoreVariants).toHaveBeenCalledWith({
+		root: getMmVersionRoot("develop"),
+		version: "2.39.0-develop",
+		key: "develop"
+	});
 });
 
 test("getVersionInfo returns not-installed when version dir is absent", () => {
 	vi.mocked(fs.existsSync).mockReturnValue(false);
 	const info = getVersionInfo("9.99.99");
 	expect(info.installed).toBe(false);
+	expect(info.unreviewedCoreChanges).toEqual([]);
+	expect(detectCoreVariants).not.toHaveBeenCalled();
 	expect(info.displayVersion).toBeNull();
 	expect(info.shimsBuilt).toBe(false);
 	expect(info.capabilities.expressVersion).toBe("unknown");

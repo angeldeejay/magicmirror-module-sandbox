@@ -7,6 +7,7 @@ import {
 	gotoSandbox,
 	openDomain,
 	pageClick,
+	pageCount,
 	pageEvaluate,
 	pageFill
 } from "../_helpers/helpers.browser.ts";
@@ -48,5 +49,13 @@ journeyTest(
 		await expect
 			.poll(() => pageText("#notification-log"))
 			.toContain("SANDBOX_SMOKE");
+		// The core sends ALL_MODULES_STARTED before the observer can hook the
+		// created instance, and the panel names that gap.
+		expect(
+			await pageCount("#notification-observation-notice[hidden]")
+		).toBe(0);
+		expect(await pageText("#notification-observation-notice")).toContain(
+			"ALL_MODULES_STARTED is sent by the core before the sandbox can observe it"
+		);
 	}
 );

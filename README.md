@@ -22,7 +22,8 @@ It mounts **one real third-party module at a time**, keeps real
 - Notification inspection
 - Helper and browser debug output
 - Module quality analysis against MagicMirror 3rd-party criteria
-- MagicMirror version management (install, activate, and switch core versions)
+- MagicMirror version management (install, activate, and switch core versions;
+  the viewport runs the selected version's own browser core)
 - Quick product context while you work
 - Collapsible sidebar with domain navigation dropdown and topbar version badge
 
@@ -33,19 +34,23 @@ MagicMirror replacement.
 ## ✨ What you get
 
 - **Fastify host** for the local HTTP surface and config APIs
+- **The real MagicMirror core in the viewport**: the stage serves the active
+  version's own `index.html`, `js/`, `css/` and translations under `/__stage/`
+  and only observes it, so a module behaves (and fails) exactly as it does on
+  that version's mirror. Only the module's own region is shown, in the core's
+  real DOM and CSS. The built-in core ships with the package
 - **Vite + Preact shell** for the persistent sandbox UI
-- **Backend-owned persistence** in temp files keyed to the mounted module
-  identity, without writing sandbox-owned config into the mounted module tree
+- **Backend-owned persistence** that prefers the module's own
+  `config.sandbox.json`, promotes `package.json#sandbox.moduleConfig` to that
+  file on first save, and otherwise falls back to temp files keyed to the
+  mounted module identity
 - **Dist-first packaging** so consumer installs run packaged runtime artifacts
 - **Core-coupled helper compatibility wrappers** for `require("logger")` and
   `require("node_helper")`
 - **A synced MagicMirror compatibility root** under helper-side
   `global.root_path` so core-style path-based requires can reach
-  `js/class.js`, `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
-  `js/server_functions.js`
-- **Template/runtime compatibility guards** for browser-side Nunjucks plus
-  `getDom()` overrides that call `this._super()` and expect a wrapper
-  immediately
+  `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
+  `js/server_functions.js` (plus `js/class.js` on cores before 2.37.0)
 - **Operator docs** under `docs/` that mirror the current sidebar domains
 
 ## 🚀 Choose the install style that fits your workflow
@@ -169,9 +174,10 @@ path after `--` to focus a single test file.
 
 ## 🗂️ Project shape
 
-- `server/`: Fastify host, routes, helper lifecycle, startup scripts, and watch loop
+- `server/`: Fastify host, routes, the stage that serves the active MagicMirror core (`server/stage/`), helper lifecycle, startup scripts, and watch loop
 - `client/app/`: Preact shell app and typed bootstrap boundary
-- `client/runtime/`: TypeScript stage/runtime adapters that keep the real module flow
+- `client/stage-observer/`: the observer injected into the real core page (logs, lifecycle hooks, panel controls)
+- `client/runtime/`: shell tooling (stage bridge, Debug and Quality panels)
 - `client/vendor/`: hand-authored browser components (`module-config-editor.ts`, `ace-theme-harness.ts`) compiled as standalone assets
 - `client/generated/`: built browser assets emitted from the maintained runtime and shell
 - `config/`: harness config, contracts, language metadata, and module option metadata

@@ -3,6 +3,7 @@
  */
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout } from "node:timers";
@@ -16,7 +17,10 @@ import {
 } from "../sandbox-test-environment.ts";
 import { terminateChildProcess } from "../child-process-cleanup.ts";
 import { getSandboxServerInvocation } from "../sandbox-process.ts";
-import { sourceFixtureRoot } from "../test-module-fixture.ts";
+import {
+	type FixtureVariant,
+	getFixtureSourceRoot
+} from "../test-module-fixture.ts";
 import { writeFixtureStylesheet } from "../test-module-style-fixture.ts";
 
 /**
@@ -142,7 +146,103 @@ type SandboxSessionRuntime = {
 	stderr?: string;
 	startPromise?: Promise<void> | null;
 	needsHelperReset?: boolean;
+	/**
+	 * Core the server runs: an mmvm version key, or null for the built-in
+	 * core. Always pinned through an isolated home, so a run never depends on
+	 * (or writes) the maintainer's own `~/.mmvm/active`.
+	 */
+	coreKey: string | null;
+	/** Name of the private core home the server runs under, if any. */
+	privateCoreHome?: string;
+	/** Fixture source the mounted module copy was made from. */
+	fixture: FixtureVariant;
 };
+
+/**
+ * Per-session runtime options. Omitted fields keep whatever the session
+ * already booted with.
+ */
+type SandboxRuntimeOptions = {
+	/**
+	 * Pin the core (mmvm key, or null for built-in). A different value than
+	 * the running server's restarts it; omitted keeps the current one, and a
+	 * fresh session defaults to the built-in core.
+	 */
+	coreKey?: string | null;
+	/**
+	 * Run the pinned core under a home of its own, named here, instead of the
+	 * home shared by every server pinned to the same core. For a test that
+	 * switches the active core at runtime (`/__harness/mm-versions/activate`):
+	 * the server reads `.mmvm/active` on every stage request, so a switch in a
+	 * shared home would reach other test files' servers. Only a session asking
+	 * for the same name reuses such a server. Takes effect with `coreKey`.
+	 */
+	privateCoreHome?: string;
+	/**
+	 * Fixture source to mount (see `tests/_helpers/test-module-fixture.ts`).
+	 * A fresh session defaults to `"default"`; only a session asking for the
+	 * same variant reuses a pooled server, and one test file cannot mix
+	 * variants.
+	 */
+	fixture?: FixtureVariant;
+};
+
+const coreHomesRoot = path.join(sandboxRoot, ".runtime-cache", "core-homes");
+
+/**
+ * Prepare an isolated home directory whose `.mmvm/active` pins one core, so a
+ * server can run a given core without touching the maintainer's own
+ * `~/.mmvm/active`. Installed versions and shims are junctions to the real
+ * store; `fs.rmSync` removes junctions without following them.
+ *
+ * @param {string|null} coreKey - mmvm key, or null for the built-in core
+ * @param {string} [privateCoreHome] - name of a home of its own (see
+ *   `SandboxRuntimeOptions.privateCoreHome`)
+ * @returns {string} the directory to use as HOME/USERPROFILE
+ */
+function ensureIsolatedCoreHome(
+	coreKey: string | null,
+	privateCoreHome?: string
+): string {
+	const home = path.join(
+		coreHomesRoot,
+		privateCoreHome
+			? `private-${sanitizePathSegment(privateCoreHome)}`
+			: (coreKey ?? "built-in")
+	);
+	const mmvmRoot = path.join(home, ".mmvm");
+	const realMmvmRoot = path.join(os.homedir(), ".mmvm");
+	fs.mkdirSync(mmvmRoot, { recursive: true });
+	for (const entry of ["versions", "shims"]) {
+		const target = path.join(realMmvmRoot, entry);
+		const link = path.join(mmvmRoot, entry);
+		if (fs.existsSync(target) && !fs.existsSync(link)) {
+			fs.symlinkSync(target, link, "junction");
+		}
+	}
+	const activeFile = path.join(mmvmRoot, "active");
+	if (coreKey) {
+		fs.writeFileSync(activeFile, coreKey, "utf8");
+	} else {
+		fs.rmSync(activeFile, { force: true });
+	}
+	return home;
+}
+
+/**
+ * Environment overrides that pin the core of one runtime through its isolated
+ * home.
+ *
+ * @param {SandboxSessionRuntime} runtime
+ * @returns {NodeJS.ProcessEnv}
+ */
+function getCoreHomeEnv(runtime: SandboxSessionRuntime): NodeJS.ProcessEnv {
+	const home = ensureIsolatedCoreHome(
+		runtime.coreKey,
+		runtime.privateCoreHome
+	);
+	return { HOME: home, USERPROFILE: home };
+}
 
 /**
  * Report whether one suite should boot an isolated sandbox runtime per browser
@@ -179,8 +279,20 @@ function buildSessionMapKey(suiteName, sessionId) {
 	return `${suiteName}:${sessionId}`;
 }
 
+/** Numbers each runtime this process creates; see `createPerSessionFixtureRuntime`. */
+let runtimeSequence = 0;
+
 /**
  * Build the session-owned runtime paths used by one browser worker.
+ *
+ * Every runtime gets its own fixture copy, even within one session. Warm
+ * servers move between sessions through the pool, so a session can boot a
+ * fresh server while the one it booted earlier still runs for another
+ * session. A directory keyed by the session alone was then watched and
+ * written by both servers: one server's fixture write (a test's stylesheet,
+ * the reset in `gotoSandbox`) reached the other's files and fired its module
+ * watcher, which reloaded the other test's stage mid-test, and the cleanup of
+ * one deleted the other's module.
  *
  * @param {string} suiteName
  * @param {string} sessionId
@@ -188,14 +300,19 @@ function buildSessionMapKey(suiteName, sessionId) {
  */
 function createPerSessionFixtureRuntime(
 	suiteName,
-	sessionId
+	sessionId,
+	coreKey: string | null = null,
+	privateCoreHome: string | undefined = undefined,
+	fixture: FixtureVariant = "default"
 ): SandboxSessionRuntime {
 	const safeSuiteName = sanitizePathSegment(suiteName);
 	const safeSessionId = sanitizePathSegment(sessionId) || "session";
+	runtimeSequence += 1;
 	const runtimeRoot = path.join(
 		sessionSuiteRoot,
 		safeSuiteName,
-		safeSessionId
+		safeSessionId,
+		`runtime-${process.pid}-${runtimeSequence}`
 	);
 	const fixtureRoot = path.join(runtimeRoot, sandboxModuleIdentity.name);
 	return {
@@ -203,7 +320,10 @@ function createPerSessionFixtureRuntime(
 		sessionId,
 		runtimeRoot,
 		fixtureRoot,
-		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css")
+		fixtureStylePath: path.join(fixtureRoot, "MMM-TestModule.css"),
+		coreKey,
+		privateCoreHome,
+		fixture
 	};
 }
 
@@ -218,7 +338,7 @@ function ensurePerSessionFixtureFiles(runtime) {
 		fs.mkdirSync(path.dirname(runtime.fixtureRoot), {
 			recursive: true
 		});
-		fs.cpSync(sourceFixtureRoot, runtime.fixtureRoot, {
+		fs.cpSync(getFixtureSourceRoot(runtime.fixture), runtime.fixtureRoot, {
 			recursive: true
 		});
 	}
@@ -303,19 +423,66 @@ async function isServerReady(baseUrl) {
  * @param {string} sessionId
  * @returns {Promise<SandboxSessionRuntime>}
  */
-async function ensureSandboxSessionRuntime(suiteName, sessionId) {
+async function ensureSandboxSessionRuntime(
+	suiteName,
+	sessionId,
+	options: SandboxRuntimeOptions = {}
+) {
 	const runtimeKey = buildSessionMapKey(suiteName, sessionId);
 	const existingRuntime = sandboxSessionRuntimes.get(runtimeKey);
 	if (existingRuntime) {
+		if (
+			"coreKey" in options &&
+			(options.coreKey ?? null) !== existingRuntime.coreKey
+		) {
+			// Switching cores restarts the server under the other core's home.
+			await terminateChildProcess(existingRuntime.child, {
+				timeoutMs: 5_000
+			});
+			existingRuntime.child?.stdout?.destroy();
+			existingRuntime.child?.stderr?.destroy();
+			existingRuntime.child = null;
+			existingRuntime.needsHelperReset = false;
+			existingRuntime.coreKey = options.coreKey ?? null;
+		}
+		if (
+			options.privateCoreHome !== undefined &&
+			options.privateCoreHome !== existingRuntime.privateCoreHome
+		) {
+			throw new Error(
+				`Sandbox session "${sessionId}" already runs with privateCoreHome=${existingRuntime.privateCoreHome}; one test file cannot mix core homes.`
+			);
+		}
+		if (
+			options.fixture !== undefined &&
+			options.fixture !== existingRuntime.fixture
+		) {
+			throw new Error(
+				`Sandbox session "${sessionId}" already mounts the ${existingRuntime.fixture} fixture; one test file cannot mix fixture variants.`
+			);
+		}
 		return existingRuntime;
 	}
+	const coreKey = options.coreKey ?? null;
+	const { privateCoreHome } = options;
+	const fixture = options.fixture ?? "default";
 
-	// Acquire a warm server from the pool to avoid a cold start.
+	// Acquire a warm server from the pool to avoid a cold start. Only servers
+	// booted with the same core, core home and fixture variant are reusable.
 	// Cancel the TTL timer and re-ref the child + pipe handles so the parent
 	// process stays alive while this session is using the server.
 	const pool = getWorkerPool(suiteName);
-	if (pool.length > 0) {
-		const entry = pool.pop()!;
+	let pooledIndex = pool.length - 1;
+	while (
+		pooledIndex >= 0 &&
+		(pool[pooledIndex].runtime.coreKey !== coreKey ||
+			pool[pooledIndex].runtime.privateCoreHome !== privateCoreHome ||
+			pool[pooledIndex].runtime.fixture !== fixture)
+	) {
+		pooledIndex -= 1;
+	}
+	if (pooledIndex !== -1) {
+		const [entry] = pool.splice(pooledIndex, 1);
 		clearTimeout(entry.timer);
 		const { runtime } = entry;
 		if (runtime.child) {
@@ -336,7 +503,13 @@ async function ensureSandboxSessionRuntime(suiteName, sessionId) {
 	}
 
 	// No warm server available — boot a fresh one.
-	const runtime = createPerSessionFixtureRuntime(suiteName, sessionId);
+	const runtime = createPerSessionFixtureRuntime(
+		suiteName,
+		sessionId,
+		coreKey,
+		privateCoreHome,
+		fixture
+	);
 	runtime.port = await allocateLoopbackPort();
 	runtime.baseUrl = getSandboxBaseUrl(runtime.port);
 	runtime.child = null;
@@ -347,6 +520,56 @@ async function ensureSandboxSessionRuntime(suiteName, sessionId) {
 	resetPerSessionFixtureFiles(runtime);
 	sandboxSessionRuntimes.set(runtimeKey, runtime);
 	return runtime;
+}
+
+/**
+ * Put a pooled server with a private core home back on its intended core.
+ * A test that switched the core and failed before resetting it would
+ * otherwise hand the next session a server on the wrong core. The switch goes
+ * through the server's own MM Version routes, so the helper shims follow,
+ * and the home's `active` file is rewritten afterwards either way.
+ *
+ * @param {SandboxSessionRuntime} runtime
+ * @returns {Promise<void>}
+ */
+async function restorePrivateCoreHome(
+	runtime: SandboxSessionRuntime
+): Promise<void> {
+	if (!runtime.privateCoreHome) {
+		return;
+	}
+	const activeFile = path.join(
+		coreHomesRoot,
+		`private-${sanitizePathSegment(runtime.privateCoreHome)}`,
+		".mmvm",
+		"active"
+	);
+	let current = "";
+	try {
+		current = fs.readFileSync(activeFile, "utf8").trim();
+	} catch {
+		// A missing file means the built-in core.
+	}
+	const intended = runtime.coreKey ?? "";
+	if (current !== intended) {
+		try {
+			await fetch(
+				intended
+					? `${runtime.baseUrl}/__harness/mm-versions/activate`
+					: `${runtime.baseUrl}/__harness/mm-versions/active`,
+				intended
+					? {
+							method: "POST",
+							headers: { "content-type": "application/json" },
+							body: JSON.stringify({ version: intended })
+						}
+					: { method: "DELETE" }
+			);
+		} catch {
+			// The file rewrite below still pins the stage core.
+		}
+	}
+	ensureIsolatedCoreHome(runtime.coreKey, runtime.privateCoreHome);
 }
 
 /**
@@ -365,6 +588,7 @@ async function ensureSandboxSessionServer(runtime) {
 		// clean helper state (no log entries or open sockets from prior tests).
 		if (runtime.needsHelperReset) {
 			runtime.needsHelperReset = false;
+			await restorePrivateCoreHome(runtime);
 			try {
 				await fetch(`${runtime.baseUrl}/__harness/restart`, {
 					method: "POST"
@@ -398,7 +622,8 @@ async function ensureSandboxSessionServer(runtime) {
 					...createSandboxServerEnv({
 						port: runtime.port,
 						moduleRoot: runtime.fixtureRoot
-					})
+					}),
+					...getCoreHomeEnv(runtime)
 				},
 				stdio: ["ignore", "pipe", "pipe"],
 				windowsHide: true
@@ -601,18 +826,38 @@ export function createSandboxRuntimeController(suiteName) {
 		/**
 		 * Gets runtime for context.
 		 */
-		async getRuntimeForContext(context) {
+		async getRuntimeForContext(
+			context,
+			options: SandboxRuntimeOptions = {}
+		) {
 			if (!usesPerSessionRuntime) {
+				if ("coreKey" in options) {
+					throw new Error(
+						`Suite "${suiteName}" shares one sandbox server and cannot pin a core.`
+					);
+				}
+				if ((options.fixture ?? "default") !== "default") {
+					throw new Error(
+						`Suite "${suiteName}" shares one sandbox server and cannot mount a fixture variant.`
+					);
+				}
 				return suiteRuntime;
 			}
 
-			return ensureSandboxSessionRuntime(suiteName, context.sessionId);
+			return ensureSandboxSessionRuntime(
+				suiteName,
+				context.sessionId,
+				options
+			);
 		},
 		/**
 		 * Gets live runtime for context.
 		 */
-		async getLiveRuntimeForContext(context) {
-			const runtime = await this.getRuntimeForContext(context);
+		async getLiveRuntimeForContext(
+			context,
+			options: SandboxRuntimeOptions = {}
+		) {
+			const runtime = await this.getRuntimeForContext(context, options);
 			if (!usesPerSessionRuntime) {
 				return runtime;
 			}

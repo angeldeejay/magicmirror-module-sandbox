@@ -282,3 +282,16 @@ select.sandbox-input {
 .sandbox-status[data-state="error"] {
 	color: var(--hns-status-red);
 }
+
+.sandbox-status[data-state="warning"] {
+	color: var(--hns-accent-warning);
+}
+
+/* Observation-gap notice of the stage; `hidden` when empty. */
+.sandbox-observation-notice {
+	margin: 0 0 8px;
+}
+
+.sandbox-observation-notice[hidden] {
+	display: none;
+}

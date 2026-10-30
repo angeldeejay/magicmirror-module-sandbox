@@ -59,6 +59,13 @@ export function RuntimeDomain({ harness }: RuntimeDomainProps) {
 				data-active="false"
 			>
 				<div class="sandbox-section-title">Lifecycle</div>
+				<div
+					id="lifecycle-observation-notice"
+					class="sandbox-status sandbox-observation-notice"
+					data-state="warning"
+					role="note"
+					hidden
+				></div>
 				<div class="sandbox-control-grid">
 					<div class="sandbox-control-row">
 						<div class="sandbox-control-copy">

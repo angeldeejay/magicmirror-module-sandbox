@@ -8,7 +8,12 @@ declare module "vitest/browser" {
 		sandboxClickAndWaitForStageReady(selector: string): Promise<void>;
 		sandboxClickAndWaitForStylesRefreshed(selector: string): Promise<void>;
 		sandboxClose(): Promise<void>;
-		sandboxGoto(): Promise<void>;
+		sandboxConsoleMessages(): Promise<string[]>;
+		sandboxGoto(options?: {
+			coreKey?: string | null;
+			privateCoreHome?: string;
+			fixture?: "default" | "super-getdom";
+		}): Promise<void>;
 		sandboxOpenDomain(domain: string): Promise<void>;
 		sandboxOpenSidebarTab(domain: string, tab: string): Promise<void>;
 		sandboxPageAttribute(
@@ -18,6 +23,10 @@ declare module "vitest/browser" {
 		sandboxPageCheck(selector: string): Promise<void>;
 		sandboxPageClick(selector: string): Promise<void>;
 		sandboxPageCount(selector: string): Promise<number>;
+		sandboxClearRequestHolds(): Promise<void>;
+		sandboxHeldRequestCount(): Promise<number>;
+		sandboxHoldRequests(pattern: string): Promise<void>;
+		sandboxReleaseRequests(): Promise<number>;
 		sandboxPageDisabled(selector: string): Promise<boolean>;
 		sandboxPageEvaluate<TArg, TResult>(
 			source: string,

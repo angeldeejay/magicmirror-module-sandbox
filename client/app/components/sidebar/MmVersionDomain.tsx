@@ -166,6 +166,12 @@ function VersionRow({ info, isActive, onActivate, onRedownload, onDelete, redown
 					</button>
 				)}
 			</div>
+			{info.unreviewedCoreChanges && info.unreviewedCoreChanges.length > 0 && (
+				<div class="mmv-version-row__warning" role="status">
+					<i class="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+					<span>Unreviewed core change: {info.unreviewedCoreChanges.join(", ")}</span>
+				</div>
+			)}
 		</div>
 	);
 }

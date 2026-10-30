@@ -1,10 +1,13 @@
 /**
- * Shared client-side runtime state and generic utilities.
+ * Shell-side tooling state and log utilities.
  *
- * Later runtime modules attach behavior onto `window.__MICROCORE__` instead of
- * carrying one giant browser file.
+ * The stage iframe runs the active MagicMirror core itself; the shell keeps
+ * the mirrored logs and lifecycle state its panels render, on
+ * `window.__MICROCORE__`. Later shell scripts (`shell-stage.ts`,
+ * `debug-panel*.ts`, `quality-panel.ts`) attach their behaviour to the same
+ * object.
  */
-(function initMicroCoreShared(globalScope) {
+(function initShellCore(globalScope) {
 	const harness = (globalScope.__HARNESS__ || {}) as Record<string, any>;
 
 	/**
@@ -37,39 +40,12 @@
 
 	const core: SandboxCore = {
 		harness,
-		availableModulePositions: [
-			"top_bar",
-			"top_left",
-			"top_center",
-			"top_right",
-			"upper_third",
-			"middle_center",
-			"lower_third",
-			"bottom_left",
-			"bottom_center",
-			"bottom_right",
-			"bottom_bar",
-			"fullscreen_above",
-			"fullscreen_below"
-		],
-		moduleDefinitions: {},
-		moduleInstances: new Map(),
-		loadedScripts: new Set(),
-		loadedStyles: new Set(),
-		loadedStyleEntries: new Map(),
-		moduleInstance: null,
-		moduleSocket: null,
 		rootSocket: null,
-		renderQueue: Promise.resolve(),
 		notificationLog: [],
 		maxNotificationLogEntries: 100,
-		websocketLog: Array.isArray(harness.websocketLogEntries)
-			? harness.websocketLogEntries.slice()
-			: [],
+		websocketLog: [],
 		maxWebsocketLogEntries: 100,
-		consoleLog: Array.isArray(harness.helperConsoleEntries)
-			? harness.helperConsoleEntries.slice()
-			: [],
+		consoleLog: [],
 		maxConsoleLogEntries: 200,
 		helperLog: Array.isArray(harness.helperLogEntries)
 			? harness.helperLogEntries.slice()
@@ -85,88 +61,51 @@
 	};
 
 	/**
-	 * Merge plain objects recursively while replacing arrays by copy.
+	 * Patch the stored lifecycle state mirrored from the stage and notify
+	 * the sidebar controls.
 	 *
-	 * @param {object} target
-	 * @param {...object} sources
-	 * @returns {object}
-	 */
-	core.deepMerge = function deepMerge(target, ...sources) {
-		const output = target && typeof target === "object" ? target : {};
-		sources.forEach((source) => {
-			if (!source || typeof source !== "object") {
-				return;
-			}
-
-			Object.keys(source).forEach((key) => {
-				const value = source[key];
-				if (Array.isArray(value)) {
-					output[key] = value.slice();
-					return;
-				}
-				if (value && typeof value === "object") {
-					output[key] = deepMerge(
-						output[key] && typeof output[key] === "object"
-							? output[key]
-							: {},
-						value
-					);
-					return;
-				}
-				output[key] = value;
-			});
-		});
-		return output;
-	};
-
-	/**
-	 * Resolve the configured MagicMirror basePath with a stable trailing slash.
-	 *
-	 * @returns {string}
-	 */
-	core.getBasePath = function getBasePath() {
-		const configuredBasePath =
-			globalScope.config &&
-			typeof globalScope.config.basePath === "string"
-				? globalScope.config.basePath
-				: "/";
-
-		return configuredBasePath.endsWith("/")
-			? configuredBasePath
-			: `${configuredBasePath}/`;
-	};
-
-	/**
-	 * Replace `{token}` placeholders inside a translated string.
-	 *
-	 * @param {string} template
-	 * @param {object} variables
-	 * @returns {string}
-	 */
-	core.interpolate = function interpolate(template, variables) {
-		if (typeof template !== "string") {
-			return template;
-		}
-
-		const vars =
-			variables && typeof variables === "object" ? variables : {};
-		return template.replace(/\{([^}]+)\}/g, (_match, token) => {
-			return Object.prototype.hasOwnProperty.call(vars, token)
-				? String(vars[token])
-				: `{${token}}`;
-		});
-	};
-
-	/**
-	 * Forward log calls to the browser console while tolerating missing methods.
-	 *
-	 * @param {string} method
-	 * @param {...*} args
+	 * @param {Partial<typeof core.lifecycleState>} nextState
 	 * @returns {void}
 	 */
-	core.log = function log(method, ...args) {
-		const fn = console[method] || console.log;
-		fn.apply(console, args);
+	core.setLifecycleState = function setLifecycleState(nextState) {
+		core.lifecycleState = Object.assign(
+			{},
+			core.lifecycleState,
+			nextState || {}
+		);
+		globalScope.dispatchEvent(
+			new CustomEvent("module-sandbox:lifecycle-updated", {
+				detail: {
+					state: Object.assign({}, core.lifecycleState)
+				}
+			})
+		);
+	};
+
+	/**
+	 * Broadcast a notification-log update to the Notifications panel.
+	 *
+	 * @param {LogUpdateDetail} [detail]
+	 * @returns {void}
+	 */
+	core.publishNotificationLog = function publishNotificationLog(detail = {}) {
+		globalScope.dispatchEvent(
+			new CustomEvent("module-sandbox:notifications-updated", {
+				detail
+			})
+		);
+	};
+
+	/**
+	 * Clear the notification log and force a full sidebar reset.
+	 *
+	 * @returns {void}
+	 */
+	core.clearNotificationLog = function clearNotificationLog() {
+		core.notificationLog = [];
+		core.publishNotificationLog({
+			entries: []
+		});
 	};
 
 	/**
@@ -255,23 +194,6 @@
 	};
 
 	/**
-	 * Append one helper-side log entry mirrored from the server and notify listeners.
-	 *
-	 * @param {DebugLogEntry} entry
-	 * @returns {void}
-	 */
-	core.recordHelperLog = function recordHelperLog(entry) {
-		core.helperLog.unshift(entry);
-		if (core.helperLog.length > core.maxHelperLogEntries) {
-			core.helperLog.length = core.maxHelperLogEntries;
-		}
-		core.publishHelperLog({
-			entry,
-			maxEntries: core.maxHelperLogEntries
-		});
-	};
-
-	/**
 	 * Broadcast a websocket-log update to any sidebar renderer listeners.
 	 *
 	 * @param {LogUpdateDetail} [detail]
@@ -283,35 +205,6 @@
 				detail
 			})
 		);
-	};
-
-	/**
-	 * Append one websocket traffic entry and notify listeners incrementally.
-	 *
-	 * @param {string} direction
-	 * @param {string} notification
-	 * @param {*} payload
-	 * @returns {void}
-	 */
-	core.recordWebsocketEvent = function recordWebsocketEvent(
-		direction,
-		notification,
-		payload
-	) {
-		const entry = {
-			timestamp: new Date().toISOString(),
-			direction,
-			notification,
-			payload: core.serializeLogValue(payload)
-		};
-		core.websocketLog.unshift(entry);
-		if (core.websocketLog.length > core.maxWebsocketLogEntries) {
-			core.websocketLog.length = core.maxWebsocketLogEntries;
-		}
-		core.publishWebsocketLog({
-			entry,
-			maxEntries: core.maxWebsocketLogEntries
-		});
 	};
 
 	/**

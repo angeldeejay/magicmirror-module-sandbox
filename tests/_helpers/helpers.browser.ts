@@ -2,6 +2,7 @@
  * Thin facade over custom sandbox browser commands for browser-backed suites.
  */
 import { commands } from "vitest/browser";
+import type { FixtureVariant } from "./test-module-fixture.ts";
 
 /**
  * Thin, test-friendly facade over the custom Vitest browser commands used by
@@ -21,12 +22,41 @@ export async function closeSandbox() {
 }
 
 /**
- * Reset fixture files and open the sandbox shell until the stage runtime is ready.
+ * Reset fixture files and open the sandbox shell until the stage (the real
+ * MagicMirror core) created the module.
  *
+ * `coreKey` pins the core (an mmvm version key, or null for the built-in
+ * core; see `tests/_helpers/core-matrix.ts`) and restarts the server when it
+ * differs from the running one. Omitted, the stage runs the built-in core.
+ * Either way the server runs under an isolated home
+ * (`.runtime-cache/core-homes/`), never the maintainer's own
+ * `~/.mmvm/active`. A test that switches the active core at runtime also
+ * passes `privateCoreHome`, so the switch stays in a home of its own instead
+ * of the one shared by every server pinned to the same core. `fixture`
+ * picks the fixture source the session mounts (`"default"` when omitted on a
+ * fresh session; see `tests/_helpers/test-module-fixture.ts`); one test file
+ * cannot mix variants.
+ *
+ * @param {{ coreKey?: string | null, privateCoreHome?: string, fixture?: FixtureVariant }} [options]
  * @returns {Promise<void>}
  */
-export async function gotoSandbox() {
-	await commands.sandboxGoto();
+export async function gotoSandbox(
+	options: {
+		coreKey?: string | null;
+		privateCoreHome?: string;
+		fixture?: FixtureVariant;
+	} = {}
+) {
+	await commands.sandboxGoto(options);
+}
+
+/**
+ * Console messages the sandbox page (shell and stage frames) printed so far.
+ *
+ * @returns {Promise<string[]>}
+ */
+export function consoleMessages(): Promise<string[]> {
+	return commands.sandboxConsoleMessages();
 }
 
 /**
@@ -177,6 +207,17 @@ export function pageText(selector) {
 }
 
 /**
+ * The label the topbar badge shows for a core version: the badge drops the
+ * `-develop` suffix (`client/app/components/Topbar.tsx` `normalizeVersion`).
+ *
+ * @param {string} version
+ * @returns {string}
+ */
+export function badgeLabel(version: string): string {
+	return version.replace(/-develop$/i, "");
+}
+
+/**
  * Read the current sandbox shell URL.
  *
  * @returns {Promise<string>}
@@ -275,6 +316,45 @@ export async function selectSandboxLanguage(languageCode) {
  */
 export async function stageClick(selector) {
 	await commands.sandboxStageClick(selector);
+}
+
+/**
+ * Hold the sandbox page's requests whose URL matches `pattern` (a Playwright
+ * glob) until `releaseRequests()`; later requests pass straight through.
+ * Lasts until `clearRequestHolds()`.
+ *
+ * @param {string} pattern
+ * @returns {Promise<void>}
+ */
+export function holdRequests(pattern: string) {
+	return commands.sandboxHoldRequests(pattern);
+}
+
+/**
+ * Let every request held by `holdRequests()` through, and every later one.
+ *
+ * @returns {Promise<number>} how many requests matched the hold so far
+ */
+export function releaseRequests() {
+	return commands.sandboxReleaseRequests();
+}
+
+/**
+ * How many requests matched the current `holdRequests()` pattern so far.
+ *
+ * @returns {Promise<number>}
+ */
+export function heldRequestCount() {
+	return commands.sandboxHeldRequestCount();
+}
+
+/**
+ * Release and remove every hold installed by `holdRequests()`.
+ *
+ * @returns {Promise<void>}
+ */
+export function clearRequestHolds() {
+	return commands.sandboxClearRequestHolds();
 }
 
 /**

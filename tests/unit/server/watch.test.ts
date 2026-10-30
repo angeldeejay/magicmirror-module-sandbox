@@ -108,6 +108,8 @@ function makeModuleWatcherOptions(overrides: Record<string, unknown> = {}) {
 	return {
 		io: { emit: vi.fn() },
 		restartHelper: vi.fn(async () => {}),
+		// No core page listens by default, so the shell reloads the stage.
+		emitStageReload: vi.fn(() => false),
 		...overrides
 	};
 }
@@ -184,6 +186,66 @@ test("startModuleWatcher: io.emit scope is always 'stage' for any module file ch
 
 	const [, payload] = io.emit.mock.calls[0];
 	assert.equal(payload.scope, "stage");
+});
+
+test("startModuleWatcher: the core RELOAD reloads the stage when a core page listens", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const order: string[] = [];
+	const io = { emit: vi.fn((name: string) => order.push(name)) };
+	const emitStageReload = vi.fn(() => {
+		order.push("RELOAD");
+		return true;
+	});
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		io,
+		emitStageReload
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.js")
+	);
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.css")
+	);
+
+	assert.deepEqual(order, [
+		"RELOAD",
+		"harness:reload",
+		"RELOAD",
+		"harness:reload"
+	]);
+	for (const [, payload] of io.emit.mock.calls) {
+		assert.equal(payload.scope, "stage");
+		assert.equal(payload.reloadedBy, "core");
+	}
+});
+
+test("startModuleWatcher: with no core page listening, the shell reloads the stage", async () => {
+	const { startModuleWatcher } = await import("../../../server/watch.ts");
+	const io = { emit: vi.fn() };
+	const emitStageReload = vi.fn(() => false);
+	startModuleWatcher({
+		...makeModuleWatcherOptions(),
+		io,
+		emitStageReload
+	} as any);
+
+	await triggerEvent(
+		lastHandler(),
+		"change",
+		path.join(repoRoot, "MMM-TestModule.js")
+	);
+
+	assert.equal(emitStageReload.mock.calls.length, 1);
+	const [eventName, payload] = io.emit.mock.calls[0];
+	assert.equal(eventName, "harness:reload");
+	assert.equal(payload.scope, "stage");
+	assert.equal("reloadedBy" in payload, false);
 });
 
 test("startModuleWatcher: io.emit scope is 'stage' for node_helper.js", async () => {

@@ -352,4 +352,61 @@
 			...sharedOptions
 		});
 	};
+
+	/**
+	 * Show or hide one observation-gap notice. An empty list hides it, so a
+	 * stage that reports no gaps renders nothing.
+	 *
+	 * @param {string} noticeId
+	 * @param {string[]} lines
+	 * @returns {void}
+	 */
+	function renderNotice(noticeId, lines) {
+		const notice = document.getElementById(noticeId);
+		if (!notice) {
+			return;
+		}
+		notice.replaceChildren();
+		notice.hidden = lines.length === 0;
+		lines.forEach((line) => {
+			const row = document.createElement("div");
+			row.textContent = line;
+			notice.appendChild(row);
+		});
+	}
+
+	/**
+	 * Render the hook points and notifications the stage cannot observe on
+	 * the active core into the panels that depend on them: missing instance
+	 * hooks in the Lifecycle panel, unobserved notifications in the
+	 * Notifications log.
+	 *
+	 * @param {{unavailableHooks?: string[], unobservedNotifications?: string[]}} [gaps]
+	 * @returns {void}
+	 */
+	core.renderObservationNotices = function renderObservationNotices(gaps) {
+		const hooks =
+			gaps && Array.isArray(gaps.unavailableHooks)
+				? gaps.unavailableHooks
+				: [];
+		const notifications =
+			gaps && Array.isArray(gaps.unobservedNotifications)
+				? gaps.unobservedNotifications
+				: [];
+		renderNotice(
+			"lifecycle-observation-notice",
+			hooks.length > 0
+				? [
+						`Unavailable on this core: ${hooks.join(", ")}. The sandbox cannot observe these lifecycle calls, so the state shown here does not follow them.`
+					]
+				: []
+		);
+		renderNotice(
+			"notification-observation-notice",
+			notifications.map(
+				(name) =>
+					`${name} is sent by the core before the sandbox can observe it, so this log does not show it.`
+			)
+		);
+	};
 })(window);

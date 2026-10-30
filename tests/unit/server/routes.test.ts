@@ -11,6 +11,7 @@ import { Readable } from "node:stream";
 import Fastify from "fastify";
 import { afterEach } from "vitest";
 import * as mmVer from "../../../server/mm-version-manager.ts";
+import { registerStageRoutes } from "../../../server/stage/stage-routes.ts";
 
 // ---------------------------------------------------------------------------
 // mm-version-manager mock — no real npm installs or filesystem I/O
@@ -36,6 +37,15 @@ vi.mock("../../../server/mm-version-manager.ts", () => ({
 	sanitizeVersion: vi.fn((v: string) =>
 		v.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-{2,}/g, "-")
 	)
+}));
+
+// ---------------------------------------------------------------------------
+// stage routes mock: the stage has its own unit suite
+// ---------------------------------------------------------------------------
+
+vi.mock("../../../server/stage/stage-routes.ts", () => ({
+	registerStageRoutes: vi.fn(async () => {}),
+	STAGE_PREFIX: "/__stage/"
 }));
 
 // ---------------------------------------------------------------------------
@@ -117,15 +127,11 @@ function makeRouteOptions(
 		saveRuntimeConfig: vi.fn((next: Record<string, unknown>) => next),
 		getContract: vi.fn(() => ({ supportedFrontendSurface: [] })),
 		createHtmlPage: vi.fn(() => "<html>shell</html>"),
-		createStagePage: vi.fn(() => "<html>stage</html>"),
 		getHelperLogEntries: vi.fn(() => []),
 		resolveWebfontsRoot: vi.fn(() => "/stub/webfonts"),
-		resolveAnimateCss: vi.fn(() => "/stub/animate.css"),
-		resolveCronerPath: vi.fn(() => "/stub/croner.js"),
-		resolveMomentPath: vi.fn(() => "/stub/moment.js"),
-		resolveMomentTimezonePath: vi.fn(() => "/stub/moment-timezone.js"),
-		resolveFontAwesomeCss: vi.fn(() => "/stub/font-awesome.css"),
 		io: { emit: vi.fn() } as { emit: ReturnType<typeof vi.fn> },
+		// No core page listens by default, so the shell reloads the stage.
+		emitStageReload: vi.fn(() => false),
 		restartHelper: vi.fn(async () => {}),
 		injectShimResolution: vi.fn(),
 		harnessRoot: "/stub/harness" as string,
@@ -164,14 +170,7 @@ function makeRouteOptions(
 		},
 		assetService: {
 			resolveWebfontsRoot: flat.resolveWebfontsRoot as () => string,
-			resolveAnimateCss: flat.resolveAnimateCss as () => string,
-			resolveCronerPath: flat.resolveCronerPath as () => string,
-			resolveMomentPath: flat.resolveMomentPath as () => string,
-			resolveMomentTimezonePath:
-				flat.resolveMomentTimezonePath as () => string,
-			resolveFontAwesomeCss: flat.resolveFontAwesomeCss as () => string,
-			createHtmlPage: flat.createHtmlPage as (o: object) => string,
-			createStagePage: flat.createStagePage as (o: object) => string
+			createHtmlPage: flat.createHtmlPage as (o: object) => string
 		},
 		runtimeService: {
 			io: flat.io as import("socket.io").Server,
@@ -181,7 +180,8 @@ function makeRouteOptions(
 			watchEnabled: flat.watchEnabled,
 			getHelperLogEntries: flat.getHelperLogEntries as () => Array<
 				Record<string, unknown>
-			>
+			>,
+			emitStageReload: flat.emitStageReload as () => boolean
 		},
 		analysisService: {
 			getAnalysisResult: flat.getAnalysisResult as () => null,
@@ -234,19 +234,16 @@ test("GET / responds with text/html and delegates to createHtmlPage", async () =
 // Tests — stage page
 // ---------------------------------------------------------------------------
 
-test("GET /__harness/stage responds with text/html and delegates to createStagePage", async () => {
-	const createStagePage = vi.fn(() => "<html>stage</html>");
-	const app = await buildApp({ createStagePage });
+test("GET /__harness/stage redirects the retired hand-port stage page to /__stage/", async () => {
+	const app = await buildApp();
 
 	const response = await app.inject({
 		method: "GET",
-		url: "/__harness/stage"
+		url: "/__harness/stage?v=abc"
 	});
 
-	assert.equal(response.statusCode, 200);
-	assert.match(response.headers["content-type"] as string, /text\/html/);
-	assert.equal(response.body, "<html>stage</html>");
-	assert.equal(createStagePage.mock.calls.length, 1);
+	assert.equal(response.statusCode, 302);
+	assert.equal(response.headers.location, "/__stage/");
 });
 
 // ---------------------------------------------------------------------------
@@ -555,70 +552,6 @@ test("POST /__harness/config/module returns fallback error text when thrown erro
 });
 
 // ---------------------------------------------------------------------------
-// Tests — static asset routes
-// ---------------------------------------------------------------------------
-
-test("GET /moment.js responds with application/javascript content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({ method: "GET", url: "/moment.js" });
-
-	assert.equal(response.statusCode, 200);
-	assert.match(
-		response.headers["content-type"] as string,
-		/application\/javascript/
-	);
-});
-
-test("GET /animate.css responds with text/css content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({ method: "GET", url: "/animate.css" });
-
-	assert.equal(response.statusCode, 200);
-	assert.match(response.headers["content-type"] as string, /text\/css/);
-});
-
-test("GET /croner.js responds with application/javascript content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({ method: "GET", url: "/croner.js" });
-
-	assert.equal(response.statusCode, 200);
-	assert.match(
-		response.headers["content-type"] as string,
-		/application\/javascript/
-	);
-});
-
-test("GET /moment-timezone.js responds with application/javascript content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({
-		method: "GET",
-		url: "/moment-timezone.js"
-	});
-
-	assert.equal(response.statusCode, 200);
-	assert.match(
-		response.headers["content-type"] as string,
-		/application\/javascript/
-	);
-});
-
-test("GET /font-awesome.css responds with text/css content-type", async () => {
-	const app = await buildApp();
-
-	const response = await app.inject({
-		method: "GET",
-		url: "/font-awesome.css"
-	});
-
-	assert.equal(response.statusCode, 200);
-	assert.match(response.headers["content-type"] as string, /text\/css/);
-});
-
-// ---------------------------------------------------------------------------
 // Tests — POST /__harness/restart
 // ---------------------------------------------------------------------------
 
@@ -652,35 +585,90 @@ test("POST /__harness/restart calls restartHelper and emits harness:reload with 
 });
 
 // ---------------------------------------------------------------------------
-// Tests — static asset routes
+// Tests — stage reloads
 // ---------------------------------------------------------------------------
 
-test("static asset routes each invoke their resolver function to locate the file", async () => {
-	const resolveMomentPath = vi.fn(() => "/stub/moment.js");
-	const resolveAnimateCss = vi.fn(() => "/stub/animate.css");
-	const resolveCronerPath = vi.fn(() => "/stub/croner.js");
-	const resolveMomentTimezonePath = vi.fn(() => "/stub/moment-timezone.js");
-	const resolveFontAwesomeCss = vi.fn(() => "/stub/font-awesome.css");
-
+test("reloads go through the core RELOAD and the stage routes register", async () => {
+	const emitStageReload = vi.fn(() => true);
+	const io = { emit: vi.fn() };
+	const getRuntimeConfig = vi.fn(() => ({ language: "es", locale: "es-ES" }));
 	const app = await buildApp({
-		resolveMomentPath,
-		resolveAnimateCss,
-		resolveCronerPath,
-		resolveMomentTimezonePath,
-		resolveFontAwesomeCss
+		io,
+		emitStageReload,
+		getRuntimeConfig,
+		watchEnabled: false
 	});
 
-	await app.inject({ method: "GET", url: "/moment.js" });
-	await app.inject({ method: "GET", url: "/animate.css" });
-	await app.inject({ method: "GET", url: "/croner.js" });
-	await app.inject({ method: "GET", url: "/moment-timezone.js" });
-	await app.inject({ method: "GET", url: "/font-awesome.css" });
+	await app.inject({ method: "POST", url: "/__harness/restart" });
+	await app.inject({
+		method: "POST",
+		url: "/__harness/config/module",
+		payload: { position: "top_left", config: {} }
+	});
 
-	assert.equal(resolveMomentPath.mock.calls.length, 1);
-	assert.equal(resolveAnimateCss.mock.calls.length, 1);
-	assert.equal(resolveCronerPath.mock.calls.length, 1);
-	assert.equal(resolveMomentTimezonePath.mock.calls.length, 1);
-	assert.equal(resolveFontAwesomeCss.mock.calls.length, 1);
+	assert.deepEqual(
+		io.emit.mock.calls.map(([name]: [string]) => name),
+		["harness:reload", "harness:reload"]
+	);
+	assert.equal(emitStageReload.mock.calls.length, 2);
+	// The core reloads the stage, so the shell must not navigate it as well.
+	for (const [, payload] of io.emit.mock.calls) {
+		assert.equal(payload.reloadedBy, "core");
+	}
+
+	const stageCalls = vi.mocked(registerStageRoutes).mock.calls;
+	assert.equal(stageCalls.length, 1);
+	const [, stageOptions] = stageCalls[0];
+	assert.equal(stageOptions.moduleName, "MMM-TestModule");
+	assert.deepEqual(stageOptions.sources.getRuntimeConfig(), {
+		language: "es",
+		locale: "es-ES"
+	});
+});
+
+test("with no core page listening, the shell reloads the stage", async () => {
+	const emitStageReload = vi.fn(() => false);
+	const io = { emit: vi.fn() };
+	const app = await buildApp({ io, emitStageReload });
+
+	await app.inject({ method: "POST", url: "/__harness/restart" });
+
+	assert.equal(emitStageReload.mock.calls.length, 1);
+	const [eventName, payload] = io.emit.mock.calls[0];
+	assert.equal(eventName, "harness:reload");
+	assert.equal("reloadedBy" in payload, false);
+});
+
+test("a version switch and its reset reload through the core RELOAD once each", async () => {
+	const emitStageReload = vi.fn(() => true);
+	const io = { emit: vi.fn() };
+	vi.mocked(mmVer.isVersionInstalled).mockReturnValueOnce(true);
+	vi.mocked(mmVer.getVersionInfo).mockReturnValue({
+		key: "2.38.0",
+		displayVersion: "2.38.0",
+		installed: true,
+		shimsBuilt: true,
+		capabilities: { expressVersion: "4" } as ReturnType<typeof mmVer.deriveCapabilities>
+	});
+	const app = await buildApp({ io, emitStageReload });
+
+	await app.inject({
+		method: "POST",
+		url: "/__harness/mm-versions/activate",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ version: "2.38.0" })
+	});
+	await app.inject({ method: "DELETE", url: "/__harness/mm-versions/active" });
+
+	assert.equal(emitStageReload.mock.calls.length, 2);
+	const reloads = io.emit.mock.calls.filter(
+		([name]: [string]) => name === "harness:reload"
+	);
+	assert.equal(reloads.length, 2);
+	for (const [, payload] of reloads) {
+		assert.equal(payload.event, "mm-version-change");
+		assert.equal(payload.reloadedBy, "core");
+	}
 });
 
 // ---------------------------------------------------------------------------

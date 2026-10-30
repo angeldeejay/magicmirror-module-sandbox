@@ -10,7 +10,21 @@ and how to use it, while this file explains how it is put together.
 ### Server side
 
 - **Fastify** serves the host page, module files, runtime assets, and config APIs
-- **Socket.IO** bridges frontend notifications to the real module helper
+- **The stage** (`server/stage/`) serves the active MagicMirror core under
+  `/__stage/`: `core-root.ts` resolves the core root (an mmvm version, the
+  synced `mmcore-source/`, or the packaged `dist/core/` of a distribution
+  install) and maps request paths into it; `stage-routes.ts` serves the core's
+  own `index.html` and static files verbatim, generates `config/basepath.js`,
+  `js/positions.js` and the `/config/` JSON in memory, answers `env`,
+  `startup`, `version` and `cors` with the version's own
+  `js/server_functions.js`, and mounts the module at `modules/<ModuleName>/`;
+  `core-handlers.ts` holds those per-version ports and `core-variants.ts` the
+  reviewed drift guard (`scripts/upstream-snapshots/core/`)
+- **Socket.IO** runs two servers on the same HTTP server: the shell's own on
+  `/socket.io`, and the stage's on `/__stage/socket.io` (`stage-socket.ts`),
+  where the core connects its root namespace (`RELOAD`) and the module
+  namespace the real `node_helper` uses. Module traffic on the stage server is
+  mirrored to the shell's WebSocket panel from the server side
 - **config-payloads.ts** validates mutable API payloads with Zod before writes
   hit the backend
 - **helper-runtime.ts** reloads `node_helper.js` on watch restarts, instantiates
@@ -21,7 +35,8 @@ and how to use it, while this file explains how it is put together.
 - **startup-scripts.ts** owns optional consumer startup command lifecycles
 - **watch.ts** exposes two independent watchers: a module watcher (always-on,
   stage scope) and a sandbox watcher (--watch mode only, shell scope), both
-  emitting `harness:reload`
+  emitting `harness:reload`; a stage reload also sends the core its own
+  root-namespace `RELOAD` (see "Watch mode details")
 - **Eta templates** under `server/templates/` render the sandbox host HTML,
   including `sidebar-mmversion.eta` for the MM Version sidebar partial
 
@@ -34,21 +49,29 @@ and how to use it, while this file explains how it is put together.
   and `MmVersionBadge` for the active core version), sidebar (with toggle
   behavior), sidebar domains including `MmVersionDomain`, footer, and shell
   iconography
-- `client/runtime/*.ts` is the maintained browser-runtime source surface
-- `client/generated/` is the browser-served output built from the shell bundle plus
-  runtime/vendor TypeScript sources
-- `client/runtime/shared.ts` creates shared runtime state
-- `client/runtime/notifications.ts` provides the frontend notification bus + log
-- `client/runtime/lifecycle.ts` provides startup ordering plus
-  show/hide/suspend/resume behavior
-- `client/runtime/assets.ts` loads scripts and styles
-- `client/runtime/translations.ts` handles translation loading
-- `client/runtime/debug-panel.ts` wires the sidebar notification + lifecycle
-  console
-- `client/runtime/module.ts` installs the MagicMirror-like globals and boots the
-  module; `getDom()` is a verbatim port of the core base implementation and
-  always returns `Promise<HTMLElement>` — no deferred-wrapper or preload layer
-- `client/runtime.ts` is just the final bootstrap glue
+- The stage iframe runs the active MagicMirror core itself (`/__stage/`); the
+  sandbox only observes and controls it from outside. There is no browser
+  re-implementation of `module.js`, `main.js`, `loader.js` or `translator.js`
+- `client/stage-observer/` is the one script injected into the core page,
+  bundled as a classic script (`client/generated/stage-observer.js`) that works
+  for the classic (2.35-2.36), hybrid (2.37) and ESM (2.38+) cores: it sets the
+  `data-sandbox-*` attributes the isolation stylesheet keys on, wraps the
+  browser `console` before `js/logger.js` binds it, hooks the created module
+  instance (`notificationReceived`, `socketNotificationReceived`, `hide`,
+  `show`, `suspend`, `resume`), re-fetches the module's own stylesheets for
+  "Refresh styles", and exposes the `window.__MICROCORE__` facade the stage
+  bridge reads
+- `client/runtime/*.ts` is the shell tooling: `shared.ts` holds the shell's
+  mirrored logs and lifecycle state, `shell-stage.ts` the shell side of the
+  stage bridge (reload, backdrop, mirrored logs, version badge input),
+  `stage-bridge.ts` the stage side (bundled into the observer),
+  `debug-panel*.ts` and `quality-panel.ts` the sidebar panels
+- `client/scss/stage-isolation.scss` hides every region except the module's
+  and its ancestors, and draws the "module disabled" notice; it changes no
+  geometry
+- `client/generated/` is the browser-served output built from the shell bundle,
+  the runtime/vendor TypeScript sources, the stage observer and the isolation
+  stylesheet
 - `client/scss/` holds the sandbox stylesheet sources and compiles to
   `client/styles/harness.css`
 - `client/vendor/` holds hand-authored TypeScript browser components that ship
@@ -63,15 +86,22 @@ and how to use it, while this file explains how it is put together.
 - `shims/logger.ts` and `shims/node_helper.ts` are thin bare-module wrappers that
   resolve the synced core compatibility artifacts
 - `shims/generated/magicmirror-core/` mirrors the current MagicMirror helper-side
-  `js/class.js`, `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
-  `js/server_functions.js` files without source patches; `logger.js` and
-  `node_helper.js` receive sandbox postludes appended after sync; a package-scoped
-  imports map keeps helper-side path-based requires aligned with current core
-- `shims/generated/node_modules/express/` and `shims/generated/node_modules/undici/`
-  bundle the dependencies from MagicMirror's own `node_modules` so `node_helper.js`
-  can `require("express")` and `server_functions.js` can `require("undici")` via
-  standard Node module resolution, without source patches and without adding them
-  as sandbox dependencies
+  `js/logger.js`, `js/node_helper.js`, `js/http_fetcher.js`, and
+  `js/server_functions.js` files (plus `js/class.js` for cores before 2.37.0)
+  without source patches; `logger.js` and `node_helper.js` receive sandbox
+  postludes appended after sync; a package-scoped imports map keeps helper-side
+  path-based requires aligned with current core
+- the `node_helper` postlude only clears the previous helper instance's
+  `connection` listener before delegating to the core `setSocketIO`, so socket
+  semantics (including the per-module secret allowlist that 2.38.0 reads from
+  `global.configRedacted`, which the helper runtime seeds from the mounted
+  module config) always come from the active core version
+- `shims/generated/node_modules/{express,undici,ipaddr.js}/` bundle the
+  dependencies from MagicMirror's own `node_modules` so the copied core files
+  resolve them via standard Node module resolution, without source patches and
+  without adding them as sandbox dependencies; mmvm shims under
+  `~/.mmvm/shims/<version>/` rely on this because they have no parent
+  `node_modules`
 
 ### TypeScript configuration
 
@@ -83,7 +113,7 @@ The TypeScript surface is split into four targeted roots:
 | `tsconfig.node.json`            | Scripts and build helpers                                        |
 | `tsconfig.config.json`          | Config-layer sources (`config/`)                                 |
 | `client/tsconfig.json`          | Vite + Preact shell (`client/app/`)                              |
-| `client/tsconfig.runtime.json`  | Runtime and vendor sources (`client/runtime/`, `client/vendor/`) |
+| `client/tsconfig.runtime.json`  | Shell tooling, vendor and stage observer sources (`client/runtime/`, `client/vendor/`, `client/stage-observer/`) |
 | `tests/tsconfig.testfiles.json` | Test-file sources for type checking                              |
 
 `tsconfig.client-runtime.json` at the repo root was removed; the two client-scoped configs under `client/` replace it.
@@ -140,7 +170,23 @@ concerns:
 
 1. observes `repoRoot` only
 2. restarts the helper on every change except CSS/SCSS and translation files
-3. emits `harness:reload` with scope `"stage"` so only the iframe refreshes
+3. emits `harness:reload` with scope `"stage"` so only the iframe refreshes.
+   The reload itself is the core's own: the stage socket server sends
+   `RELOAD` on the root namespace, which `main.js` answers by reloading the
+   page, exactly as on a mirror. When no core page listens (the core never
+   reached `modulesStarted`), the shell reloads the frame instead; when the
+   core took the reload but the stage document does not even start unloading
+   within 5 s, the shell reloads the frame as a fallback. The fallback is
+   cancelled on the old document's `pagehide`, not on the new one's `load`, so
+   a slow core page never boots twice. Every stage `harness:reload` carries a
+   reload generation, bumped before the core's `RELOAD` goes out, and every
+   stage page embeds the generation it was served with (`StageState`). A
+   core-driven `harness:reload` whose generation the page in the frame
+   already carries reached the shell after the stage reloaded for it (the two
+   sockets are not ordered) and is ignored; a page that loads with an earlier
+   generation was requested before the config was saved, so the shell
+   reloads the frame once more. Saves, restarts and version switches use the
+   same path, so each reloads the stage exactly once, into the saved config
 
 **Sandbox watcher** — active only when `--watch` is passed:
 
@@ -214,9 +260,10 @@ The sandbox isolates runtime cache under:
 Runtime cache stays isolated from normal MagicMirror usage so sandbox runs do
 not contaminate other environments.
 
-Browser-facing stage and local runtime asset URLs also receive cache-busting
-version tokens during save/watch reloads so module scripts, module styles, and
-stage HTML do not stay stale behind browser caches.
+The stage page (`/__stage/`) is served with `Cache-Control: no-store`, and the
+core and module files under it are revalidated (ETag) on every load, so saves
+and watch reloads never run stale module scripts or styles. The shell's own
+runtime asset URLs carry a cache-busting version token.
 
 ## UI asset build
 
@@ -254,40 +301,100 @@ shim wrappers, or `npm run client:styles:watch` while iterating on SCSS.
 That publish build also minifies the distributed browser JavaScript under
 `dist/client/`, while maintainer source files remain readable in the repo.
 
+Distribution installs have no `mmcore-source/`, so `build:30-dist` packages
+the built-in core's browser files as `dist/core/` (`scripts/package-core.ts`):
+`index.html`, `package.json`, `favicon.svg`, `js/`, `css/`, `translations/`,
+`defaultmodules/utils.js` and `defaultmodules/defaultmodules.js`, plus every
+`node_modules/...` file the core page can request (the closure of `index.html`,
+`js/vendor.js` and stylesheet references) with each package's
+`package.json` and license, in the hoisted layout `resolveCoreStaticPath`
+resolves. The server-side bundles of `undici` and `ipaddr.js`, which the
+core's `js/server_functions.js` requires, ship next to it. `dist/core/` is
+copied verbatim (no minification). `resolveBuiltInCoreRoot` uses it when
+`mmcore-source/` is absent (`server/stage/built-in-core.ts` holds the shared
+candidate list, so the version badge reads the same core). Known limitation:
+only the vendor files the core references ship, so a module that links an
+unreferenced file inside those packages directly (for example a Font Awesome
+SVG) gets a 404 in a distribution install, while the source repository and
+mmvm versions serve whole packages. Everywhere, `/__stage/node_modules/`
+serves only the entries core `js/server.js` serves: the `js/vendor.js`
+packages (read as text) plus `animate.css`, `@fontsource`, `@fortawesome` and
+`suncalc`, never any other package Node can resolve from the core root.
+
+A core replaced on disk under the same mmvm key (Redownload, or Delete cache
+and install again) is forgotten in-process by `deleteVersionCache`
+(`server/stage/core-cache.ts`): the `require.cache` entries under its install
+directory (`js/defaults.js`, `js/server_functions.js`, its `express`) and the
+stage's express sub-app for that root. The next stage request loads the new
+code, so the backend keeps matching the browser files without a restart.
+
 Inside this repository, `npm start` and `npm run dev:watch` still run against the
 source tree for maintainer workflows. The CLI falls back to `dist/` only when
 the package is installed without source files.
 
 ## Browser runtime contract
 
-The sandbox browser runtime (`client/runtime/`) is a faithful port of
-`node_modules/magicmirror/js/module.js` and `main.js`. Every behavioral
-decision is anchored to the upstream source. Known deviations from a full
-MagicMirror deployment that cannot be resolved without a real MM server:
+The stage runtime **is** the active MagicMirror core: its own `index.html`,
+`js/`, `css/`, `translations/`, `defaultmodules/` support files and vendor
+packages, served verbatim from the core root (`server/stage/`). Switching the
+MagicMirror version in the MM Version domain switches the viewport too, so the
+frontend and the backend (`node_helper`, shims) always run the same version.
 
-- `config` global exposes only `language`, `locale`, and `basePath`. Full MM
-  config properties (`timeFormat`, `units`, `timezone`, `location`, etc.) are
-  not available because the sandbox has no MM config endpoint.
+Core files are never modified on disk or in transit. `index.html` receives
+only the substitutions core `getHtml` applies (`#VERSION#`, `#TESTMODE#`) and
+one sandbox injection point before the first core `<script>`: the isolation
+stylesheet, the inline stage state and the observer. `config/basepath.js`,
+`js/positions.js` and `/config/` are generated in memory with the version's
+own logic, and the `config` global is the real MagicMirror config built from
+the mounted module's saved config (core defaults, the sandbox language and
+locale, `basePath: "/__stage/"`, and `modules: [<module envelope>]`), with
+secrets redacted as that version redacts them.
 
-All other behaviors — `getDom()` return type, `_super()` semantics, hide/show
-lifecycle ordering, header rendering, notification payload routing, and the
-`MM.getModules()` filter API — match the core exactly.
+The observer follows four rules:
+
+- **Transparent wrappers.** Each wrapper calls through first and records
+  after, with the same arguments, `this`, return value and exceptions;
+  synchronous stays synchronous. Console arguments that are objects are
+  serialized for the Console panel in a later task, so their `toJSON`,
+  getters and Proxy traps never run inside the module's `console.*`/`Log.*`
+  call. One documented residual: a notification payload is copied with
+  `JSON.stringify` during the delivery, so the log shows it as delivered even
+  when the module mutates it; that copy runs the payload's own `toJSON` and
+  getters at that point.
+- **Instance-only hooks.** Hooks attach to the created module instance, never
+  to `Module.prototype`, definitions or `MM`: 2.37+ assign module methods as
+  instance properties, and wrapping a definition breaks `_super` in 2.35-2.36.
+  A hook point a version lacks is named in the panel, never faked.
+- **Emit with sender undefined.** The Notifications panel delivers with
+  `instance.notificationReceived(notification, payload, undefined)`, exactly as
+  the core delivers its own system notifications.
+- **`RELOAD` is the reload mechanism.** Saves, restarts and version switches
+  reload the stage through the core's root-namespace `RELOAD`; the shell only
+  reloads the frame when no core page listens, or when the stage document
+  has not started unloading after a 5 s fallback.
 
 The non-negotiable invariant: if a behavior causes a module to fail in real
 MagicMirror, it must fail identically in the sandbox. The sandbox must never
-mask a real bug by being more permissive than the core.
+mask a real bug by being more permissive than the core. Fidelity is checked
+per version: cross-version transparency tests and version-pinned tests (see
+`AGENTS.md`). The transversal suites mount a fixture module without a `getDom`
+of its own, which renders on every core; the pinned suites mount a variant
+whose `getDom` awaits `this._super()`, the behaviour D1 pins per version.
 
 ## Asset sync
 
-MagicMirror iframe-facing CSS and font assets are synchronized through
-`bin/sync-magicmirror-assets.ts`.
+MagicMirror CSS and font assets for the shell are synchronized through
+`bin/sync-magicmirror-assets.ts`. The stage serves the core's own CSS and
+fonts instead.
 
 - CSS is parsed with `css-tree`, not pattern-matched
 - nested `@import` rules are inlined before final output is written
 - copied asset cleanup is driven by a manifest under `client/fonts/` instead of
   filename heuristics
 - published installs consume the generated assets; maintainers refresh them from
-  the local `magicmirror` devDependency
+  `mmcore-source/`, which `build:00-sync-mmcore-source` fills with the pinned
+  MagicMirror release (the latest one, 2.38.0, pinned so builds stay
+  deterministic)
 
 ## Mounted-module autodiscovery
 

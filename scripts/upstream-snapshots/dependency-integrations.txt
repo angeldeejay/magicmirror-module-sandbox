@@ -1,0 +1,101 @@
+function mergeUniqueIssues(target: string[], issues: unknown): void {
+  const existing = new Set(target);
+  for (const issue of normalizeIssueList(issues)) {
+    if (!existing.has(issue)) {
+      target.push(issue);
+      existing.add(issue);
+    }
+  }
+}
+
+async function runNpmCheckUpdates(moduleDir: string): Promise<string[]> {
+  try {
+    const { stdout } = await execFileAsync("npx", ["npm-check-updates", "--jsonUpgraded", "--cooldown", NCU_COOLDOWN], {
+      cwd: moduleDir,
+      timeout: 60_000
+    });
+
+    const output = String(stdout ?? "").trim();
+    if (!output) {
+      return [];
+    }
+
+    const parsed = JSON.parse(output) as Record<string, string>;
+    return Object.entries(parsed).map(([dependency, targetVersion]) => `${dependency} -> ${targetVersion}`);
+  }
+  catch (error) {
+    logger.warn(`npm-check-updates failed in ${moduleDir}: ${getErrorMessage(error)}`);
+    return [];
+  }
+}
+
+async function runDeprecatedCheck(moduleDir: string): Promise<string | null> {
+  try {
+    const { stdout, stderr } = await execFileAsync("npx", ["ndc", "current"], {
+      cwd: moduleDir,
+      timeout: 60_000
+    });
+
+    const output = `${String(stdout ?? "")}${String(stderr ?? "")}`.trim();
+    if (!output || output.includes("There are no deprecated dependencies.")) {
+      return null;
+    }
+
+    const lines = output
+      .split(/\r?\n/u)
+      .map(line => line.trim())
+      .filter(line => line.includes(":"));
+
+    if (lines.length === 0) {
+      return null;
+    }
+
+    return lines.join("\n");
+  }
+  catch (error) {
+    logger.warn(`npm-deprecated-check failed in ${moduleDir}: ${getErrorMessage(error)}`);
+    return null;
+  }
+}
+
+async function applyDependencyIntegrations(moduleDir: string, issues: string[], config: ProcessModuleConfig): Promise<void> {
+  const analysisConfig = config.analysisConfig ?? config.checkGroups ?? {};
+
+  if (analysisConfig.deep === false) {
+    return;
+  }
+
+  const packageJsonPath = path.join(moduleDir, "package.json");
+  if (!fileExists(packageJsonPath)) {
+    return;
+  }
+
+  if (issues.length >= 4) {
+    return;
+  }
+
+  if (analysisConfig.ncu !== false) {
+    const upgrades = await runNpmCheckUpdates(moduleDir);
+    if (upgrades.length > 0) {
+      const header = `Information: There are updates for ${upgrades.length} dependencie(s):`;
+      const details = upgrades.map(entry => `   - ${entry}`).join("\n");
+      mergeUniqueIssues(issues, [`${header}\n${details}`]);
+    }
+  }
+
+  if (issues.length >= 3) {
+    return;
+  }
+
+  if (analysisConfig.npmDeprecatedCheck !== false) {
+    const deprecated = await runDeprecatedCheck(moduleDir);
+    if (deprecated) {
+      mergeUniqueIssues(issues, [deprecated]);
+    }
+  }
+
+}
+
+export const NCU_COOLDOWN = "7d";
+
+await applyDependencyIntegrations(cloneDir, allIssues, config);

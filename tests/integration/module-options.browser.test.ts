@@ -1,5 +1,9 @@
 /**
  * Browser-backed integration coverage for persisted module option changes.
+ *
+ * The stage runs the real MagicMirror core, so every option is read back from
+ * what that core built: the created instance's `data`, its wrapper
+ * (`main.js` `createDomObjects`) and the region it sits in.
  */
 import { afterAll, expect } from "vitest";
 import {
@@ -97,14 +101,13 @@ journeyTest(
 				.toBe("Hidden from the stage");
 			const optionDetails = await stageEvaluate(async () => {
 				const instance = globalThis.__moduleSandboxModule;
-				const shell = globalThis.document.querySelector(
-					'[data-module-shell="true"]'
+				const shell = globalThis.document.getElementById(
+					instance.identifier
 				);
 				instance.show(120);
 				await new Promise((resolve) =>
 					globalThis.requestAnimationFrame(resolve)
 				);
-				const animateIn = shell ? shell.dataset.animateIn || "" : "";
 				const animateInClassName = shell ? shell.className : "";
 				const animateInStyle = shell
 					? globalThis.getComputedStyle(shell).animationName
@@ -116,7 +119,6 @@ journeyTest(
 				await new Promise((resolve) =>
 					globalThis.requestAnimationFrame(resolve)
 				);
-				const animateOut = shell ? shell.dataset.animateOut || "" : "";
 				const animateOutClassName = shell ? shell.className : "";
 				const animateOutStyle = shell
 					? globalThis.getComputedStyle(shell).animationName
@@ -129,11 +131,8 @@ journeyTest(
 					animateOut: instance.data.animateOut,
 					hiddenOnStartup: instance.data.hiddenOnStartup,
 					wrapperClassName: shell ? shell.className : "",
-					wrapperPosition: shell ? shell.dataset.position : "",
-					animateMarkers: {
-						animateIn,
-						animateOut
-					},
+					regionClassName:
+						shell?.closest(".region")?.className ?? "",
 					animateClasses: {
 						animateInClassName,
 						animateOutClassName
@@ -147,7 +146,10 @@ journeyTest(
 
 			expect(optionDetails.position).toBe("bottom_right");
 			expect(optionDetails.header).toBe("Custom integration header");
-			expect(optionDetails.classes).toBe("integration-shell highlight");
+			// `loader.js` `getModuleData` appends the module name to the configured classes.
+			expect(optionDetails.classes).toBe(
+				"integration-shell highlight MMM-TestModule"
+			);
 			expect(optionDetails.animateIn).toBe("fadeInRight");
 			expect(optionDetails.animateOut).toBe("fadeOutLeft");
 			expect(optionDetails.hiddenOnStartup).toBe(true);
@@ -155,11 +157,8 @@ journeyTest(
 				"integration-shell"
 			);
 			expect(optionDetails.wrapperClassName).toContain("highlight");
-			expect(optionDetails.wrapperPosition).toBe("bottom_right");
-			expect(optionDetails.animateMarkers).toEqual({
-				animateIn: "fadeInRight",
-				animateOut: "fadeOutLeft"
-			});
+			// main.js selectWrapper: the module sits in the bottom right region.
+			expect(optionDetails.regionClassName).toBe("region bottom right");
 			expect(optionDetails.animateClasses.animateInClassName).toContain(
 				"animate__animated"
 			);
@@ -177,7 +176,7 @@ journeyTest(
 				"none"
 			);
 			await expect
-				.poll(() => stageText("#module-header"))
+				.poll(() => stageText(".module-header"))
 				.toBe("Custom integration header");
 
 			await openSidebarTab("config", "general");
@@ -189,7 +188,7 @@ journeyTest(
 			await clickAndWaitForStageReady("#module-config-save");
 
 			await expect.poll(() => pageDisabled("#config-header")).toBe(true);
-			await expect.poll(() => stageVisible("#module-header")).toBe(false);
+			await expect.poll(() => stageVisible(".module-header")).toBe(false);
 
 			await openSidebarTab("config", "general");
 			await applyModuleOptions({
@@ -198,9 +197,28 @@ journeyTest(
 			});
 			await pageClick("#module-config-save");
 
+			// The core skips a disabled module (`loader.js` `getModuleData`); the sandbox
+			// draws its disabled notice outside every region
+			// (client/scss/stage-isolation.scss).
 			await expect
-				.poll(() => stageText('[data-module-disabled="true"]'))
-				.toContain("Module disabled");
+				.poll(() =>
+					stageEvaluate(() => ({
+						disabled:
+							globalThis.document.documentElement.dataset
+								.sandboxDisabled,
+						modules: globalThis.document.querySelectorAll(".module")
+							.length,
+						title: globalThis.getComputedStyle(
+							globalThis.document.body,
+							"::before"
+						).content
+					}))
+				)
+				.toEqual({
+					disabled: "true",
+					modules: 0,
+					title: '"Module disabled"'
+				});
 			await expect
 				.poll(() => pageText("#lifecycle-visibility-status"))
 				.toBe("Disabled in saved config");

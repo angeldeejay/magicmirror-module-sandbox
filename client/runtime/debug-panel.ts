@@ -1101,6 +1101,12 @@
 				setLifecycleStatus(detail && detail.state);
 			}
 		);
+		globalScope.addEventListener(
+			"module-sandbox:observation-gaps-updated",
+			(event) => {
+				core.renderObservationNotices((event as CustomEvent).detail);
+			}
+		);
 		globalScope.addEventListener("module-sandbox:stage-ready", () => {
 			core.stageReady = true;
 			if (moduleConfigRefreshStylesButton && !waitingForStyleRefresh) {
@@ -1168,6 +1174,7 @@
 			);
 		}
 		setLifecycleStatus(core.lifecycleState);
+		core.renderObservationNotices(core.observationGaps);
 		syncPayloadEditorState();
 		syncModuleConfigEditorState();
 		if (moduleConfigRefreshStylesButton) {

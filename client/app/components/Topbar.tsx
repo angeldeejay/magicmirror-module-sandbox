@@ -14,8 +14,35 @@ type BadgeState = {
 	displayVersion: string;
 };
 
+/**
+ * Normalise a version the stage reported; anything but a non-empty string
+ * counts as "the stage reported none".
+ */
+function readStageVersion(value: unknown): string | null {
+	return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+/** Compare versions without the `-develop` suffix the server label drops. */
+function normalizeVersion(version: string): string {
+	return version.replace(/-develop$/i, "");
+}
+
+/**
+ * The version the current stage document reported, as the shell keeps it in
+ * `__MICROCORE__.stageMmVersion` (`client/runtime/shell-stage.ts`): set on each
+ * stage-ready, cleared when the frame loads a new document.
+ */
+function readShellStageVersion(): string | null {
+	return readStageVersion(
+		(globalThis as { __MICROCORE__?: { stageMmVersion?: unknown } }).__MICROCORE__?.stageMmVersion
+	);
+}
+
 function MmVersionBadge() {
 	const [badge, setBadge] = useState<BadgeState>({ usingBuiltIn: true, displayVersion: "—" });
+	// The core the stage actually runs, as the stage itself reports it. Until
+	// the stage reported one, the server state decides.
+	const [stageVersion, setStageVersion] = useState<string | null>(readShellStageVersion);
 
 	useEffect(() => {
 		function refresh() {
@@ -40,21 +67,61 @@ function MmVersionBadge() {
 				.catch(() => {});
 		}
 
+		function onStageReady(event: Event) {
+			// The latest stage-ready decides: a reported version or none.
+			setStageVersion(readStageVersion((event as CustomEvent).detail?.mmVersion));
+		}
+
+		function onStageReloaded() {
+			// A new stage document runs; it has not reported its core yet,
+			// and if it never does the server state decides.
+			setStageVersion(null);
+		}
+
+		function onVersionChanged() {
+			// The switch event and the new core's stage-ready travel on
+			// different channels and may arrive in either order. Follow the
+			// stage document instead of the event: the old document still runs
+			// the old core until the frame reloads, a reloaded one reports
+			// nothing until its stage-ready, and a stage-ready that came first
+			// already holds the new core.
+			setStageVersion(readShellStageVersion());
+			refresh();
+		}
+
 		refresh();
-		window.addEventListener("module-sandbox:mm-version-changed", refresh);
+		window.addEventListener("module-sandbox:mm-version-changed", onVersionChanged);
+		window.addEventListener("module-sandbox:stage-ready", onStageReady);
+		window.addEventListener("module-sandbox:stage-reloaded", onStageReloaded);
 		return () => {
-			window.removeEventListener("module-sandbox:mm-version-changed", refresh);
+			window.removeEventListener("module-sandbox:stage-reloaded", onStageReloaded);
+			window.removeEventListener("module-sandbox:mm-version-changed", onVersionChanged);
+			window.removeEventListener("module-sandbox:stage-ready", onStageReady);
 		};
 	}, []);
 
-	const { usingBuiltIn, displayVersion } = badge;
+	const { usingBuiltIn } = badge;
+	const serverVersion = badge.displayVersion;
+	// What actually runs wins over what the server believes is active.
+	const displayVersion =
+		stageVersion === null ? serverVersion : normalizeVersion(stageVersion);
+	const mismatch =
+		stageVersion !== null &&
+		serverVersion !== "—" &&
+		normalizeVersion(stageVersion) !== normalizeVersion(serverVersion);
+	const baseTitle = usingBuiltIn
+		? `Built-in shims (MM ${displayVersion})`
+		: `MM core: ${displayVersion}`;
+	const title = mismatch
+		? `MM core running in the stage: ${displayVersion}. Version mismatch: the server reports ${serverVersion}${usingBuiltIn ? " (built-in)" : ""}`
+		: baseTitle;
 
 	return (
 		<button
 			class={`mmv-topbar-badge${usingBuiltIn ? " mmv-topbar-badge--builtin" : ""}`}
 			type="button"
 			aria-label="MagicMirror core version"
-			title={usingBuiltIn ? `Built-in shims (MM ${displayVersion})` : `MM core: ${displayVersion}`}
+			title={title}
 			onClick={() => {
 				location.hash = "#mmversion";
 			}}

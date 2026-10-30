@@ -1,0 +1,9 @@
+{
+	"name": "MMM-TestModule",
+	"version": "1.0.0",
+	"description": "Generated third-party module fixture for sandbox integration coverage.",
+	"private": true,
+	"main": "MMM-TestModule.js",
+	"author": "MagicMirror Module Sandbox",
+	"license": "MIT"
+}

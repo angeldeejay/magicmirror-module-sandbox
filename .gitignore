@@ -11,9 +11,7 @@ mmcore-source/
 dist/
 client/generated/
 client/webfonts/
-client/styles/font-awesome.css
 client/styles/magicmirror-fonts.css
-client/styles/magicmirror-stage.css
 shims/generated/
 coverage/
 .runtime-cache/
@@ -44,11 +42,17 @@ codeql*
 .DS_Store
 .secrets
 
-# Vendored upstream files (auto-synced via npm run sync:module-analyzer)
+# Vendored upstream files (auto-synced via npm run build:02-sync-analyzer)
 server/vendor/check-modules/dependency-usage.ts
 server/vendor/check-modules/missing-dependency-rule.ts
 server/vendor/check-modules/module-analyzer.ts
 server/vendor/check-modules/rule-registry.ts
+server/vendor/check-modules/eslint-testconfig.ts
+server/vendor/check-modules/http-import-check.ts
+server/vendor/check-modules/javascript-check.ts
+server/vendor/check-modules/workflow-version-policy.ts
+server/vendor/check-modules/workflow-yaml-check.ts
+scripts/upstream-snapshots/*.upstream
 
 # Agent related ignores
 memory/
@@ -60,3 +64,6 @@ TODO.md
 
 # IDE-specific files
 .vscode/
+# Superpowers working files (brainstorm sessions, specs, plans): local only
+.superpowers/
+docs/superpowers/

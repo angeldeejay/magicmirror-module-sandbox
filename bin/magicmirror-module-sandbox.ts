@@ -42,6 +42,9 @@ if (args.includes("--preview")) {
 	);
 }
 
+// Other flags (`--watch`) reach the server through this same process argv:
+// the server entrypoint is imported or required below, never spawned.
+
 /**
  * Internal helper for main.
  */

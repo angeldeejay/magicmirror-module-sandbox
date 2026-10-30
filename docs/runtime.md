@@ -3,7 +3,9 @@
 The **Runtime** area is where you poke at the mounted module's lifecycle and
 quickly see what state it is in.
 
-It reflects the module the sandbox picked up from your current project.
+It reflects the module the sandbox picked up from your current project. The
+viewport runs the active MagicMirror version's own browser core, so every
+control here calls that core's real API on the created module instance.
 
 ![Runtime lifecycle screenshot](https://raw.githubusercontent.com/angeldeejay/magicmirror-module-sandbox/coverage/screenshots/runtime-lifecycle.png)
 
@@ -23,12 +25,17 @@ This stays visible because it is handy from the first second the page opens.
 
 This panel shows and controls the lifecycle pieces the sandbox supports:
 
-- **Visibility** toggles the mounted module viewport between shown and hidden.
-- **Activity** toggles the mounted module viewport between running and suspended.
-- **DOM ready** reports whether the stage-level DOM hooks are available.
-- **Lifecycle started** reports whether the startup sequence has completed.
+- **Visibility** toggles the module between shown and hidden through the
+  core's own `hide()` / `show()`.
+- **Activity** toggles the module between running and suspended through its
+  `suspend()` / `resume()`.
+- **DOM ready** reports whether the core created the module's DOM
+  (`DOM_OBJECTS_CREATED`).
+- **Lifecycle started** reports whether the core started the module.
 - **Disabled in saved config** is surfaced explicitly when the mounted module is configured not to boot.
 - visibility/activity controls operate on the stage iframe without reloading the surrounding shell UI
+- if the active core's module instance lacks one of the observed methods, the
+  panel names it instead of pretending the control works
 
 ## When it helps most
 
@@ -43,6 +50,8 @@ Open Runtime when you want to:
 
 ## Notes
 
-- This is still a deliberately narrow slice of the MagicMirror lifecycle.
+- The viewport shows only the module's own region, inside the core's real DOM
+  and CSS, with the geometry MagicMirror gives it in a window of that size.
 - It is great for quick manual checks before you reach for heavier automation.
-- `animateIn` / `animateOut` effects configured from **Config** are applied in the stage runtime through Animate.css during `show()` / `hide()`.
+- `animateIn` / `animateOut` effects configured from **Config** are applied by
+  the core itself (Animate.css) during `show()` / `hide()`.

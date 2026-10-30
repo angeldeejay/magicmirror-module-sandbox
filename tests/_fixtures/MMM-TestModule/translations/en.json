@@ -1,4 +1,5 @@
 {
 	"HEADER_TITLE": "Test module fixture",
-	"GREETING": "Hello {operator} from the test module fixture."
+	"GREETING": "Hello {operator} from the test module fixture.",
+	"FIXTURE_KEY": "Fixture translation from en.json"
 }

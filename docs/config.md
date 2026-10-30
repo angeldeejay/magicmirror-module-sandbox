@@ -53,8 +53,9 @@ Both panels share the same footer actions:
   module `config` body to the last saved sandbox state.
 - **Format config** rewrites the nested `config` body with normalized
   formatting and strips any comments, without saving yet.
-- **Refresh styles** reloads only the stylesheets declared by `getStyles()`
-  without a full viewport reload.
+- **Refresh styles** re-fetches the module's own stylesheets (the
+  `getStyles()` files the core loaded from `modules/<ModuleName>/`) without a
+  full viewport reload. Vendor stylesheets are left alone.
 - **Save and reload** writes the current config envelope plus the current
   sandbox language selection through the backend.
 
@@ -161,3 +162,4 @@ Open Config when you want to:
 - If watch mode is off, the backend restarts the helper immediately after save and reloads the viewport.
 - If watch mode is on, the normal watch/reload flow takes over and stage-local changes reload only the viewport.
 - `Refresh styles` appends a cache-busting token to mounted-module CSS URLs so browser cache hits do not hide stylesheet edits.
+- Secrets: write them in the module config as `**SECRET_<NAME>**` placeholders, as in a real MagicMirror `config.js`; the backend restores them from the `SECRET_<NAME>` environment variables. What the viewport's core receives from `/__stage/config/` follows that version's own rule. 2.38+ always serve the placeholders. 2.35–2.37 serve the revealed values unless `hideConfigSecrets` is `true`. The sandbox takes the top-level options, `hideConfigSecrets` included, from the version's own `js/defaults.js` (`false` on 2.35–2.37), so on those versions the viewport receives revealed secrets, exactly as a mirror running the default config does.

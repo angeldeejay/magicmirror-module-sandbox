@@ -852,3 +852,31 @@ test("handleDelete shows error on network failure", async () => {
 	});
 });
 
+
+// ── Unreviewed core change warning ────────────────────────────────────────────
+
+test("renders the unreviewed core change warning", async () => {
+	vi.stubGlobal(
+		"fetch",
+		makeFetch({
+			"/__harness/mm-versions": {
+				active: "develop",
+				versions: [
+					{ key: "develop", displayVersion: "2.39.0-develop", installed: true, shimsBuilt: true, capabilities: DEFAULT_VERSIONS_RESPONSE.capabilities, unreviewedCoreChanges: ["config", "positions"] },
+					{ key: "2.38.0", displayVersion: "2.38.0", installed: true, shimsBuilt: true, capabilities: DEFAULT_VERSIONS_RESPONSE.capabilities, unreviewedCoreChanges: [] }
+				],
+				usingBuiltIn: false,
+				builtInVersion: "2.36.0",
+				capabilities: DEFAULT_VERSIONS_RESPONSE.capabilities
+			},
+			"https://api.github.com/repos/MagicMirrorOrg/MagicMirror/releases?per_page=50": []
+		})
+	);
+
+	render(<MmVersionDomain />);
+	await waitFor(() => expect(screen.getByText("Cached versions")).toBeTruthy());
+
+	const warnings = screen.getAllByText(/Unreviewed core change:/);
+	expect(warnings).toHaveLength(1);
+	expect(warnings[0].textContent).toBe("Unreviewed core change: config, positions");
+});

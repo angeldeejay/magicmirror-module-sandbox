@@ -53,13 +53,32 @@ type SandboxMagicMirrorGlobals = typeof globalThis & {
 	version?: string;
 	mmTestMode?: string;
 	config?: Record<string, unknown>;
+	configRedacted?: { modules: Array<{ module: string; config: unknown }> };
 };
 
 type HelperRuntimeOptions = {
 	app: { use?: Function };
 	io: import("socket.io").Server;
+	/**
+	 * Socket server handed to node_helper via setSocketIO. Defaults to the
+	 * shell `io`; the sandbox passes the stage socket server, where the core
+	 * page connects the module namespace.
+	 */
+	getHelperIo?: () => import("socket.io").Server;
 	getHarnessConfig: () => { moduleName: string };
 	getHarnessCacheDir: () => string;
+	/**
+	 * Mounted-module config envelope. Its `config` block, with secret
+	 * placeholders as written, seeds `global.configRedacted`. MagicMirror
+	 * 2.38+ reads that global to decide which secrets a helper may restore.
+	 */
+	getModuleConfig?: () => { config?: unknown };
+	/**
+	 * Runs before every helper (re)start, after the previous helper stopped.
+	 * The sandbox assigns `global.config` here, as core `js/app.js` does
+	 * before loading helpers.
+	 */
+	prepareHelperGlobals?: () => void;
 	/** Override the resolved node_helper path (.ts or .js). Primarily for testing. */
 	helperPath?: string;
 };
@@ -167,8 +186,11 @@ function clearModuleRequireCache(): void {
 function createHelperRuntime({
 	app,
 	io,
+	getHelperIo = () => io,
 	getHarnessConfig,
 	getHarnessCacheDir,
+	getModuleConfig,
+	prepareHelperGlobals,
 	helperPath: helperPathOverride
 }: HelperRuntimeOptions) {
 	let helperInstance: HelperInstance | null = null;
@@ -192,8 +214,17 @@ function createHelperRuntime({
 		await stopHelper();
 
 		clearModuleRequireCache();
+		prepareHelperGlobals?.();
 		process.env.MM_SANDBOX_CACHE_DIR = getHarnessCacheDir();
 		const harnessConfig = getHarnessConfig();
+		(globalThis as SandboxMagicMirrorGlobals).configRedacted = {
+			modules: [
+				{
+					module: harnessConfig.moduleName,
+					config: getModuleConfig?.().config ?? {}
+				}
+			]
+		};
 		const tsHelperPath = path.join(repoRoot, "node_helper.ts");
 		const helperPath =
 			helperPathOverride ??
@@ -223,7 +254,7 @@ function createHelperRuntime({
 		} else {
 			helper.expressApp = app;
 		}
-		helper.setSocketIO(io);
+		helper.setSocketIO(getHelperIo());
 		if (typeof helper.start === "function") {
 			await helper.start();
 		}

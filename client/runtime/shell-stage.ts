@@ -5,6 +5,84 @@
 	const core = globalScope.__MICROCORE__;
 	const SHELL_SOURCE = "module-sandbox-shell";
 	const STAGE_SOURCE = "module-sandbox-stage";
+	/**
+	 * How long the shell waits for the stage document to reload after the
+	 * core took a reload (`reloadedBy: "core"`) before it reloads the frame
+	 * itself. Writable for tests.
+	 */
+	core.coreReloadFallbackMs = 5000;
+	/**
+	 * Id of the stage state element every stage page embeds
+	 * (`STAGE_STATE_ELEMENT_ID` in config/stage-state.ts).
+	 */
+	const STAGE_STATE_ELEMENT_ID = "module-sandbox-stage-state";
+	/**
+	 * Pending fallback for a core-driven reload, cleared as soon as the stage
+	 * document starts unloading (or, without that signal, by the frame load).
+	 */
+	let coreReloadFallbackTimer = null;
+	/**
+	 * The core-driven reload the shell still waits for, as
+	 * `{ generation, version }`, until a stage page of that generation loads.
+	 */
+	let pendingCoreReload = null;
+
+	/**
+	 * The stage document is going away: the reload the shell may be waiting
+	 * for is under way, whoever drove it. Waiting for the new document's
+	 * `load` instead would let a slow core page trip the fallback and boot
+	 * the stage twice. The frame load still checks that the new page belongs
+	 * to the awaited generation.
+	 *
+	 * @returns {void}
+	 */
+	function handleStageUnloading() {
+		globalScope.clearTimeout(coreReloadFallbackTimer);
+		coreReloadFallbackTimer = null;
+	}
+
+	/**
+	 * Reads the reload generation the stage page in the frame was served
+	 * with (`StageState.reloadGeneration`).
+	 *
+	 * @param {HTMLIFrameElement|null} frame
+	 * @returns {number|null} null when the page carries none or is unreadable
+	 */
+	function readStageGeneration(frame) {
+		try {
+			const element = frame?.contentDocument?.getElementById(
+				STAGE_STATE_ELEMENT_ID
+			);
+			const generation = element
+				? JSON.parse(element.textContent || "null")?.reloadGeneration
+				: undefined;
+			return Number.isSafeInteger(generation) ? generation : null;
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Listen for `pagehide` on the stage document currently in the frame. A
+	 * message posted from an unloading document is not reliably attributed
+	 * to the frame, so the shell listens on the (same-origin) window itself,
+	 * and again on every new document.
+	 *
+	 * @param {HTMLIFrameElement} frame
+	 * @returns {void}
+	 */
+	function watchStageUnload(frame) {
+		try {
+			if (frame.contentWindow) {
+				frame.contentWindow.addEventListener(
+					"pagehide",
+					handleStageUnloading
+				);
+			}
+		} catch {
+			// Not same-origin; only the frame load clears the fallback then.
+		}
+	}
 
 	/**
 	 * Resolve the viewport iframe element.
@@ -122,7 +200,7 @@
 		}
 
 		const nextUrl = new URL(
-			frame.getAttribute("src") || "/__harness/stage",
+			frame.getAttribute("src") || "/__stage/",
 			globalScope.location.origin
 		);
 		nextUrl.searchParams.set("v", version || Date.now().toString(36));
@@ -185,23 +263,58 @@
 	 * @returns {void}
 	 */
 	function applyLifecycleState(nextState) {
-		if (typeof core.setLifecycleState === "function") {
-			core.setLifecycleState(nextState || {});
-			return;
-		}
+		core.setLifecycleState(nextState || {});
+	}
 
-		core.lifecycleState = Object.assign(
-			{},
-			core.lifecycleState,
-			nextState || {}
-		);
+	/**
+	 * Store the stage's observation gaps and tell the panels. Missing or
+	 * malformed lists count as empty.
+	 *
+	 * @param {{unavailableHooks?: unknown, unobservedNotifications?: unknown}} [detail]
+	 * @returns {void}
+	 */
+	function applyObservationGaps(detail) {
+		const readNames = (value) =>
+			Array.isArray(value)
+				? value.filter((name) => typeof name === "string")
+				: [];
+		core.observationGaps = {
+			unavailableHooks: readNames(detail && detail.unavailableHooks),
+			unobservedNotifications: readNames(
+				detail && detail.unobservedNotifications
+			)
+		};
 		globalScope.dispatchEvent(
-			new CustomEvent("module-sandbox:lifecycle-updated", {
+			new CustomEvent("module-sandbox:observation-gaps-updated", {
 				detail: {
-					state: Object.assign({}, core.lifecycleState)
+					unavailableHooks:
+						core.observationGaps.unavailableHooks.slice(),
+					unobservedNotifications:
+						core.observationGaps.unobservedNotifications.slice()
 				}
 			})
 		);
+	}
+
+	/**
+	 * Whether the stage iframe already finished loading its own document (not
+	 * the initial `about:blank`, which is also "complete").
+	 *
+	 * @param {HTMLIFrameElement} frame
+	 * @returns {boolean}
+	 */
+	function isStageDocumentLoaded(frame) {
+		try {
+			const stageDocument = frame.contentDocument;
+			return Boolean(
+				stageDocument &&
+				stageDocument.readyState === "complete" &&
+				stageDocument.URL !== "about:blank"
+			);
+		} catch {
+			// Not same-origin; the load listener is the only signal then.
+			return false;
+		}
 	}
 
 	globalScope.addEventListener("message", (event) => {
@@ -223,6 +336,11 @@
 				core.bootComplete = Boolean(
 					message.detail && message.detail.bootComplete
 				);
+				// Kept for the badge, which may mount after this event.
+				core.stageMmVersion =
+					message.detail && typeof message.detail.mmVersion === "string"
+						? message.detail.mmVersion
+						: undefined;
 				core.hideBackdrop();
 				replaceMirroredEntries(
 					"notificationLog",
@@ -246,6 +364,9 @@
 				);
 				applyLifecycleState(
 					message.detail && message.detail.lifecycleState
+				);
+				applyObservationGaps(
+					message.detail && message.detail.observationGaps
 				);
 				globalScope.dispatchEvent(
 					new CustomEvent("module-sandbox:stage-ready", {
@@ -288,6 +409,9 @@
 			case "lifecycle-updated":
 				applyLifecycleState(message.detail && message.detail.state);
 				return;
+			case "observation-gaps-updated":
+				applyObservationGaps(message.detail);
+				return;
 			case "styles-refreshed":
 				globalScope.dispatchEvent(
 					new CustomEvent("module-sandbox:styles-refreshed")
@@ -319,6 +443,49 @@
 
 			core.rootSocket = rootSocket;
 
+			// Server-side stage traffic log. Zod validates the entry on the server
+			// before emitting; the runtime scripts are not bundled, so only the
+			// shape needed for rendering is checked here.
+			rootSocket.on("harness:websocket-log", (entry) => {
+				if (
+					!entry ||
+					(entry.direction !== "sent" &&
+						entry.direction !== "received") ||
+					typeof entry.notification !== "string" ||
+					typeof entry.at !== "number"
+				) {
+					return;
+				}
+				applyMirroredUpdate(
+					"websocketLog",
+					"maxWebsocketLogEntries",
+					core.publishWebsocketLog,
+					{
+						entry: {
+							timestamp: new Date(entry.at).toISOString(),
+							direction: entry.direction,
+							notification: entry.notification,
+							payload: core.serializeLogValue(entry.payload)
+						}
+					}
+				);
+			});
+
+			// The core page has no listener for helper logs, so the shell records
+			// them itself; the stage facade reads them back from this copy (see
+			// `mirroredShellLog`).
+			rootSocket.on("harness:helper-log", (entry) => {
+				if (!entry || typeof entry !== "object") {
+					return;
+				}
+				applyMirroredUpdate(
+					"helperLog",
+					"maxHelperLogEntries",
+					core.publishHelperLog,
+					{ entry }
+				);
+			});
+
 			rootSocket.on("harness:reload", (payload) => {
 				const scope =
 					payload && typeof payload.scope === "string"
@@ -329,12 +496,53 @@
 					return;
 				}
 
-				core.showBackdrop("Loading\u2026");
-				core.reloadStage(
+				const generation =
+					payload && Number.isSafeInteger(payload.generation)
+						? payload.generation
+						: null;
+				const version =
 					payload && typeof payload.version === "string"
 						? payload.version
-						: undefined
-				);
+						: undefined;
+				// The shell and stage sockets are separate, so this event can
+				// arrive after the core already reloaded the stage for it. A
+				// page of this generation or later shows its config: arming the
+				// fallback, or a backdrop only the next stage-ready clears,
+				// would be wrong.
+				if (payload && payload.reloadedBy === "core") {
+					const frameGeneration = readStageGeneration(core.getStageFrame());
+					if (
+						generation !== null &&
+						frameGeneration !== null &&
+						frameGeneration >= generation
+					) {
+						return;
+					}
+					pendingCoreReload = { generation, version };
+				}
+
+				core.showBackdrop("Loading\u2026");
+				// The core's own root-socket RELOAD already reloads the stage,
+				// as on a mirror. Navigating the frame too
+				// would boot it twice (server/stage/stage-socket.ts
+				// `emitStageHarnessReload`).
+				// If no document loads in time, the RELOAD reached no listener of
+				// this stage (another tab's core took it, or the socket belonged
+				// to a document that was already unloading): reload the frame so
+				// the stage never stays stuck behind the backdrop.
+				if (payload && payload.reloadedBy === "core") {
+					globalScope.clearTimeout(coreReloadFallbackTimer);
+					coreReloadFallbackTimer = globalScope.setTimeout(() => {
+						coreReloadFallbackTimer = null;
+						pendingCoreReload = null;
+						core.reloadStage(version);
+					}, core.coreReloadFallbackMs);
+					return;
+				}
+				// The shell navigates the frame itself, so the page it loads
+				// is served after this event.
+				pendingCoreReload = null;
+				core.reloadStage(version);
 			});
 
 			rootSocket.on("harness:quality-result", (result) => {
@@ -355,13 +563,51 @@
 		}
 
 		if (frame) {
+			watchStageUnload(frame);
 			frame.addEventListener("load", () => {
+				// The stage reloaded, whoever drove it: no fallback needed.
+				globalScope.clearTimeout(coreReloadFallbackTimer);
+				coreReloadFallbackTimer = null;
+				// A page served before the awaited reload's generation was
+				// requested before its config was saved (a reload already in
+				// flight when the core's RELOAD went to the unloading page), so
+				// it shows the previous config: reload the frame into it.
+				const awaited = pendingCoreReload;
+				pendingCoreReload = null;
+				if (awaited && awaited.generation !== null) {
+					const loadedGeneration = readStageGeneration(frame);
+					if (
+						loadedGeneration !== null &&
+						loadedGeneration < awaited.generation
+					) {
+						core.reloadStage(awaited.version);
+					}
+				}
+				watchStageUnload(frame);
 				core.stageReady = false;
 				core.bootComplete = false;
+				// The reloaded stage reports its own version again; until it
+				// does, the badge must not keep the previous document's.
+				core.stageMmVersion = undefined;
+				globalScope.dispatchEvent(
+					new CustomEvent("module-sandbox:stage-reloaded")
+				);
 				globalScope.setTimeout(() => {
 					core.requestStageSnapshot();
 				}, 0);
 			});
+			// The stage document can finish loading before this listener
+			// exists: the shell's deferred scripts delay DOMContentLoaded, and
+			// the small core page loads first. Its `load` event is then gone,
+			// so ask for the snapshot now. Without this, only the core's
+			// DOM_OBJECTS_CREATED clears the backdrop, and a module whose
+			// getDom fails never sends it. Same task as the listener above, so
+			// no load can fall between the two.
+			if (isStageDocumentLoaded(frame)) {
+				globalScope.setTimeout(() => {
+					core.requestStageSnapshot();
+				}, 0);
+			}
 		}
 
 		core.initializeDebugPanel();

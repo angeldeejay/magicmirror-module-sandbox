@@ -8,12 +8,11 @@
  * - runtime: transpiled browser runtime/vendor scripts only
  */
 import * as fs from "node:fs";
-import { createRequire } from "node:module";
 import * as path from "pathe";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildSync } from "esbuild";
 import * as sass from "sass";
-import { ensureDirectory, fromOS, resolveMagicMirrorRoot } from "./shared.ts";
+import { ensureDirectory, fromOS } from "./shared.ts";
 
 type BuildScope = "all" | "styles" | "shell" | "runtime";
 
@@ -22,20 +21,21 @@ const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, "..");
 const clientRoot = path.join(root, "client");
 const generatedRoot = path.join(clientRoot, "generated");
-const nodeRequire = createRequire(import.meta.url);
 const stylesInputPath = path.join(clientRoot, "scss", "entrypoint.scss");
 const stylesOutputPath = path.join(clientRoot, "styles", "harness.css");
+const stageIsolationInputPath = path.join(
+	clientRoot,
+	"scss",
+	"stage-isolation.scss"
+);
+const stageIsolationOutputPath = path.join(
+	generatedRoot,
+	"stage-isolation.css"
+);
 const runtimeEntryPoints = [
-	path.join(clientRoot, "runtime.ts"),
 	...collectTypeScriptEntries(path.join(clientRoot, "runtime")),
 	...collectTypeScriptEntries(path.join(clientRoot, "vendor"))
 ];
-const coreBrowserVendorAssets = [
-	"croner.js",
-	"moment.js",
-	"moment-timezone.js",
-	"nunjucks.js"
-] as const;
 
 /**
  * Collects type script entries.
@@ -70,74 +70,19 @@ function clearRuntimeOutputs(): void {
 		force: true,
 		recursive: true
 	});
+	// Left over from the retired hand-port runtime bootstrap.
 	fs.rmSync(path.join(generatedRoot, "runtime.js"), {
+		force: true
+	});
+	fs.rmSync(path.join(generatedRoot, "stage-observer.js"), {
 		force: true
 	});
 }
 
 /**
- * Copies browser vendor assets from the local MagicMirror dependency using the
- * core vendor map so the sandbox stays aligned with upstream browser runtime
- * choices.
- */
-function resolveCoreVendorAssetPath(
-	magicMirrorRoot: string,
-	sourceRelativePath: string
-): string {
-	// mmInstallRoot = the prefix dir that was used for npm install (e.g. mmcore-source/)
-	// MM's own dependencies are hoisted there: mmInstallRoot/node_modules/<dep>
-	const mmInstallRoot = path.dirname(path.dirname(magicMirrorRoot));
-	const candidatePaths = [
-		path.join(magicMirrorRoot, sourceRelativePath),
-		path.join(mmInstallRoot, sourceRelativePath),
-		path.join(root, sourceRelativePath)
-	];
-	const resolvedPath = candidatePaths.find((candidatePath) =>
-		fs.existsSync(candidatePath)
-	);
-	if (!resolvedPath) {
-		throw new Error(
-			`MagicMirror vendor asset could not be resolved: ${sourceRelativePath}.`
-		);
-	}
-
-	return resolvedPath;
-}
-
-/**
- * Copies browser vendor assets from the local MagicMirror dependency using the
- * core vendor map so the sandbox stays aligned with upstream browser runtime
- * choices.
- */
-function syncCoreBrowserVendorAssets(): void {
-	const magicMirrorRoot = resolveMagicMirrorRoot(root);
-	const magicMirrorVendorMapPath = path.join(
-		magicMirrorRoot,
-		"js",
-		"vendor.js"
-	);
-	const magicMirrorVendorMap = nodeRequire(
-		magicMirrorVendorMapPath
-	) as Record<string, string>;
-	for (const assetName of coreBrowserVendorAssets) {
-		const sourceRelativePath = magicMirrorVendorMap[assetName];
-		if (typeof sourceRelativePath !== "string" || !sourceRelativePath) {
-			throw new Error(
-				`MagicMirror vendor map does not define a source for ${assetName}.`
-			);
-		}
-		const sourcePath = resolveCoreVendorAssetPath(
-			magicMirrorRoot,
-			sourceRelativePath
-		);
-		const destinationPath = path.join(generatedRoot, "vendor", assetName);
-		ensureDirectory(path.dirname(destinationPath));
-		fs.copyFileSync(sourcePath, destinationPath);
-	}
-}
-
-/**
- * Syncs Font Awesome webfonts from node_modules into client/webfonts/.
+ * Syncs Font Awesome webfonts from node_modules into client/webfonts/ for the
+ * shell: `harness.css` (`client/scss/_fontawesome.scss`) loads
+ * `../webfonts/fa-solid-900.woff2`, served at `/__harness/webfonts/`.
  * This keeps the copied fonts aligned with the installed FA version.
  */
 function syncFontAwesomeWebfonts(): void {
@@ -192,36 +137,31 @@ function syncOpenSansWebfonts(): void {
 }
 
 /**
- * Copies Font Awesome all.min.css from node_modules into client/styles/ so
- * the runtime can serve it without a prod dependency on the npm package.
- */
-function syncFontAwesomeCss(): void {
-	const sourcePath = path.join(
-		root,
-		"node_modules",
-		"@fortawesome",
-		"fontawesome-free",
-		"css",
-		"all.min.css"
-	);
-	const destPath = path.join(clientRoot, "styles", "font-awesome.css");
-	ensureDirectory(path.dirname(destPath));
-	fs.copyFileSync(sourcePath, destPath);
-}
-
-/**
  * Builds styles.
  */
 function buildStyles(): void {
 	syncFontAwesomeWebfonts();
 	syncOpenSansWebfonts();
-	syncFontAwesomeCss();
 	const result = sass.compile(stylesInputPath, {
 		style: "compressed",
 		sourceMap: false
 	});
 	ensureDirectory(path.dirname(stylesOutputPath));
 	fs.writeFileSync(stylesOutputPath, result.css, "utf8");
+	buildStageIsolationStyles();
+}
+
+/**
+ * Compiles the stage isolation stylesheet, which the stage page
+ * links from its injection block (`/__harness/generated/stage-isolation.css`).
+ */
+function buildStageIsolationStyles(): void {
+	const result = sass.compile(stageIsolationInputPath, {
+		style: "compressed",
+		sourceMap: false
+	});
+	ensureDirectory(generatedRoot);
+	fs.writeFileSync(stageIsolationOutputPath, result.css, "utf8");
 }
 
 /**
@@ -290,6 +230,23 @@ function buildJsoncParserBundle(): void {
 }
 
 /**
+ * Bundles the stage observer into one classic script
+ * (`generated/stage-observer.js`), injected before the core scripts.
+ */
+function buildStageObserverBundle(): void {
+	ensureDirectory(generatedRoot);
+	buildSync({
+		entryPoints: [path.join(clientRoot, "stage-observer", "index.ts")],
+		outfile: path.join(generatedRoot, "stage-observer.js"),
+		bundle: true,
+		format: "iife",
+		legalComments: "none",
+		logLevel: "silent",
+		target: "es2021"
+	});
+}
+
+/**
  * Builds runtime.
  */
 function buildRuntime(): void {
@@ -304,10 +261,10 @@ function buildRuntime(): void {
 		logLevel: "silent",
 		target: "es2021"
 	});
-	syncCoreBrowserVendorAssets();
 	syncAceVendorFiles();
 	buildJsBeautifyBundle();
 	buildJsoncParserBundle();
+	buildStageObserverBundle();
 }
 
 /**

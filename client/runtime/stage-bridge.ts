@@ -1,5 +1,9 @@
 /**
  * Bridge between the iframe-backed module stage and the persistent sandbox shell.
+ *
+ * Bundled into the stage observer (`client/stage-observer/index.ts`), it reads
+ * the observer facade on `window.__MICROCORE__` and talks to the shell over
+ * postMessage.
  */
 (function initModuleSandboxStageBridge(globalScope) {
 	const core = globalScope.__MICROCORE__;
@@ -51,9 +55,40 @@
 			helperLog: Array.isArray(core.helperLog)
 				? core.helperLog.slice()
 				: [],
-			lifecycleState: Object.assign({}, core.lifecycleState || {})
+			lifecycleState: Object.assign({}, core.lifecycleState || {}),
+			observationGaps: readObservationGaps(),
+			...readMmVersion()
 		});
 	};
+
+	/**
+	 * The MagicMirror version the stage runs, from the core's own
+	 * `window.mmVersion`. Omitted until the core page set it.
+	 *
+	 * @returns {{mmVersion?: string}}
+	 */
+	function readMmVersion() {
+		const version = globalScope.mmVersion;
+		return typeof version === "string" && version !== ""
+			? { mmVersion: version }
+			: {};
+	}
+
+	/**
+	 * Hook points and notifications the stage cannot observe.
+	 *
+	 * @returns {{unavailableHooks: string[], unobservedNotifications: string[]}}
+	 */
+	function readObservationGaps() {
+		return {
+			unavailableHooks: Array.isArray(core.unavailableHooks)
+				? core.unavailableHooks.slice()
+				: [],
+			unobservedNotifications: Array.isArray(core.unobservedNotifications)
+				? core.unobservedNotifications.slice()
+				: []
+		};
+	}
 
 	globalScope.addEventListener(
 		"module-sandbox:notifications-updated",
@@ -92,6 +127,15 @@
 		}
 	);
 	globalScope.addEventListener(
+		"module-sandbox:observation-gaps-updated",
+		(event) => {
+			postToShell(
+				"observation-gaps-updated",
+				(event as CustomEvent).detail || {}
+			);
+		}
+	);
+	globalScope.addEventListener(
 		"module-sandbox:lifecycle-updated",
 		(event) => {
 			postToShell(
@@ -115,9 +159,13 @@
 		switch (message.type) {
 			case "request-stage-snapshot":
 				// Pass current boot state so a snapshot request that arrives after
-				// boot has already completed does not overwrite bootComplete back to false.
+				// boot has already completed does not overwrite bootComplete back to
+				// false. A disabled module creates no DOM, so `domCreated` alone
+				// would report its completed boot as pending.
 				core.publishStageReady(
-					Boolean(core.lifecycleState?.domCreated)
+					Boolean(
+						core.bootComplete || core.lifecycleState?.domCreated
+					)
 				);
 				return;
 			case "emit-notification":

@@ -10,6 +10,7 @@ const nodeRequire = createRequire(import.meta.url);
 const moduleSandboxGlobal = globalThis as typeof globalThis & {
 	root_path?: string;
 	config?: Record<string, unknown>;
+	configRedacted?: { modules: Array<{ module: string; config: unknown }> };
 	__MODULE_SANDBOX_LOGGER__?: {
 		recordHelperLog: (method: string, args: unknown[]) => void;
 	};
@@ -140,6 +141,7 @@ test("node_helper compat re-exports the synced core helper and preserves sandbox
 	const previousNodePath = process.env.NODE_PATH;
 	const previousSecret = process.env.SECRET_SANDBOX_COMPAT;
 	const previousConfig = moduleSandboxGlobal.config;
+	const previousConfigRedacted = moduleSandboxGlobal.configRedacted;
 	const receivedNotifications: Array<{
 		notification: string;
 		payload: unknown;
@@ -160,6 +162,17 @@ test("node_helper compat re-exports the synced core helper and preserves sandbox
 	process.env.SECRET_SANDBOX_COMPAT = "revealed-token";
 	moduleSandboxGlobal.config = {
 		hideConfigSecrets: true
+	};
+	// From 2.38 the core restores only the placeholders that appear in the
+	// module's own redacted config (node_helper.js getAllowedSecrets), which
+	// the sandbox seeds as server/helper-runtime.ts does. Earlier cores ignore it.
+	moduleSandboxGlobal.configRedacted = {
+		modules: [
+			{
+				module: "MMM-TestModule",
+				config: { token: "**SECRET_SANDBOX_COMPAT**" }
+			}
+		]
 	};
 
 	try {
@@ -261,11 +274,15 @@ test("node_helper compat re-exports the synced core helper and preserves sandbox
 		);
 		assert.equal(typeof NodeHelper.checkFetchStatus, "function");
 		assert.equal(typeof NodeHelper.checkFetchError, "function");
+		// The postlude only clears the previous connection listener on the
+		// normalized namespace; registration and emits are the core's own
+		// `io.of(this.name)` calls (socket.io prefixes the "/").
 		assert.deepEqual(namespaceCalls, [
 			"/MMM-TestModule",
 			"remove:connection",
+			"MMM-TestModule",
 			"on:connection",
-			"/MMM-TestModule"
+			"MMM-TestModule"
 		]);
 		assert.deepEqual(receivedNotifications, [
 			{
@@ -311,6 +328,7 @@ test("node_helper compat re-exports the synced core helper and preserves sandbox
 	} finally {
 		clearCachedCompatModules();
 		moduleSandboxGlobal.config = previousConfig;
+		moduleSandboxGlobal.configRedacted = previousConfigRedacted;
 		restoreEnv("NODE_PATH", previousNodePath);
 		restoreEnv("SECRET_SANDBOX_COMPAT", previousSecret);
 	}
