@@ -230,9 +230,13 @@ export function packageBuiltInCore(
  * has no such tree, so the self-contained bundles `build-node-compat.ts`
  * writes into `shims/generated/node_modules/` ship next to the packaged core
  * instead. `logger` reaches the core through the shims' own `NODE_PATH`
- * entry (`server/helper-runtime.ts` `injectShimResolution`).
+ * entry (`server/helper-runtime.ts` `injectShimResolution`). `express` is the
+ * one the stage itself requires from the core root, for the per-core
+ * sub-app answering the `server_functions.js` endpoints
+ * (`server/stage/stage-routes.ts`).
  */
 export const CORE_SERVER_DEPENDENCIES: readonly string[] = [
+	"express",
 	"undici",
 	"ipaddr.js"
 ];

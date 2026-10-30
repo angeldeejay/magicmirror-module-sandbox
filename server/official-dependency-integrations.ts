@@ -10,22 +10,32 @@
  *
  * Mechanical difference: upstream runs `npx npm-check-updates` / `npx ndc`
  * from its own repository, where npx resolves the bins from its
- * node_modules. The sandbox runs the same package bins, resolved from its
- * own dependencies, with the current Node executable, because npx inside the
- * module directory would resolve (or download) something else.
+ * node_modules. The sandbox runs the same tools through `npm exec` with
+ * their versions pinned (`DEPENDENCY_TOOL_VERSIONS`), so npm fetches them
+ * into its cache on first use instead of the sandbox depending on them, and a
+ * module directory's own copy (or a newer release) is never picked up. The
+ * timeout allows for that first download.
  */
 
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";
-import { createRequire } from "node:module";
 import * as path from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const nodeRequire = createRequire(
-	/* v8 ignore next */
-	typeof __filename === "string" ? __filename : import.meta.url
-);
+
+/**
+ * Exact versions of the dependency tools `npm exec` runs. Kept equal to the
+ * devDependencies (pinned by a unit test), so dependency updates move them.
+ */
+export const DEPENDENCY_TOOL_VERSIONS: Readonly<Record<string, string>> =
+	Object.freeze({
+		"npm-check-updates": "23.1.1",
+		"npm-deprecated-check": "2.1.1"
+	});
+
+/** Upstream's per-tool timeout plus room for npm's first download. */
+const DEPENDENCY_TOOL_TIMEOUT_MS = 180_000;
 
 export const NCU_COOLDOWN = "7d";
 
@@ -56,27 +66,34 @@ type BinRunner = (
 ) => Promise<{ stdout: string; stderr: string }>;
 
 /**
- * Resolves a package bin from the sandbox's own dependencies.
+ * Builds the `npm exec` command line that runs one pinned tool bin. On
+ * Windows npm is a `.cmd` shim, which only `cmd.exe` can start.
  */
-function resolvePackageBin(packageName: string, binName: string): string {
-	const packageJsonPath = nodeRequire.resolve(`${packageName}/package.json`);
-	const packageJson = JSON.parse(
-		fs.readFileSync(packageJsonPath, "utf8")
-	) as {
-		bin?: string | Record<string, string>;
-	};
-	const binPath =
-		typeof packageJson.bin === "string"
-			? packageJson.bin
-			: packageJson.bin?.[binName];
-	if (!binPath) {
-		throw new Error(`${packageName} does not expose a "${binName}" bin`);
+export function buildNpmExecCommand(
+	packageName: string,
+	binName: string,
+	args: string[],
+	platform: NodeJS.Platform = process.platform
+): { command: string; args: string[] } {
+	const version = DEPENDENCY_TOOL_VERSIONS[packageName];
+	if (!version) {
+		throw new Error(`${packageName} has no pinned version`);
 	}
-	return path.join(path.dirname(packageJsonPath), binPath);
+	const npmArgs = [
+		"exec",
+		"--yes",
+		`--package=${packageName}@${version}`,
+		"--",
+		binName,
+		...args
+	];
+	return platform === "win32"
+		? { command: "cmd.exe", args: ["/d", "/s", "/c", "npm", ...npmArgs] }
+		: { command: "npm", args: npmArgs };
 }
 
 /**
- * Default bin runner: `node <bin> ...args` in the module directory.
+ * Default bin runner: `npm exec` of the pinned tool in the module directory.
  */
 const runPackageBin: BinRunner = async (
 	packageName,
@@ -84,10 +101,11 @@ const runPackageBin: BinRunner = async (
 	args,
 	options
 ) => {
+	const invocation = buildNpmExecCommand(packageName, binName, args);
 	const { stdout, stderr } = await execFileAsync(
-		process.execPath,
-		[resolvePackageBin(packageName, binName), ...args],
-		options
+		invocation.command,
+		invocation.args,
+		{ ...options, windowsHide: true }
 	);
 	return { stdout: String(stdout ?? ""), stderr: String(stderr ?? "") };
 };
@@ -124,7 +142,7 @@ async function runNpmCheckUpdates(
 			"npm-check-updates",
 			"npm-check-updates",
 			["--jsonUpgraded", "--cooldown", NCU_COOLDOWN],
-			{ cwd: moduleDir, timeout: 60_000 }
+			{ cwd: moduleDir, timeout: DEPENDENCY_TOOL_TIMEOUT_MS }
 		);
 
 		const output = String(stdout ?? "").trim();
@@ -156,7 +174,7 @@ async function runDeprecatedCheck(
 			"npm-deprecated-check",
 			"ndc",
 			["current"],
-			{ cwd: moduleDir, timeout: 60_000 }
+			{ cwd: moduleDir, timeout: DEPENDENCY_TOOL_TIMEOUT_MS }
 		);
 
 		const output = `${String(stdout ?? "")}${String(stderr ?? "")}`.trim();

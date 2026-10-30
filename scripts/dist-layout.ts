@@ -13,6 +13,27 @@ import * as path from "pathe";
 export const distCoreDirectory = "core";
 
 /**
+ * What `scripts/build-node-compat.ts` reads when the packaged sandbox builds
+ * an activated mmvm version's helper shims (`server/mm-version-manager.ts`
+ * `buildShimsForVersion`): the shim sources it compiles and the templates it
+ * renders, at the same paths relative to its own file.
+ */
+export const distShimBuilderSources: readonly string[] = [
+	path.join("shims", "logger.ts"),
+	path.join("shims", "node_helper.ts"),
+	path.join("scripts", "templates")
+];
+
+/**
+ * Build scripts transpiled into `dist/scripts/` next to the server code: the
+ * shim builder and the helpers it imports.
+ */
+export const distScriptSources: readonly string[] = [
+	path.join("scripts", "build-node-compat.ts"),
+	path.join("scripts", "shared.ts")
+];
+
+/**
  * Repository paths copied verbatim into `dist/` at the same relative path.
  * `scripts/upstream-snapshots/core` holds the reviewed core drift hashes that
  * `server/stage/core-variants.ts` reads at runtime through a path relative to
@@ -25,5 +46,6 @@ export const distCopyTargets: readonly string[] = [
 	path.join("client", "styles"),
 	path.join("client", "webfonts"),
 	path.join("shims", "generated"),
-	path.join("scripts", "upstream-snapshots", "core")
+	path.join("scripts", "upstream-snapshots", "core"),
+	...distShimBuilderSources
 ];

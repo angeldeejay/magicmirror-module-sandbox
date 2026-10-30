@@ -217,6 +217,31 @@ describe("packageCoreServerDependencies", () => {
 		}
 	});
 
+	test("covers every package the stage requires from the packaged core", () => {
+		// The stage builds each core's sub-app from the core's own express.
+		expect(CORE_SERVER_DEPENDENCIES).toContain("express");
+		// js/server_functions.js requires, except node: builtins and the
+		// logger the shims put on NODE_PATH.
+		for (const version of ["2.35.0", "2.36.0", "2.37.0", "2.38.0"]) {
+			const source = fs.readFileSync(
+				path.resolve(
+					import.meta.dirname,
+					"../../_fixtures/core-snippets",
+					version,
+					"js",
+					"server_functions.js"
+				),
+				"utf8"
+			);
+			const required = [...source.matchAll(/require\("([^"]+)"\)/g)]
+				.map((match) => match[1])
+				.filter((name) => !name.startsWith("node:") && name !== "logger");
+			expect(CORE_SERVER_DEPENDENCIES).toEqual(
+				expect.arrayContaining(required)
+			);
+		}
+	});
+
 	test("fails when a bundle has not been built", () => {
 		expect(() =>
 			packageCoreServerDependencies(

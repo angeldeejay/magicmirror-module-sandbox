@@ -11,7 +11,11 @@ import * as path from "pathe";
 import { fileURLToPath } from "node:url";
 import { buildSync, transformSync } from "esbuild";
 import { buildNodeCompat } from "./build-node-compat.ts";
-import { distCopyTargets, distCoreDirectory } from "./dist-layout.ts";
+import {
+	distCopyTargets,
+	distCoreDirectory,
+	distScriptSources
+} from "./dist-layout.ts";
 import {
 	packageBuiltInCore,
 	packageCoreServerDependencies
@@ -181,9 +185,12 @@ function minifyDistCss(): void {
  * Transpiles node source trees.
  */
 function transpileNodeSourceTrees(): void {
-	const entryPoints = nodeSourceDirectories.flatMap((relativePath) => {
-		return getTypeScriptFiles(path.join(root, relativePath));
-	});
+	const entryPoints = [
+		...nodeSourceDirectories.flatMap((relativePath) => {
+			return getTypeScriptFiles(path.join(root, relativePath));
+		}),
+		...distScriptSources.map((relativePath) => path.join(root, relativePath))
+	];
 	if (!entryPoints.length) {
 		return;
 	}
